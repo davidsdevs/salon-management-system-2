@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection rules
+    match /users/{userId} {
+      // Allow users to read their own data
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow new user creation only for clients (self-registration)
+      allow create: if request.auth != null && 
+        request.auth.uid == userId &&
+        request.resource.data.role == 'client' &&
+        request.resource.data.branchId == null;
+      
+      // Allow system admin to read/write all users
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow branch admin to read/write users in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchAdmin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow branch manager to read users in their branch
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow franchise owner to read all users
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'franchiseOwner';
+    }
+    
+    // Branches collection rules
+    match /branches/{branchId} {
+      // Allow system admin to read/write all branches
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow operational manager to read/write all branches
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'operationalManager';
+      
+      // Allow branch admin and manager to read their own branch
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == branchId;
+      
+      // Allow branch admin to update their own branch
+      allow update: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchAdmin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == branchId;
+      
+      // Allow other staff to read active branches
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['receptionist', 'inventoryController', 'stylist', 'client'] &&
+        resource.data.isActive == true;
+    }
+    
+    // Appointments collection rules
+    match /appointments/{appointmentId} {
+      // Allow system admin to read/write all appointments
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow franchise owner to read all appointments
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'franchiseOwner';
+      
+      // Allow branch staff to read/write appointments in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager', 'receptionist'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow stylists to read their own appointments
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'stylist' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == resource.data.stylistId;
+      
+      // Allow stylists to update their own appointments
+      allow update: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'stylist' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == resource.data.stylistId;
+      
+      // Allow clients to read their own appointments
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == resource.data.clientId;
+    }
+    
+    // Inventory collection rules
+    match /inventory/{itemId} {
+      // Allow system admin to read/write all inventory
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow franchise owner to read all inventory
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'franchiseOwner';
+      
+      // Allow branch admin and inventory controller to read/write inventory in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'inventoryController'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow branch manager to read inventory in their branch
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+    }
+    
+    // Clients collection rules
+    match /clients/{clientId} {
+      // Allow system admin to read/write all clients
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow franchise owner to read all clients
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'franchiseOwner';
+      
+      // Allow branch staff to read/write clients in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager', 'receptionist'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow clients to read their own data
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client' &&
+        request.auth.uid == clientId;
+      
+      // Allow clients to update their own data
+      allow update: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client' &&
+        request.auth.uid == clientId;
+    }
+    
+    // Services collection rules
+    match /services/{serviceId} {
+      // Allow system admin to read/write all services
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow franchise owner to read all services
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'franchiseOwner';
+      
+      // Allow branch staff to read/write services in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager', 'receptionist'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow stylists to read services in their branch
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'stylist' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow clients to read services
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client';
+    }
+    
+    // Default deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

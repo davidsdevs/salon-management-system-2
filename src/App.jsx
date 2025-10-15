@@ -1,121 +1,157 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Header from "./common/components/Header";
-import LoginForm from "./LoginForm";
-import RegisterForm from "./RegisterForm";
-import ForgotPassword from "./ForgotPassword";
-import ResetPassword from "./ResetPassword";
-import Footer from "./common/components/Footer";
+import { AuthProvider } from "./context/AuthContext";
+import Navigation from "./pages/shared/Navigation";
+import Footer from "./pages/shared/Footer";
+import ScrollToTop from "./pages/shared/ScrollToTop";
 
-// CLIENT PAGES
-import ClientDashboard from "./Client/ClientDashboard";
-import ClientAppointment from "./Client/ClientAppointments";
-import ClientProfile from "./Client/ClientProfile";
-import ClientBookAppointment from "./Client/ClientBookAppointment";
+// LANDING PAGES
+import HomePage from "./pages/shared/HomePage";
+import AboutPage from "./pages/shared/AboutPage";
+import ProductsPage from "./pages/shared/ProductsPage";
+import BranchPage from "./pages/shared/BranchPage";
+import BranchServicesPage from "./pages/shared/BranchServicesPage";
+import BranchStylistsPage from "./pages/shared/BranchStylistsPage";
+import BranchGalleryPage from "./pages/shared/BranchGalleryPage";
+import BranchProductsPage from "./pages/shared/BranchProductsPage";
+import ServiceDetailPage from "./pages/shared/ServiceDetailPage";
+import StylistProfilePage from "./pages/shared/StylistProfilePage";
 
+// AUTH PAGES
+import LoginForm from "./pages/00_Auth/LoginForm";
+import RegisterForm from "./pages/00_Auth/RegisterForm";
+import ForgotPassword from "./pages/00_Auth/ForgotPassword";
+
+// DASHBOARD PAGES
+import DashboardRouter from "./pages/shared/DashboardRouter";
+import UserManagement from "./pages/01_SystemAdmin/UserManagement";
+import BranchManagement from "./pages/01_SystemAdmin/BranchManagement";
+import ProfilePage from "./pages/shared/ProfilePage";
+
+// ROUTE GUARDS
+import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/ProtectedRoute";
+
+
+//BRANCH MANAGER PAGES
 function AppRoutes() {
-  const { loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg font-medium">Loading...</p>
-      </div>
-    );
-  }
-
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* Landing Page Routes */}
       <Route
         path="/"
         element={
-          <div className="min-h-screen flex flex-col bg-gray-50">
-            <Header />
-            <main className="flex-1">
-              <LoginForm />
+          <div className="min-h-screen bg-white">
+            <Navigation />
+            <main>
+              <HomePage />
             </main>
             <Footer />
           </div>
         }
       />
       <Route
-        path="/register"
+        path="/about"
         element={
-          <div className="min-h-screen flex flex-col bg-gray-50">
-            <Header />
-            <main className="flex-1">
-              <RegisterForm />
+          <div className="min-h-screen bg-white">
+            <Navigation />
+            <main>
+              <AboutPage />
             </main>
             <Footer />
           </div>
         }
       />
       <Route
-        path="/forgot-password"
+        path="/products"
         element={
-          <div className="min-h-screen flex flex-col bg-gray-50">
-            <Header />
-            <main className="flex-1">
-              <ForgotPassword />
-            </main>
-            <Footer />
-          </div>
-        }
-      />
-      <Route
-        path="/reset-password"
-        element={
-          <div className="min-h-screen flex flex-col bg-gray-50">
-            <Header />
-            <main className="flex-1">
-              <ResetPassword />
+          <div className="min-h-screen bg-white">
+            <Navigation />
+            <main>
+              <ProductsPage />
             </main>
             <Footer />
           </div>
         }
       />
 
-      {/* Protected Client Routes */}
-      <Route
-        path="/client-dashboard"
-        element={
-          <ProtectedRoute requiredRole="client">
-            <ClientDashboard />
-          </ProtectedRoute>
-        }
-      />
+      {/* Branch Routes */}
+      <Route path="/branch/:slug" element={<BranchPage />} />
+      <Route path="/branch/:slug/services" element={<BranchServicesPage />} />
+      <Route path="/branch/:slug/services/:serviceId" element={<ServiceDetailPage />} />
+      <Route path="/branch/:slug/stylists" element={<BranchStylistsPage />} />
+      <Route path="/branch/:slug/stylists/:stylistId" element={<StylistProfilePage />} />
+      <Route path="/branch/:slug/gallery" element={<BranchGalleryPage />} />
+      <Route path="/branch/:slug/products" element={<BranchProductsPage />} />
 
-      {/* Appointments Route (Parent) */}
-      <Route
-        path="/client-appointments"
-        element={
-          <ProtectedRoute requiredRole="client">
-            <ClientAppointment />
-          </ProtectedRoute>
-        }
-      />
+      {/* Authentication Routes */}
+      <Route path="/login" element={<LoginForm />} />
+      <Route path="/register" element={<RegisterForm />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
-      {/* Book Appointment as Child Route */}
+      {/* Protected Dashboard Routes - All Same Level */}
       <Route
-        path="/client-appointments/book"
+        path="/dashboard"
         element={
-          <ProtectedRoute requiredRole="client">
-            <ClientBookAppointment />
+          <ProtectedRoute>
+            <DashboardRouter />
           </ProtectedRoute>
         }
       />
 
       <Route
-        path="/client-profile"
+        path="/user-management"
         element={
-          <ProtectedRoute requiredRole="client">
-            <ClientProfile />
+          <AdminRoute>
+            <UserManagement />
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/branch-management"
+        element={
+          <AdminRoute>
+            <BranchManagement />
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />
 
+      {/* Unauthorized Page */}
+      <Route
+        path="/unauthorized"
+        element={
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">Unauthorized Access</h1>
+              <p className="text-gray-600 mb-8">You don't have permission to access this page.</p>
+              <button
+                onClick={() => window.history.back()}
+                className="bg-pink-600 text-white px-4 py-2 rounded-md hover:bg-pink-700"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+        }
+      />
+
+      //BRANCH MANAGER ROUTES
+      <Route
+        path="/branch-management"
+        element={
+          <AdminRoute>
+            <BranchManagement />
+          </AdminRoute>
+        }
+      />
       {/* Default Redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -125,9 +161,10 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+    <Router>
+      <ScrollToTop />
+      <AppRoutes />
+    </Router>
     </AuthProvider>
   );
 }
