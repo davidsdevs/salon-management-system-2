@@ -32,6 +32,8 @@ import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/Protecte
 
 
 //BRANCH MANAGER PAGES
+import Appointment from "./pages/04_BranchManager/Appointments";
+import Staff from "./pages/04_BranchManager/Staff";
 function AppRoutes() {
   return (
     <Routes>
@@ -123,8 +125,22 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
-      {/* Unauthorized Page */}
+      <Route
+        path="/appointments"
+        element={
+          <StaffRoute> 
+            <Appointment />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/staff"
+        element={
+          <StaffRoute> 
+            <Staff />
+          </StaffRoute>
+        }
+      />
       <Route
         path="/unauthorized"
         element={

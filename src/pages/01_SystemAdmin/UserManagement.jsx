@@ -309,29 +309,41 @@ const UserManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(user.createdAt)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {/* Edit user */}}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleUserStatus(user.id, user.isActive)}
-                        >
-                          {user.isActive ? (
-                            <UserX className="h-4 w-4 text-red-600" />
-                          ) : (
-                            <UserCheck className="h-4 w-4 text-green-600" />
-                          )}
-                        </Button>
-                      </div>
-                    </td>
+                    {/* Actions */}
+<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+  <div className="flex space-x-2">
+    {/* View Appointment */}
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => alert(`Viewing ${a.customer}`)}
+    >
+      <Search className="h-4 w-4" />
+    </Button>
+
+    {/* Cancel Appointment */}
+    {a.status !== "Cancelled" && (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => alert(`Cancelled appointment ${a.id}`)}
+      >
+        <XCircle className="h-4 w-4 text-red-600" />
+      </Button>
+    )}
+
+    {/* Optional: Confirm Appointment if needed */}
+    {a.status === "Pending" && (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => alert(`Confirmed appointment ${a.id}`)}
+      >
+        <CheckCircle className="h-4 w-4 text-green-600" />
+      </Button>
+    )}
+  </div>
+</td>
                   </tr>
                 ))
               )}

@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES, hasPermission, hasRoleAccess } from '../../utils/roles';
 
-const ProtectedRoute = ({ children, requiredRole = null, requiredPermission = null }) => {
+const ProtectedRoute = ({ children, requiredRole = null, requiredPermission = null, allowedRoles = null }) => {
   const { user, userData, loading } = useAuth();
   const location = useLocation();
 
@@ -30,25 +30,30 @@ const ProtectedRoute = ({ children, requiredRole = null, requiredPermission = nu
   const currentRole = userData.currentRole || userData.role;
   const userRoles = userData.roles || [userData.role];
 
-  // Check role requirement
-  if (requiredRole && currentRole !== requiredRole) {
-    // Check if user has the required role or can access it
+  // Check required role
+  if (requiredRole) {
     if (!userRoles.includes(requiredRole) && !hasRoleAccess(currentRole, requiredRole)) {
       return <Navigate to="/unauthorized" replace />;
     }
   }
 
-  // Check permission requirement
+  // Check allowedRoles array (for StaffRoute)
+  if (allowedRoles) {
+    const hasAllowedRole = userRoles.some(r => allowedRoles.includes(r)) || allowedRoles.includes(currentRole);
+    if (!hasAllowedRole) return <Navigate to="/unauthorized" replace />;
+  }
+
+  // Check required permission
   if (requiredPermission) {
-    if (!hasPermission(currentRole, requiredPermission)) {
-      return <Navigate to="/unauthorized" replace />;
-    }
+    const hasPerm = userRoles.some(role => hasPermission(role, requiredPermission)) || hasPermission(currentRole, requiredPermission);
+    if (!hasPerm) return <Navigate to="/unauthorized" replace />;
   }
 
   return children;
 };
 
 // Specific route guards for different user types
+
 export const AdminRoute = ({ children }) => (
   <ProtectedRoute requiredPermission="manageUsers">
     {children}
@@ -62,10 +67,6 @@ export const BranchAdminRoute = ({ children }) => (
 );
 
 export const StaffRoute = ({ children }) => {
-  const { userData } = useAuth();
-  
-  if (!userData) return <Navigate to="/login" replace />;
-  
   const staffRoles = [
     ROLES.RECEPTIONIST,
     ROLES.INVENTORY_CONTROLLER,
@@ -73,12 +74,12 @@ export const StaffRoute = ({ children }) => {
     ROLES.BRANCH_ADMIN,
     ROLES.BRANCH_MANAGER
   ];
-  
-  if (!staffRoles.includes(userData.role)) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-  
-  return children;
+
+  return (
+    <ProtectedRoute allowedRoles={staffRoles}>
+      {children}
+    </ProtectedRoute>
+  );
 };
 
 export const ClientRoute = ({ children }) => (
