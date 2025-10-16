@@ -335,8 +335,16 @@ const AppointmentManagement = () => {
     return actions;
   };
 
+  const menuItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/appointment-management', label: 'Appointments', icon: Calendar },
+    { path: '/user-management', label: 'Users', icon: UserCog },
+    { path: '/branch-management', label: 'Branches', icon: Building2 },
+    { path: '/profile', label: 'Profile', icon: UserCog },
+  ];
+
   return (
-    <DashboardLayout>
+    <DashboardLayout menuItems={menuItems} pageTitle="Appointment Management">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">

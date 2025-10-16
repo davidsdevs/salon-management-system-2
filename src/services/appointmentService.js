@@ -75,7 +75,7 @@ class AppointmentService {
         history: [{
           action: 'created',
           by: currentUserId,
-          timestamp: serverTimestamp(),
+          timestamp: new Date().toISOString(),
           notes: 'Appointment created'
         }]
       };
@@ -131,8 +131,8 @@ class AppointmentService {
         q = query(q, where('appointmentDate', '<=', filters.dateTo));
       }
 
-      // Order by appointment date and time
-      q = query(q, orderBy('appointmentDate', 'asc'), orderBy('appointmentTime', 'asc'));
+      // Order by appointment date only (simpler index requirement)
+      q = query(q, orderBy('appointmentDate', 'asc'));
 
       if (lastDoc) {
         q = query(q, startAfter(lastDoc));
@@ -163,6 +163,12 @@ class AppointmentService {
       };
     } catch (error) {
       console.error('Error getting appointments:', error);
+      
+      // If it's an index error, provide helpful message
+      if (error.code === 'failed-precondition' && error.message.includes('index')) {
+        throw new Error('Database index is being created. Please wait a few minutes and try again.');
+      }
+      
       throw error;
     }
   }
@@ -233,7 +239,7 @@ class AppointmentService {
       const historyEntry = {
         action: updateData.status ? `status_changed_to_${updateData.status}` : 'updated',
         by: currentUserId,
-        timestamp: serverTimestamp(),
+        timestamp: new Date().toISOString(),
         notes: updateData.notes || 'Appointment updated'
       };
 

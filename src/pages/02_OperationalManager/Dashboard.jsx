@@ -11,6 +11,7 @@ const OperationalManagerDashboard = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/appointment-reports', label: 'Appointment Reports', icon: Calendar },
     { path: '/branch-management', label: 'Branch Management', icon: Building2 },
     { path: '/reports', label: 'Reports', icon: BarChart3 },
     { path: '/profile', label: 'Profile', icon: UserCog },

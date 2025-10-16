@@ -34,6 +34,14 @@ import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/Protecte
 //BRANCH MANAGER PAGES
 import Appointment from "./pages/04_BranchManager/Appointments";
 import Staff from "./pages/04_BranchManager/Staff";
+
+// APPOINTMENT PAGES
+import ClientAppointments from "./pages/02_Client/ClientAppointments";
+import ReceptionistAppointments from "./pages/05_Receptionist/ReceptionistAppointments";
+import StylistAppointments from "./pages/07_Stylist/StylistAppointments";
+import BranchAdminAppointments from "./pages/03_BranchAdmin/BranchAdminAppointments";
+import OperationalManagerAppointments from "./pages/02_OperationalManager/OperationalManagerAppointments";
+import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
 function AppRoutes() {
   return (
     <Routes>
@@ -126,7 +134,62 @@ function AppRoutes() {
         }
       />
 
-      {/* Appointment Routes */}
+      {/* Appointment Routes - Role Specific */}
+      <Route
+        path="/my-appointments"
+        element={
+          <ProtectedRoute>
+            <ClientAppointments />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/receptionist-appointments"
+        element={
+          <StaffRoute>
+            <ReceptionistAppointments />
+          </StaffRoute>
+        }
+      />
+      
+      <Route
+        path="/my-schedule"
+        element={
+          <StaffRoute>
+            <StylistAppointments />
+          </StaffRoute>
+        }
+      />
+      
+      <Route
+        path="/branch-appointments"
+        element={
+          <AdminRoute>
+            <BranchAdminAppointments />
+          </AdminRoute>
+        }
+      />
+      
+      <Route
+        path="/appointment-reports"
+        element={
+          <ProtectedRoute>
+            <OperationalManagerAppointments />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/appointment-management"
+        element={
+          <AdminRoute>
+            <SystemAdminAppointments />
+          </AdminRoute>
+        }
+      />
+      
+      {/* Legacy Branch Manager Route */}
       <Route
         path="/appointments"
         element={
