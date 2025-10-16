@@ -56,21 +56,25 @@ const ClientAppointments = () => {
     }
   };
 
-  const handleCreateAppointment = async (appointmentData) => {
+  const handleBookAppointment = async (appointmentData) => {
     try {
-      const newAppointment = {
+      // Clients can only book appointments, not create them directly
+      // This would typically go through a booking request system
+      const bookingRequest = {
         ...appointmentData,
         clientId: userData.uid,
         clientName: `${userData.firstName} ${userData.middleName ? userData.middleName + ' ' : ''}${userData.lastName}`.trim(),
-        status: APPOINTMENT_STATUS.SCHEDULED
+        status: APPOINTMENT_STATUS.SCHEDULED,
+        requestedBy: 'client'
       };
 
-      await appointmentService.createAppointment(newAppointment, userData.currentRole || userData.roles?.[0], userData.uid);
+      // For now, we'll use the createAppointment method but with client permissions
+      await appointmentService.createAppointment(bookingRequest, userData.currentRole || userData.roles?.[0], userData.uid);
       setShowAppointmentForm(false);
       await loadAppointments();
     } catch (error) {
-      console.error('Error creating appointment:', error);
-      setError('Failed to create appointment');
+      console.error('Error booking appointment:', error);
+      setError('Failed to book appointment. Please contact the salon directly.');
     }
   };
 
@@ -179,7 +183,7 @@ const ClientAppointments = () => {
             className="bg-[#160B53] hover:bg-[#160B53]/90"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Book Appointment
+            Request Appointment
           </Button>
         </div>
 
@@ -329,7 +333,7 @@ const ClientAppointments = () => {
               setSelectedAppointment(null);
               setIsEditing(false);
             }}
-            onSubmit={isEditing ? handleRescheduleAppointment : handleCreateAppointment}
+            onSubmit={isEditing ? handleRescheduleAppointment : handleBookAppointment}
             initialData={isEditing ? selectedAppointment : null}
             isEditing={isEditing}
             loading={false}

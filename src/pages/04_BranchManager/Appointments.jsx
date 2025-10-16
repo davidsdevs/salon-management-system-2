@@ -34,7 +34,63 @@ import {
 } from "recharts";
 
 const BranchManagerAppointments = () => {
-  const { userData } = useAuth();
+  let userData, loading, error;
+  
+  try {
+    const auth = useAuth();
+    userData = auth.userData;
+    loading = auth.loading;
+    error = auth.error;
+  } catch (err) {
+    console.error('Auth context error:', err);
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Authentication Context Error</h1>
+          <p className="text-gray-600">Please refresh the page or contact support.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading while auth is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-pink-600"></div>
+      </div>
+    );
+  }
+
+  // Show error if auth failed
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Authentication Error</h1>
+          <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show message if no user data
+  if (!userData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">No User Data</h1>
+          <p className="text-gray-600">Please log in to access this page.</p>
+          <button 
+            onClick={() => window.location.href = '/login'}
+            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // === Sample Appointments Data ===
   const appointmentsData = [

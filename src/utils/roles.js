@@ -24,7 +24,8 @@ export const ROLE_PERMISSIONS = {
     'viewReports',
     'viewAllBranches',
     'viewAnalytics',
-    'managePromotions'
+    'managePromotions',
+    'viewAppointments' // Read-only access for reporting
   ],
   [ROLES.BRANCH_ADMIN]: [
     'manageStaff',
@@ -54,14 +55,16 @@ export const ROLE_PERMISSIONS = {
     'viewAppointments'
   ],
   [ROLES.STYLIST]: [
-    'viewAppointments',
-    'updateServiceStatus',
+    'viewAppointments', // Only assigned appointments
+    'updateServiceStatus', // Mark as completed
     'viewSchedule',
     'manageProfile'
   ],
   [ROLES.CLIENT]: [
-    'bookAppointments',
-    'viewHistory',
+    'bookAppointments', // Book new appointments
+    'rescheduleAppointments', // Reschedule existing appointments
+    'cancelAppointments', // Cancel appointments
+    'viewHistory', // View appointment history
     'manageProfile',
     'viewServices'
   ]

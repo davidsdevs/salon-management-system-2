@@ -280,10 +280,10 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-    <Router>
-      <ScrollToTop />
-      <AppRoutes />
-    </Router>
+      <Router>
+        <ScrollToTop />
+        <AppRoutes />
+      </Router>
     </AuthProvider>
   );
 }

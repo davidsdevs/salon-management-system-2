@@ -109,17 +109,21 @@ class AppointmentService {
   // Get appointments with filters
   async getAppointments(filters = {}, currentUserRole, currentUserId, pageSize = 20, lastDoc = null) {
     try {
+      console.log('Getting appointments with filters:', { filters, currentUserRole, currentUserId });
+      
       let q = query(collection(this.db, this.collection));
 
       // Apply filters
       if (filters.branchId) {
         q = query(q, where('branchId', '==', filters.branchId));
+        console.log('Added branchId filter:', filters.branchId);
       }
       if (filters.stylistId) {
         q = query(q, where('stylistId', '==', filters.stylistId));
       }
       if (filters.status) {
         q = query(q, where('status', '==', filters.status));
+        console.log('Added status filter:', filters.status);
       }
       if (filters.clientId) {
         q = query(q, where('clientId', '==', filters.clientId));
@@ -141,21 +145,29 @@ class AppointmentService {
         q = query(q, limit(pageSize));
       }
 
+      console.log('Executing query...');
       const snapshot = await getDocs(q);
+      console.log('Query executed, found', snapshot.docs.length, 'documents');
+      
       const appointments = [];
       
       snapshot.forEach((doc) => {
         const appointmentData = doc.data();
+        console.log('Processing appointment:', doc.id, appointmentData);
         
         // Filter based on user permissions
         if (this.canViewAppointment(currentUserRole, appointmentData, currentUserId)) {
+          console.log('Appointment approved for viewing');
           appointments.push({
             id: doc.id,
             ...appointmentData
           });
+        } else {
+          console.log('Appointment rejected due to permissions');
         }
       });
 
+      console.log('Final appointments array:', appointments);
       return {
         appointments,
         lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
@@ -371,21 +383,60 @@ class AppointmentService {
     }
   }
 
-  // Check if user can create appointments
+  // Check if user can create appointments (for staff)
   canCreateAppointment(userRole) {
     return [
       ROLES.SYSTEM_ADMIN,
       ROLES.OPERATIONAL_MANAGER,
       ROLES.BRANCH_ADMIN,
       ROLES.BRANCH_MANAGER,
-      ROLES.RECEPTIONIST,
-      ROLES.CLIENT
+      ROLES.RECEPTIONIST
+    ].includes(userRole);
+  }
+
+  // Check if user can book appointments (for clients)
+  canBookAppointment(userRole) {
+    return userRole === ROLES.CLIENT;
+  }
+
+  // Check if user can modify appointments
+  canModifyAppointment(userRole) {
+    return [
+      ROLES.SYSTEM_ADMIN,
+      ROLES.OPERATIONAL_MANAGER,
+      ROLES.BRANCH_ADMIN,
+      ROLES.BRANCH_MANAGER,
+      ROLES.RECEPTIONIST
+    ].includes(userRole);
+  }
+
+  // Check if user can confirm appointments
+  canConfirmAppointment(userRole) {
+    return [
+      ROLES.SYSTEM_ADMIN,
+      ROLES.OPERATIONAL_MANAGER,
+      ROLES.BRANCH_ADMIN,
+      ROLES.BRANCH_MANAGER,
+      ROLES.RECEPTIONIST
+    ].includes(userRole);
+  }
+
+  // Check if user can mark appointments as completed
+  canCompleteAppointment(userRole) {
+    return [
+      ROLES.SYSTEM_ADMIN,
+      ROLES.OPERATIONAL_MANAGER,
+      ROLES.BRANCH_ADMIN,
+      ROLES.BRANCH_MANAGER,
+      ROLES.STYLIST
     ].includes(userRole);
   }
 
   // Check if user can view appointment
   canViewAppointment(userRole, appointmentData, currentUserId) {
-    // System admin and operational manager can view all
+    console.log('Checking view permissions:', { userRole, appointmentData, currentUserId });
+    
+    // System admin and operational manager can view all (read-only for reporting)
     if ([ROLES.SYSTEM_ADMIN, ROLES.OPERATIONAL_MANAGER].includes(userRole)) {
       return true;
     }
@@ -400,12 +451,12 @@ class AppointmentService {
       return true; // Will be filtered by branch in query
     }
 
-    // Stylist can view their own appointments
+    // Stylist can view their assigned appointments only
     if (userRole === ROLES.STYLIST && appointmentData.stylistId === currentUserId) {
       return true;
     }
 
-    // Client can view their own appointments
+    // Client can view their own appointments only
     if (userRole === ROLES.CLIENT && appointmentData.clientId === currentUserId) {
       return true;
     }
@@ -415,9 +466,14 @@ class AppointmentService {
 
   // Check if user can update appointment
   canUpdateAppointment(userRole, appointmentData, currentUserId) {
-    // System admin and operational manager can update all
-    if ([ROLES.SYSTEM_ADMIN, ROLES.OPERATIONAL_MANAGER].includes(userRole)) {
+    // System admin can update all
+    if (userRole === ROLES.SYSTEM_ADMIN) {
       return true;
+    }
+
+    // Operational manager has read-only access for reporting
+    if (userRole === ROLES.OPERATIONAL_MANAGER) {
+      return false; // Read-only for reporting
     }
 
     // Branch admin and manager can update appointments in their branch
@@ -430,14 +486,14 @@ class AppointmentService {
       return true; // Will be filtered by branch
     }
 
-    // Stylist can update their own appointments (limited to status changes)
+    // Stylist can only mark their assigned appointments as completed
     if (userRole === ROLES.STYLIST && appointmentData.stylistId === currentUserId) {
-      return true;
+      return true; // Limited to status changes
     }
 
-    // Client can update their own appointments (limited to reschedule/cancel)
+    // Client can only reschedule/cancel their own appointments
     if (userRole === ROLES.CLIENT && appointmentData.clientId === currentUserId) {
-      return true;
+      return true; // Limited to reschedule/cancel
     }
 
     return false;

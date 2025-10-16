@@ -39,16 +39,40 @@ const ReceptionistAppointments = () => {
 
   useEffect(() => {
     loadAppointments();
-  }, []);
+  }, [statusFilter]);
 
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const result = await appointmentService.getAppointments(userData.currentRole || userData.roles?.[0], userData.uid);
-      setAppointments(result.appointments);
+      setError('');
+      
+      // Get user's branch ID for filtering
+      const branchId = userData.branchId;
+      const userRole = userData.currentRole || userData.roles?.[0];
+      
+      console.log('Loading appointments for receptionist:', {
+        branchId,
+        userRole,
+        statusFilter
+      });
+      
+      // Set up filters for receptionist
+      const filters = {
+        branchId: branchId, // Filter by receptionist's branch
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      };
+      
+      const result = await appointmentService.getAppointments(
+        filters,
+        userRole,
+        userData.uid
+      );
+      
+      console.log('Appointments loaded:', result);
+      setAppointments(result.appointments || []);
     } catch (error) {
       console.error('Error loading appointments:', error);
-      setError('Failed to load appointments');
+      setError('Failed to load appointments: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -190,7 +214,7 @@ const ReceptionistAppointments = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <Card className="p-6">
             <div className="flex items-center">
               <Calendar className="h-8 w-8 text-blue-600" />
@@ -224,18 +248,6 @@ const ReceptionistAppointments = () => {
                 <p className="text-sm font-medium text-gray-600">Pending Confirmation</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {appointments.filter(apt => apt.status === APPOINTMENT_STATUS.SCHEDULED).length}
-                </p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-6">
-            <div className="flex items-center">
-              <Users className="h-8 w-8 text-purple-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Unique Clients</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {new Set(appointments.map(apt => apt.clientId)).size}
                 </p>
               </div>
             </div>
