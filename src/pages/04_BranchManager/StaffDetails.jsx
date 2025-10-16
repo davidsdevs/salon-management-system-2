@@ -214,25 +214,81 @@ const StaffDetails = () => {
         </Card>
 
         {/* === Services Modal === */}
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title="Edit Services"
-        >
-          <div className="grid grid-cols-1 gap-2">
-            {allServices.map((service) => (
-              <label key={service} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={selectedServices.includes(service)}
-                  onChange={() => toggleService(service)}
-                  className="accent-indigo-600"
-                />
-                {service}
-              </label>
-            ))}
-          </div>
-        </Modal>
+<div
+  className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 ${
+    isModalOpen ? 'block' : 'hidden'
+  }`}
+>
+  <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col">
+    {/* Header */}
+    <div className="bg-[#160B53] px-4 py-3 text-white flex justify-between items-center">
+       <div className="flex flex-col">
+        <h2 className="text-lg sm:text-1xl font-bold">Edit Services</h2>
+        <span className="text-sm text-white/80">Select the services this staff can provide</span>
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsModalOpen(false)}
+        className="text-white hover:bg-white/20 p-2"
+      >
+        X
+      </Button>
+    </div>
+
+    {/* Scrollable Content */}
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {allServices.map((service) => {
+          const isSelected = selectedServices.includes(service);
+          return (
+            <div
+              key={service}
+              onClick={() => toggleService(service)}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md flex items-center justify-between ${
+                isSelected
+                  ? 'border-[#160B53] bg-[#160B53]/10 shadow-md'
+                  : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <span className="text-gray-900 font-medium">{service}</span>
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  isSelected ? 'border-[#160B53] bg-[#160B53]' : 'border-gray-300'
+                }`}
+              >
+                {isSelected && (
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* Footer */}
+    <div className="bg-gray-50 px-4 sm:px-6 py-3 border-t flex justify-end">
+      <Button
+        className="bg-[#160B53] text-white hover:bg-[#160B53]/90"
+        onClick={() => setIsModalOpen(false)}
+      >
+        Save Changes
+      </Button>
+    </div>
+  </div>
+</div>
+
       </div>
     </DashboardLayout>
   );
