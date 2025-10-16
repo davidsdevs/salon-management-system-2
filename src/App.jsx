@@ -34,6 +34,7 @@ import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/Protecte
 //BRANCH MANAGER PAGES
 import Appointment from "./pages/04_BranchManager/Appointments";
 import Staff from "./pages/04_BranchManager/Staff";
+import Schedule from "./pages/04_BranchManager/Schedule";
 function AppRoutes() {
   return (
     <Routes>
@@ -142,6 +143,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/schedule"
+        element={
+          <StaffRoute> 
+            <Schedule />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/unauthorized"
         element={
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -159,15 +168,7 @@ function AppRoutes() {
         }
       />
 
-      //BRANCH MANAGER ROUTES
-      <Route
-        path="/branch-management"
-        element={
-          <AdminRoute>
-            <BranchManagement />
-          </AdminRoute>
-        }
-      />
+    
       {/* Default Redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
