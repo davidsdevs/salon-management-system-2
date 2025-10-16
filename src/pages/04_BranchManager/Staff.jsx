@@ -3,6 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../shared/DashboardLayout";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
+import { useNavigate } from "react-router-dom";
 
 import { 
   Users, 
@@ -22,7 +23,7 @@ import {
 
 const BranchManagerStaff = () => {
   const { userData } = useAuth();
-
+  const navigate = useNavigate();
   // === Sample Staff Data ===
   const staffData = [
     { id: 1, name: "Marvin Santos", role: "Stylist", branch: "Subic", isActive: true, joinedAt: "2025-01-10", probationEnd: "2025-12-31" },
@@ -35,6 +36,7 @@ const BranchManagerStaff = () => {
     { path: "/dashboard", label: "Dashboard", icon: Home },
     { path: "/appointments", label: "Appointments", icon: Calendar },
     { path: "/staff", label: "Staff", icon: Users },
+    { path: "/schedule", label: "Schedule", icon: Calendar },
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/reports", label: "Reports", icon: BarChart3 },
     { path: "/profile", label: "Profile", icon: UserCog },
@@ -90,96 +92,93 @@ const BranchManagerStaff = () => {
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* === Summary Cards === */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-full"><Users className="h-6 w-6 text-blue-600"/></div>
-            <div>
-              <p className="text-xs text-gray-500">Total Staff</p>
-              <p className="text-2xl font-semibold text-center">{totalStaff}</p>
-            </div>
-          </Card>
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-green-50 rounded-full"><CheckCircle className="h-6 w-6 text-green-600"/></div>
-            <div>
-              <p className="text-xs text-gray-500">Active</p>
-              <p className="text-2xl font-semibold text-center">{activeStaff}</p>
-            </div>
-          </Card>
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-red-50 rounded-full"><XCircle className="h-6 w-6 text-red-600"/></div>
-            <div>
-              <p className="text-xs text-gray-500">Inactive</p>
-              <p className="text-2xl font-semibold text-center">{inactiveStaff}</p>
-            </div>
-          </Card>
-          <Card className="p-4 flex flex-col gap-2">
-            <p className="text-xs text-gray-500">Roles Overview</p>
-            {Object.entries(roleCounts).map(([role, count]) => (
-              <p key={role} className="text-sm text-gray-700">{role}: {count}</p>
-            ))}
-          </Card>
-        </div>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <Card className="bg-white p-4 flex items-center gap-4 shadow border">
+    <div className="p-3 bg-blue-100 rounded-full">
+      <Users className="h-6 w-6 text-blue-600" />
+    </div>
+    <div>
+      <p className="text-xs text-gray-500">Total Staff</p>
+      <p className="text-2xl font-semibold">{totalStaff}</p>
+    </div>
+  </Card>
 
-        {/* === Filter + Actions === */}
-        <div className="flex justify-between items-center gap-2">
-          <Button
-            className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
-            onClick={() => setIsFilterOpen(true)}
-          >
-            <Filter className="h-4 w-4" /> Filter
-          </Button>
+  <Card className="bg-white p-4 flex items-center gap-4 shadow border">
+    <div className="p-3 bg-green-100 rounded-full">
+      <CheckCircle className="h-6 w-6 text-green-600" />
+    </div>
+    <div>
+      <p className="text-xs text-gray-500">Active</p>
+      <p className="text-2xl font-semibold">{activeStaff}</p>
+    </div>
+  </Card>
 
+  <Card className="bg-white p-4 flex items-center gap-4 shadow border">
+    <div className="p-3 bg-red-100 rounded-full">
+      <XCircle className="h-6 w-6 text-red-600" />
+    </div>
+    <div>
+      <p className="text-xs text-gray-500">Inactive</p>
+      <p className="text-2xl font-semibold">{inactiveStaff}</p>
+    </div>
+  </Card>
+</div>
+
+        {/* === Filter + Search + Actions === */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-3">
+
+          {/* Left Section: Filter + Search */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Button
+              className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+              onClick={() => setIsFilterOpen(true)}
+            >
+              <Filter className="h-4 w-4" /> Filter
+            </Button>
+
+            {/* Search Input */}
+            <div className="relative w-full md:w-64">
+              <input
+                type="text"
+                placeholder="Search staff..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#160B53] focus:border-transparent"
+              />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 text-gray-400 absolute left-3 top-2.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 3a7.5 7.5 0 006.15 13.65z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Right Section: Export + Print */}
           <div className="flex gap-2">
-            <Button onClick={() => exportCSV(staffData, "staff_all.csv")} className="flex items-center gap-1 border bg-white text-gray-700">
-              <FileDown className="h-4 w-4"/> All
+            <Button
+              onClick={() => exportCSV(staffData, "staff_all.csv")}
+              className="flex items-center gap-1 border bg-white text-gray-700"
+            >
+              <FileDown className="h-4 w-4" /> All
             </Button>
-            <Button onClick={() => exportCSV(filteredStaff, "staff_filtered.csv")} className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors">
-              <FileText className="h-4 w-4"/> Filtered
+            <Button
+              onClick={() => exportCSV(filteredStaff, "staff_filtered.csv")}
+              className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+            >
+              <FileText className="h-4 w-4" /> Filtered
             </Button>
-            <Button onClick={() => window.print()} className="flex items-center gap-1 border bg-white text-gray-700">
-              <Printer className="h-4 w-4"/> Print
+            <Button
+              onClick={() => window.print()}
+              className="flex items-center gap-1 border bg-white text-gray-700"
+            >
+              <Printer className="h-4 w-4" /> Print
             </Button>
           </div>
         </div>
-
-        {/* === Filter Modal === */}
-        {isFilterOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-lg p-6 w-96 max-w-full">
-              <h2 className="text-lg font-semibold mb-4">Filter Staff</h2>
-              <input type="text" placeholder="Search name..." className="border rounded-md p-2 mb-3 w-full" value={query} onChange={e => setQuery(e.target.value)}/>
-              <select className="border rounded-md p-2 mb-3 w-full" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
-                {roles.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <select className="border rounded-md p-2 mb-3 w-full" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}>
-                {branches.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select className="border rounded-md p-2 mb-3 w-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  className="border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
-                  onClick={() => {
-                    setQuery(""); setRoleFilter("All"); setBranchFilter("All"); setStatusFilter("All");
-                  }}
-                >
-                  Reset
-                </Button>
-                <Button
-                  className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
-                  onClick={() => setIsFilterOpen(false)}
-                >
-                  Apply
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* === Staff Table === */}
         <Card>
@@ -193,7 +192,7 @@ const BranchManagerStaff = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Probation End</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -220,37 +219,14 @@ const BranchManagerStaff = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(s.probationEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            className="flex items-center justify-center p-2 bg-white border border-gray-300 hover:bg-[#160B53] hover:text-white transition-colors"
-                            onClick={() => alert(`Viewing ${s.name}`)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            className={`flex items-center justify-center p-2 bg-white border transition-colors ${s.isActive ? "border-red-300 hover:bg-red-600 hover:text-white" : "border-green-300 hover:bg-green-600 hover:text-white"}`}
-                            onClick={() => alert(`${s.isActive ? "Deactivated" : "Activated"} ${s.name}`)}
-                          >
-                            {s.isActive ? <XCircle className="h-4 w-4 text-red-600 group-hover:text-white" /> : <CheckCircle className="h-4 w-4 text-green-600 group-hover:text-white" />}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="flex items-center justify-center p-2 bg-white border border-gray-300 hover:bg-yellow-400 hover:text-white transition-colors"
-                            onClick={() => alert(`Reset password for ${s.name}`)}
-                          >
-                            🔑
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="flex items-center justify-center p-2 bg-white border border-gray-300 hover:bg-purple-600 hover:text-white transition-colors"
-                            onClick={() => alert(`Promote/Demote ${s.name}`)}
-                          >
-                            ⬆️
-                          </Button>
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                        <Button
+                          size="sm"
+                          className="flex items-center justify-center p-2 bg-white border border-gray-300 hover:bg-[#160B53] hover:text-white transition-colors"
+                          onClick={() => navigate(`/staff/details`)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))
