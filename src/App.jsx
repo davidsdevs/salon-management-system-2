@@ -35,6 +35,7 @@ import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/Protecte
 import Appointment from "./pages/04_BranchManager/Appointments";
 import Staff from "./pages/04_BranchManager/Staff";
 import Schedule from "./pages/04_BranchManager/Schedule";
+import StaffDetails from "./pages/04_BranchManager/StaffDetails";
 function AppRoutes() {
   return (
     <Routes>
@@ -108,7 +109,6 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
-
       <Route
         path="/branch-management"
         element={
@@ -117,7 +117,6 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
-
       <Route
         path="/profile"
         element={
@@ -126,7 +125,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
       {/* Appointment Routes */}
       <Route
         path="/appointments"
@@ -136,7 +134,6 @@ function AppRoutes() {
           </StaffRoute>
         }
       />
-
       {/* Staff Routes */}
       <Route
         path="/staff"
@@ -190,6 +187,14 @@ function AppRoutes() {
           </StaffRoute>
         }
       />
+     <Route
+  path="/staff/details"
+  element={
+    <StaffRoute>
+      <StaffDetails />
+    </StaffRoute>
+  }
+/>
       <Route
         path="/unauthorized"
         element={
