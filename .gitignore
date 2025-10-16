@@ -54,5 +54,5 @@ ui-debug.log
 *.temp
 
 # Secrets
-serviceAccountKey.json
+serviceKey.json
 src/brevo.js
