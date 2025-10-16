@@ -33,7 +33,9 @@ This module ensures that users (System Admin, Franchise Owner, Branch Admin, Bra
 ```
 /users
 └── userId
-    name: "John Doe"
+    firstName: "John"
+    middleName: "Michael"
+    lastName: "Doe"
     email: "john@example.com"
     role: "receptionist"
     branchId: "branch_001"
@@ -64,8 +66,8 @@ const roles = {
 
 **Tasks:**
 - Create "User Management" screen for Admins                                                                                                  
-- Add user form (name, email, role, branch)
-- Edit user details (role, branch, status)
+- Add user form (firstName, middleName, lastName, email, role, branch)
+- Edit user details (firstName, middleName, lastName, role, branch, status)
 - Activate/deactivate user
 - Display list of users (paginated, searchable, sortable)
 - Integrate with Firebase Firestore CRUD APIs

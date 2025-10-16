@@ -1,46 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { branchService } from '../../services/branchService';
-import { userService } from '../../services/userService';
+import React from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Clock, 
-  Users, 
-  Edit, 
-  X,
-  Calendar,
-  Settings
-} from 'lucide-react';
+import { X, Building2, MapPin, Phone, Calendar, Clock, Users, DollarSign } from 'lucide-react';
 
-const BranchDetails = ({ branchId, onClose, onEdit }) => {
-  const { userData } = useAuth();
-  const [branch, setBranch] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (branchId) {
-      loadBranchDetails();
-    }
-  }, [branchId]);
-
-  const loadBranchDetails = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const branchData = await branchService.getBranch(branchId, userData.role, userData.uid);
-      setBranch(branchData);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+const BranchDetails = ({ 
+  isOpen, 
+  onClose, 
+  branch, 
+  onEdit, 
+  onToggleStatus,
+  loading = false 
+}) => {
+  if (!isOpen || !branch) return null;
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -48,198 +19,224 @@ const BranchDetails = ({ branchId, onClose, onEdit }) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  const getOperatingHours = (operatingHours) => {
-    if (!operatingHours) return [];
-    
-    const days = [
-      { key: 'monday', label: 'Monday' },
-      { key: 'tuesday', label: 'Tuesday' },
-      { key: 'wednesday', label: 'Wednesday' },
-      { key: 'thursday', label: 'Thursday' },
-      { key: 'friday', label: 'Friday' },
-      { key: 'saturday', label: 'Saturday' },
-      { key: 'sunday', label: 'Sunday' }
-    ];
-    
-    return days.map(day => ({
-      ...day,
-      hours: operatingHours[day.key] || { open: 'Closed', close: 'Closed' }
-    }));
+  const getStatusBadge = (isActive) => {
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        isActive 
+          ? 'bg-green-100 text-green-800' 
+          : 'bg-red-100 text-red-800'
+      }`}>
+        {isActive ? 'Active' : 'Inactive'}
+      </span>
+    );
   };
 
-  if (!branchId) return null;
+  const convertTo12Hour = (time24) => {
+    if (!time24) return 'N/A';
+    
+    // If already in 12-hour format, return as is
+    if (time24.includes('AM') || time24.includes('PM')) {
+      return time24;
+    }
+    
+    // Convert 24-hour format to 12-hour format
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    const time12 = `${hour12}:${minutes} ${ampm}`;
+    
+    return time12;
+  };
+
+  const formatOperatingHours = (operatingHours) => {
+    if (!operatingHours) return 'N/A';
+    
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const dayLabels = {
+      monday: 'Monday',
+      tuesday: 'Tuesday', 
+      wednesday: 'Wednesday',
+      thursday: 'Thursday',
+      friday: 'Friday',
+      saturday: 'Saturday',
+      sunday: 'Sunday'
+    };
+
+    return days.map(day => {
+      const hours = operatingHours[day];
+      if (!hours || !hours.isOpen) {
+        return `${dayLabels[day]}: Closed`;
+      }
+      const openTime = convertTo12Hour(hours.open);
+      const closeTime = convertTo12Hour(hours.close);
+      return `${dayLabels[day]}: ${openTime} - ${closeTime}`;
+    });
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <Building2 className="h-6 w-6 text-[#160B53] mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">Branch Details</h3>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Branch Details</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#160B53]"></div>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          ) : branch ? (
-            <div className="space-y-6">
-              {/* Basic Information */}
-              <Card>
-                <div className="p-6">
-                  <h4 className="text-md font-semibold text-gray-900 mb-4">Basic Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch Name</label>
-                      <p className="text-sm text-gray-900">{branch.name}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                      <p className="text-sm text-gray-900 flex items-center">
-                        <Phone className="h-3 w-3 mr-1" />
-                        {branch.contactNumber || 'Not provided'}
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <p className="text-sm text-gray-900 flex items-center">
-                        <MapPin className="h-3 w-3 mr-1" />
-                        {branch.address}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Operating Hours */}
-              <Card>
-                <div className="p-6">
-                  <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-                    <Clock className="h-4 w-4 mr-2" />
-                    Operating Hours
-                  </h4>
-                  <div className="space-y-2">
-                    {getOperatingHours(branch.operatingHours).map((day) => (
-                      <div key={day.key} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
-                        <span className="text-sm font-medium text-gray-700">{day.label}</span>
-                        <span className="text-sm text-gray-900">
-                          {day.hours.open === 'Closed' ? 'Closed' : `${day.hours.open} - ${day.hours.close}`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-
-              {/* Holidays */}
-              {branch.holidays && branch.holidays.length > 0 && (
-                <Card>
-                  <div className="p-6">
-                    <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Holidays
-                    </h4>
-                    <div className="space-y-1">
-                      {branch.holidays.map((holiday, index) => (
-                        <div key={index} className="text-sm text-gray-900">
-                          {new Date(holiday).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              )}
-
-              {/* Staff Assignment */}
-              <Card>
-                <div className="p-6">
-                  <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-                    <Users className="h-4 w-4 mr-2" />
-                    Staff Assignment
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch Admin</label>
-                      <p className="text-sm text-gray-900">
-                        {branch.branchAdminId ? 'Assigned' : 'Not assigned'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch Manager</label>
-                      <p className="text-sm text-gray-900">
-                        {branch.managerId ? 'Assigned' : 'Not assigned'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Status and Dates */}
-              <Card>
-                <div className="p-6">
-                  <h4 className="text-md font-semibold text-gray-900 mb-4">Status & Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        branch.isActive 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {branch.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
-                      <p className="text-sm text-gray-900">{formatDate(branch.createdAt)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Updated</label>
-                      <p className="text-sm text-gray-900">{formatDate(branch.updatedAt)}</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Actions */}
-              <div className="flex justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={onClose}
-                >
-                  Close
-                </Button>
-                <Button
-                  className="bg-[#160B53] hover:bg-[#160B53]/90 text-white"
-                  onClick={() => onEdit(branch)}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit Branch
-                </Button>
+        <div className="p-6 space-y-6">
+          {/* Branch Profile Section */}
+          <div className="flex items-start space-x-4">
+            <div className="flex-shrink-0">
+              <div className="h-16 w-16 rounded-full bg-gray-300 flex items-center justify-center">
+                <Building2 className="h-8 w-8 text-gray-600" />
               </div>
             </div>
-          ) : null}
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900">{branch.name}</h3>
+              <p className="text-gray-600">{branch.address}, {branch.city}</p>
+              <div className="flex items-center space-x-2 mt-2">
+                {getStatusBadge(branch.isActive)}
+              </div>
+            </div>
+          </div>
+
+          {/* Branch Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="p-4">
+              <h4 className="font-medium text-gray-900 mb-3">Contact Information</h4>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <MapPin className="h-4 w-4 text-gray-400 mr-3" />
+                  <span className="text-sm text-gray-600">{branch.address}, {branch.city}</span>
+                </div>
+                {branch.phone && (
+                  <div className="flex items-center">
+                    <Phone className="h-4 w-4 text-gray-400 mr-3" />
+                    <span className="text-sm text-gray-600">{branch.phone}</span>
+                  </div>
+                )}
+                {branch.email && (
+                  <div className="flex items-center">
+                    <Calendar className="h-4 w-4 text-gray-400 mr-3" />
+                    <span className="text-sm text-gray-600">{branch.email}</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h4 className="font-medium text-gray-900 mb-3">Branch Information</h4>
+              <div className="space-y-3">
+                {branch.managerId && (
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 text-gray-400 mr-3" />
+                    <span className="text-sm text-gray-600">Manager: {branch.managerId}</span>
+                  </div>
+                )}
+                <div className="flex items-center">
+                  <Users className="h-4 w-4 text-gray-400 mr-3" />
+                  <span className="text-sm text-gray-600">Capacity: {branch.capacity || 'N/A'}</span>
+                </div>
+                <div className="flex items-center">
+                  <Calendar className="h-4 w-4 text-gray-400 mr-3" />
+                  <span className="text-sm text-gray-600">
+                    Created: {formatDate(branch.createdAt)}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Operating Hours */}
+          <Card className="p-4">
+            <h4 className="font-medium text-gray-900 mb-3">Operating Hours</h4>
+            <div className="space-y-2">
+              {formatOperatingHours(branch.operatingHours).map((schedule, index) => (
+                <div key={index} className="flex items-center">
+                  <Clock className="h-4 w-4 text-gray-400 mr-3" />
+                  <span className="text-sm text-gray-600">{schedule}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Services */}
+          {branch.services && branch.services.length > 0 && (
+            <Card className="p-4">
+              <h4 className="font-medium text-gray-900 mb-3">Services</h4>
+              <div className="flex flex-wrap gap-2">
+                {branch.services.map((service, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {service}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Amenities */}
+          {branch.amenities && branch.amenities.length > 0 && (
+            <Card className="p-4">
+              <h4 className="font-medium text-gray-900 mb-3">Amenities</h4>
+              <div className="flex flex-wrap gap-2">
+                {branch.amenities.map((amenity, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    {amenity}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => onEdit(branch)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={loading}
+            >
+              Edit Branch
+            </Button>
+            <Button
+              onClick={() => onToggleStatus(branch.id, branch.isActive)}
+              className={branch.isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Processing...
+                </div>
+              ) : branch.isActive ? (
+                <div className="flex items-center">
+                  <X className="h-4 w-4 mr-2" />
+                  Deactivate
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Activate
+                </div>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -247,4 +244,3 @@ const BranchDetails = ({ branchId, onClose, onEdit }) => {
 };
 
 export default BranchDetails;
-

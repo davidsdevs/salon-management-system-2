@@ -126,22 +126,62 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Appointment Routes */}
       <Route
         path="/appointments"
         element={
-          <StaffRoute> 
+          <StaffRoute>
             <Appointment />
           </StaffRoute>
         }
       />
+
+      {/* Staff Routes */}
       <Route
         path="/staff"
         element={
-          <StaffRoute> 
+          <StaffRoute>
             <Staff />
           </StaffRoute>
         }
       />
+
+      {/* Inventory Routes */}
+      <Route
+        path="/inventory"
+        element={
+          <StaffRoute>
+            <div className="min-h-screen bg-gray-50 p-6">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-2xl font-bold text-gray-900 mb-6">Inventory Management</h1>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600">Inventory management page - Coming soon!</p>
+                </div>
+              </div>
+            </div>
+          </StaffRoute>
+        }
+      />
+
+      {/* Reports Routes */}
+      <Route
+        path="/reports"
+        element={
+          <StaffRoute>
+            <div className="min-h-screen bg-gray-50 p-6">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports</h1>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600">Reports page - Coming soon!</p>
+                </div>
+              </div>
+            </div>
+          </StaffRoute>
+        }
+      />
+
+      {/* Unauthorized Page */}
       <Route
         path="/schedule"
         element={

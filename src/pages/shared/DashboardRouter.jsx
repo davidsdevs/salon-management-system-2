@@ -16,12 +16,7 @@ const DashboardRouter = () => {
   const { userData } = useAuth();
 
   // Get current role (support both old and new structure)
-  let currentRole = userData?.currentRole || userData?.role;
-  
-  // If user has roles array but no currentRole, use the first role
-  if (!currentRole && userData?.roles && userData.roles.length > 0) {
-    currentRole = userData.roles[0];
-  }
+  let currentRole = userData?.currentRole || userData?.roles?.[0];
   
   // Debug logging
   console.log('DashboardRouter - userData:', userData);

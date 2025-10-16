@@ -8,7 +8,7 @@
   sendEmailVerification,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { ROLES, hasPermission, getAvailableRoles } from '../utils/roles';
 
@@ -50,39 +50,84 @@ class AuthService {
     }
   }
 
-  // Register new user (only clients can self-register)
+  // Register new user
   async register(email, password, userData) {
     try {
-      const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
-      const user = userCredential.user;
+      // First, check if user was pre-created by admin
+      const existingUserQuery = await this.findUserByEmail(email);
+      
+      if (existingUserQuery && existingUserQuery.needsRegistration) {
+        // User was pre-created by admin, update their account
+        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
+        const user = userCredential.user;
 
-      // Force client role for self-registration
-      const newUserData = {
-        uid: user.uid,
-        email: user.email,
-        name: userData.name,
-        roles: [ROLES.CLIENT], // Array of roles - always client for self-registration
-        primaryRole: ROLES.CLIENT, // Primary role for display purposes
-        currentRole: ROLES.CLIENT, // Currently active role
-        branchId: null, // Clients don't have branch assignments initially
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        phone: userData.phone || '',
-        address: userData.address || ''
-      };
+        // Update the existing user record with Firebase Auth UID
+        const updatedUserData = {
+          ...existingUserQuery,
+          uid: user.uid,
+          needsRegistration: false, // Remove the flag
+          updatedAt: new Date()
+        };
 
-      await setDoc(doc(this.db, 'users', user.uid), newUserData);
+        await setDoc(doc(this.db, 'users', user.uid), updatedUserData);
 
-      // Send email verification
-      await sendEmailVerification(user);
+        // Send email verification
+        await sendEmailVerification(user);
 
-      return {
-        user,
-        userData: newUserData
-      };
+        return {
+          user,
+          userData: updatedUserData
+        };
+      } else {
+        // Regular self-registration (clients only)
+        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
+        const user = userCredential.user;
+
+        const newUserData = {
+          uid: user.uid,
+          email: user.email,
+          firstName: userData.firstName,
+          middleName: userData.middleName || '',
+          lastName: userData.lastName,
+          roles: [ROLES.CLIENT], // Array of roles - always client for self-registration
+          branchId: null, // Clients don't have branch assignments initially
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          phone: userData.phone || '',
+          address: userData.address || ''
+        };
+
+        await setDoc(doc(this.db, 'users', user.uid), newUserData);
+
+        // Send email verification
+        await sendEmailVerification(user);
+
+        return {
+          user,
+          userData: newUserData
+        };
+      }
     } catch (error) {
       throw this.handleAuthError(error);
+    }
+  }
+
+  // Helper method to find user by email
+  async findUserByEmail(email) {
+    try {
+      const usersRef = collection(this.db, 'users');
+      const q = query(usersRef, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { id: doc.id, ...doc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error finding user by email:', error);
+      return null;
     }
   }
 
@@ -185,11 +230,8 @@ class AuthService {
   // Switch user's current role
   async switchRole(userId, newRole) {
     try {
-      const userRef = doc(this.db, 'users', userId);
-      await updateDoc(userRef, {
-        currentRole: newRole,
-        updatedAt: new Date()
-      });
+      // Role switching is now handled in memory only
+      // No database update needed - currentRole is managed in AuthContext
       return true;
     } catch (error) {
       throw this.handleAuthError(error);

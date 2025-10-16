@@ -56,10 +56,10 @@ const LoginForm = () => {
       // Debug logging
       console.log('Login result:', result);
       console.log('User roles:', result.userData.roles);
-      console.log('User role:', result.userData.role);
+      console.log('User roles:', result.userData.roles);
       
       // Check if user has multiple roles
-      const userRoles = result.userData.roles || [result.userData.role];
+      const userRoles = result.userData.roles || [];
       console.log('UserRoles array:', userRoles);
       
       if (userRoles.length > 1) {

@@ -27,8 +27,8 @@ const ProtectedRoute = ({ children, requiredRole = null, requiredPermission = nu
   }
 
   // Get current role (support both old and new structure)
-  const currentRole = userData.currentRole || userData.role;
-  const userRoles = userData.roles || [userData.role];
+  const currentRole = userData.currentRole || userData.roles?.[0];
+  const userRoles = userData.roles || [];
 
   // Check required role
   if (requiredRole) {

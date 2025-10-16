@@ -11,7 +11,9 @@ import Footer from '../shared/Footer';
 
 const RegisterForm = () => {
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -40,8 +42,8 @@ const RegisterForm = () => {
   };
 
   const validateForm = () => {
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-      setError('Please fill in all fields');
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
+      setError('Please fill in all required fields');
       return false;
     }
 
@@ -76,7 +78,9 @@ const RegisterForm = () => {
       setSuccess('');
       
       await register(formData.email, formData.password, {
-        name: formData.name,
+        firstName: formData.firstName,
+        middleName: formData.middleName,
+        lastName: formData.lastName,
         role: ROLES.CLIENT
       });
       
@@ -135,20 +139,53 @@ const RegisterForm = () => {
               </div>
             )}
 
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
-              <Input
-                id="name"
-                name="name"
-                type="text"
-                autoComplete="name"
-                required
-                placeholder="Enter your full name"
-                value={formData.name}
-                onChange={handleChange}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
+                  First Name *
+                </label>
+                <Input
+                  id="firstName"
+                  name="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  required
+                  placeholder="First name"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="middleName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Middle Name
+                </label>
+                <Input
+                  id="middleName"
+                  name="middleName"
+                  type="text"
+                  autoComplete="additional-name"
+                  placeholder="Middle name"
+                  value={formData.middleName}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Last Name *
+                </label>
+                <Input
+                  id="lastName"
+                  name="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  required
+                  placeholder="Last name"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                />
+              </div>
             </div>
 
             <div>

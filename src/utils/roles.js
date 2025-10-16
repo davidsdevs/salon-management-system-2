@@ -124,10 +124,11 @@ export const getStaffRoles = () => [
   ROLES.STYLIST
 ];
 
-// Role switching permissions - which roles can act as other roles
+// Role switching permissions
 export const ROLE_SWITCHING_PERMISSIONS = {
-  [ROLES.SYSTEM_ADMIN]: Object.values(ROLES), // Can act as any role
+  [ROLES.SYSTEM_ADMIN]: getAllRoles(),
   [ROLES.OPERATIONAL_MANAGER]: [
+    ROLES.OPERATIONAL_MANAGER,
     ROLES.BRANCH_ADMIN,
     ROLES.BRANCH_MANAGER,
     ROLES.RECEPTIONIST,
@@ -135,29 +136,29 @@ export const ROLE_SWITCHING_PERMISSIONS = {
     ROLES.STYLIST
   ],
   [ROLES.BRANCH_ADMIN]: [
+    ROLES.BRANCH_ADMIN,
     ROLES.BRANCH_MANAGER,
     ROLES.RECEPTIONIST,
     ROLES.INVENTORY_CONTROLLER,
     ROLES.STYLIST
   ],
   [ROLES.BRANCH_MANAGER]: [
+    ROLES.BRANCH_MANAGER,
     ROLES.RECEPTIONIST,
     ROLES.INVENTORY_CONTROLLER,
     ROLES.STYLIST
   ],
-  [ROLES.RECEPTIONIST]: [ROLES.STYLIST], // Can act as stylist for booking purposes
-  [ROLES.INVENTORY_CONTROLLER]: [ROLES.STYLIST], // Can act as stylist for inventory
-  [ROLES.STYLIST]: [], // Cannot switch to other roles
-  [ROLES.CLIENT]: [] // Cannot switch to other roles
+  [ROLES.RECEPTIONIST]: [ROLES.RECEPTIONIST],
+  [ROLES.INVENTORY_CONTROLLER]: [ROLES.INVENTORY_CONTROLLER],
+  [ROLES.STYLIST]: [ROLES.STYLIST],
+  [ROLES.CLIENT]: [ROLES.CLIENT]
 };
 
-// Check if a user can switch to a specific role
 export const canSwitchToRole = (currentRole, targetRole) => {
-  const allowedRoles = ROLE_SWITCHING_PERMISSIONS[currentRole] || [];
-  return allowedRoles.includes(targetRole);
+  const availableRoles = ROLE_SWITCHING_PERMISSIONS[currentRole] || [];
+  return availableRoles.includes(targetRole);
 };
 
-// Get available roles a user can switch to
-export const getAvailableRoles = (userRole) => {
+export function getAvailableRoles(userRole) {
   return ROLE_SWITCHING_PERMISSIONS[userRole] || [];
-};
+}
