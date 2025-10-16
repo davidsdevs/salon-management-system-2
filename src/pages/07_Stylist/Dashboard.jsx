@@ -11,7 +11,7 @@ const StylistDashboard = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'My Appointments', icon: Calendar },
+    { path: '/my-schedule', label: 'My Appointments', icon: Calendar },
     { path: '/services', label: 'Services', icon: Scissors },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];

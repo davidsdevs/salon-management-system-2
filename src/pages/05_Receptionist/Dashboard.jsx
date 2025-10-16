@@ -11,7 +11,7 @@ const ReceptionistDashboard = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'Appointments', icon: Calendar },
+    { path: '/receptionist-appointments', label: 'Appointments', icon: Calendar },
     { path: '/clients', label: 'Clients', icon: Users },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];

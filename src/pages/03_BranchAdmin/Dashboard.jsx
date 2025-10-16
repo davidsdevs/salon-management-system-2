@@ -11,7 +11,7 @@ const BranchAdminDashboard = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'Appointments', icon: Calendar },
+    { path: '/branch-appointments', label: 'Appointments', icon: Calendar },
     { path: '/staff', label: 'Staff Management', icon: Users },
     { path: '/inventory', label: 'Inventory', icon: Package },
     { path: '/reports', label: 'Reports', icon: BarChart3 },

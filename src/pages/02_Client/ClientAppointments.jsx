@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
-import { userService } from '../../services/userService';
-import { branchService } from '../../services/branchService';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
 import AppointmentForm from '../shared/AppointmentForm';
 import AppointmentDetails from '../shared/AppointmentDetails';
+import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
 import { 
   Calendar, 
+  Clock, 
+  User, 
+  MapPin, 
+  Scissors, 
   Plus, 
   Search, 
-  Clock,
+  Filter,
+  Eye,
+  Edit,
+  X,
   CheckCircle,
   XCircle,
-  Eye,
-  MapPin,
-  Scissors
+  AlertCircle
 } from 'lucide-react';
 
 const ClientAppointments = () => {
@@ -26,103 +29,83 @@ const ClientAppointments = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [lastDoc, setLastDoc] = useState(null);
-  
-  // Modal states
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
-
-  // Data for dropdowns
-  const [branches, setBranches] = useState([]);
-  const [stylists, setStylists] = useState([]);
-
-  const pageSize = 20;
 
   useEffect(() => {
     loadAppointments();
-    loadDropdownData();
-  }, [currentPage, selectedStatus]);
+  }, []);
 
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      setError('');
-
-      const filters = {
-        clientId: userData.uid,
-        status: selectedStatus || undefined
-      };
-
-      const result = await appointmentService.getAppointments(
-        filters,
-        userData.currentRole || userData.roles?.[0],
-        userData.uid,
-        pageSize,
-        lastDoc
-      );
+      const result = await appointmentService.getAppointments(userData.currentRole || userData.roles?.[0], userData.uid);
       
-      setAppointments(result.appointments);
-      setHasMore(result.hasMore);
+      // Filter appointments for this client
+      const clientAppointments = result.appointments.filter(apt => apt.clientId === userData.uid);
+      setAppointments(clientAppointments);
     } catch (error) {
-      setError(error.message);
+      console.error('Error loading appointments:', error);
+      setError('Failed to load appointments');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadDropdownData = async () => {
+  const handleBookAppointment = async (appointmentData) => {
     try {
-      // Load branches
-      const branchesResult = await branchService.getBranches(
-        userData.currentRole || userData.roles?.[0],
-        userData.uid
-      );
-      setBranches(branchesResult.branches || []);
+      // Clients can only book appointments, not create them directly
+      // This would typically go through a booking request system
+      const bookingRequest = {
+        ...appointmentData,
+        clientId: userData.uid,
+        clientName: `${userData.firstName} ${userData.middleName ? userData.middleName + ' ' : ''}${userData.lastName}`.trim(),
+        status: APPOINTMENT_STATUS.SCHEDULED,
+        requestedBy: 'client'
+      };
 
-      // Load stylists
-      const stylistsResult = await userService.getUsers(
-        userData.currentRole || userData.roles?.[0],
-        userData.uid
-      );
-      const stylistUsers = stylistsResult.users.filter(user => 
-        user.role === 'stylist' && user.isActive
-      );
-      setStylists(stylistUsers);
+      // For now, we'll use the createAppointment method but with client permissions
+      await appointmentService.createAppointment(bookingRequest, userData.currentRole || userData.roles?.[0], userData.uid);
+      setShowAppointmentForm(false);
+      await loadAppointments();
     } catch (error) {
-      console.error('Error loading dropdown data:', error);
+      console.error('Error booking appointment:', error);
+      setError('Failed to book appointment. Please contact the salon directly.');
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    setLastDoc(null);
-    loadAppointments();
+  const handleRescheduleAppointment = async (appointmentId, newData) => {
+    try {
+      await appointmentService.updateAppointment(appointmentId, newData, userData.currentRole || userData.roles?.[0], userData.uid);
+      setShowAppointmentForm(false);
+      setSelectedAppointment(null);
+      setIsEditing(false);
+      await loadAppointments();
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
+      setError('Failed to reschedule appointment');
+    }
   };
 
-  const handleStatusChange = (status) => {
-    setSelectedStatus(status);
-    setCurrentPage(1);
-    setLastDoc(null);
+  const handleCancelAppointment = async (appointmentId) => {
+    try {
+      await appointmentService.updateAppointment(appointmentId, { 
+        status: APPOINTMENT_STATUS.CANCELLED 
+      }, userData.currentRole || userData.roles?.[0], userData.uid);
+      await loadAppointments();
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      setError('Failed to cancel appointment');
+    }
   };
 
-  const loadMore = () => {
-    setCurrentPage(prev => prev + 1);
-  };
-
-  // Modal handlers
-  const handleAddAppointment = () => {
-    setSelectedAppointment(null);
-    setIsEditing(false);
-    setShowAppointmentForm(true);
+  const handleViewAppointment = (appointment) => {
+    setSelectedAppointment(appointment);
+    setShowAppointmentDetails(true);
   };
 
   const handleEditAppointment = (appointment) => {
@@ -131,173 +114,100 @@ const ClientAppointments = () => {
     setShowAppointmentForm(true);
   };
 
-  const handleViewAppointment = (appointment) => {
-    setSelectedAppointment(appointment);
-    setShowAppointmentDetails(true);
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      [APPOINTMENT_STATUS.SCHEDULED]: { color: 'bg-blue-100 text-blue-800', label: 'Scheduled' },
+      [APPOINTMENT_STATUS.CONFIRMED]: { color: 'bg-green-100 text-green-800', label: 'Confirmed' },
+      [APPOINTMENT_STATUS.IN_PROGRESS]: { color: 'bg-yellow-100 text-yellow-800', label: 'In Progress' },
+      [APPOINTMENT_STATUS.COMPLETED]: { color: 'bg-gray-100 text-gray-800', label: 'Completed' },
+      [APPOINTMENT_STATUS.CANCELLED]: { color: 'bg-red-100 text-red-800', label: 'Cancelled' }
+    };
+
+    const config = statusConfig[status] || { color: 'bg-gray-100 text-gray-800', label: status };
+    
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+        {config.label}
+      </span>
+    );
   };
 
-  const handleCloseModals = () => {
-    setShowAppointmentForm(false);
-    setShowAppointmentDetails(false);
-    setSelectedAppointment(null);
-    setIsEditing(false);
-    setFormLoading(false);
-    setError('');
-    setSuccess('');
-  };
-
-  // Form submission
-  const handleAppointmentSubmit = async (formData) => {
-    try {
-      setFormLoading(true);
-      setError('');
-      setSuccess('');
-
-      // Set client ID to current user
-      const appointmentData = {
-        ...formData,
-        clientId: userData.uid,
-        clientName: userData.name
-      };
-
-      if (isEditing && selectedAppointment) {
-        // Update existing appointment
-        await appointmentService.updateAppointment(
-          selectedAppointment.id, 
-          appointmentData, 
-          userData.currentRole || userData.roles?.[0],
-          userData.uid
-        );
-        setSuccess('Appointment updated successfully!');
-      } else {
-        // Create new appointment
-        await appointmentService.createAppointment(
-          appointmentData, 
-          userData.currentRole || userData.roles?.[0],
-          userData.uid
-        );
-        setSuccess('Appointment created successfully!');
-      }
-
-      // Reload appointments
-      setCurrentPage(1);
-      setLastDoc(null);
-      await loadAppointments();
-      
-      // Close modal after a short delay to show success message
-      setTimeout(() => {
-        handleCloseModals();
-      }, 2000);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleCancelAppointment = async (appointmentId) => {
-    try {
-      await appointmentService.cancelAppointment(
-        appointmentId,
-        'Cancelled by client',
-        userData.currentRole || userData.roles?.[0],
-        userData.uid
-      );
-      setSuccess('Appointment cancelled successfully!');
-      await loadAppointments();
-    } catch (error) {
-      setError(error.message);
-    }
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
   };
 
-  const formatTime = (time) => {
-    if (!time) return 'N/A';
-    return time;
+  const formatTime = (date) => {
+    if (!date) return 'N/A';
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const getStatusBadge = (status) => {
-    const colors = {
-      [APPOINTMENT_STATUS.SCHEDULED]: 'bg-yellow-100 text-yellow-800',
-      [APPOINTMENT_STATUS.CONFIRMED]: 'bg-blue-100 text-blue-800',
-      [APPOINTMENT_STATUS.IN_PROGRESS]: 'bg-purple-100 text-purple-800',
-      [APPOINTMENT_STATUS.COMPLETED]: 'bg-green-100 text-green-800',
-      [APPOINTMENT_STATUS.CANCELLED]: 'bg-red-100 text-red-800'
-    };
+  const filteredAppointments = appointments.filter(appointment => {
+    const matchesSearch = appointment.serviceName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         appointment.stylistName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         appointment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
-    const icons = {
-      [APPOINTMENT_STATUS.SCHEDULED]: <Clock className="w-3 h-3" />,
-      [APPOINTMENT_STATUS.CONFIRMED]: <CheckCircle className="w-3 h-3" />,
-      [APPOINTMENT_STATUS.IN_PROGRESS]: <Clock className="w-3 h-3" />,
-      [APPOINTMENT_STATUS.COMPLETED]: <CheckCircle className="w-3 h-3" />,
-      [APPOINTMENT_STATUS.CANCELLED]: <XCircle className="w-3 h-3" />
-    };
-
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
-        {icons[status]}
-        <span className="ml-1 capitalize">{status.replace('_', ' ')}</span>
-      </span>
-    );
-  };
-
-  const canEditAppointment = (appointment) => {
-    return [APPOINTMENT_STATUS.SCHEDULED, APPOINTMENT_STATUS.CONFIRMED].includes(appointment.status);
-  };
-
-  const canCancelAppointment = (appointment) => {
-    return [APPOINTMENT_STATUS.SCHEDULED, APPOINTMENT_STATUS.CONFIRMED].includes(appointment.status);
-  };
+  const menuItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: Calendar },
+    { path: '/my-appointments', label: 'My Appointments', icon: Calendar },
+    { path: '/services', label: 'Services', icon: Scissors },
+    { path: '/branches', label: 'Branches', icon: MapPin },
+    { path: '/profile', label: 'Profile', icon: User },
+  ];
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
+    <DashboardLayout menuItems={menuItems} pageTitle="My Appointments">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">My Appointments</h1>
-            <p className="text-gray-600">Manage your appointments and bookings</p>
+            <p className="text-gray-600">Manage your salon appointments</p>
           </div>
-          <Button onClick={handleAddAppointment} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Book Appointment
+          <Button 
+            onClick={() => setShowAppointmentForm(true)}
+            className="bg-[#160B53] hover:bg-[#160B53]/90"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Request Appointment
           </Button>
         </div>
 
         {/* Filters */}
-        <Card className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-              <form onSubmit={handleSearch} className="flex gap-2">
-                <Input
-                  placeholder="Search appointments..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <Button type="submit" size="sm">
-                  <Search className="w-4 h-4" />
-                </Button>
-              </form>
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search appointments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <select
-                value={selectedStatus}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#160B53] focus:border-transparent"
               >
-                <option value="">All Status</option>
+                <option value="all">All Status</option>
                 <option value={APPOINTMENT_STATUS.SCHEDULED}>Scheduled</option>
                 <option value={APPOINTMENT_STATUS.CONFIRMED}>Confirmed</option>
                 <option value={APPOINTMENT_STATUS.IN_PROGRESS}>In Progress</option>
@@ -305,148 +215,152 @@ const ClientAppointments = () => {
                 <option value={APPOINTMENT_STATUS.CANCELLED}>Cancelled</option>
               </select>
             </div>
-
-            <div className="flex items-end">
-              <Button variant="outline" onClick={loadAppointments}>
-                Refresh
-              </Button>
-            </div>
           </div>
-        </Card>
+        </div>
 
-        {/* Success/Error Messages */}
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
-            {success}
-          </div>
-        )}
+        {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
-            {error}
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <div className="ml-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Appointments List */}
-        <Card>
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Appointments</h2>
-              <div className="text-sm text-gray-500">
-                {appointments.length} appointment{appointments.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading appointments...</p>
-              </div>
-            ) : appointments.length === 0 ? (
-              <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No appointments found</p>
-                <p className="text-sm text-gray-500 mt-2">Book your first appointment to get started!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {appointments.map((appointment) => (
-                  <div key={appointment.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-medium text-gray-900">Appointment #{appointment.id.slice(-8)}</h3>
-                          {getStatusBadge(appointment.status)}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>{formatDate(appointment.appointmentDate)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            <span>{formatTime(appointment.appointmentTime)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Scissors className="w-4 h-4" />
-                            <span>{appointment.stylistName}</span>
-                          </div>
-                        </div>
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#160B53]"></div>
+          </div>
+        ) : filteredAppointments.length === 0 ? (
+          <Card className="p-8 text-center">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No appointments found</h3>
+            <p className="text-gray-600 mb-4">You don't have any appointments yet.</p>
+            <Button 
+              onClick={() => setShowAppointmentForm(true)}
+              className="bg-[#160B53] hover:bg-[#160B53]/90"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Book Your First Appointment
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {filteredAppointments.map((appointment) => (
+              <Card key={appointment.id} className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-4 mb-3">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{formatDate(appointment.appointmentDate)}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{formatTime(appointment.appointmentDate)}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Scissors className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{appointment.serviceName}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{appointment.stylistName}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900">{appointment.serviceName}</h3>
+                        <p className="text-sm text-gray-600">with {appointment.stylistName}</p>
                         {appointment.notes && (
-                          <div className="mt-2 text-sm text-gray-600">
-                            <span className="font-medium">Notes:</span> {appointment.notes}
-                          </div>
+                          <p className="text-sm text-gray-500 mt-1">{appointment.notes}</p>
                         )}
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewAppointment(appointment)}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        {canEditAppointment(appointment) && (
+                      <div className="flex items-center space-x-3">
+                        {getStatusBadge(appointment.status)}
+                        <div className="flex space-x-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleEditAppointment(appointment)}
+                            onClick={() => handleViewAppointment(appointment)}
+                            title="View Details"
                           >
-                            Edit
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
-                        {canCancelAppointment(appointment) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCancelAppointment(appointment.id)}
-                            className="text-red-600 border-red-300 hover:bg-red-50"
-                          >
-                            Cancel
-                          </Button>
-                        )}
+                          {appointment.status !== APPOINTMENT_STATUS.COMPLETED && 
+                           appointment.status !== APPOINTMENT_STATUS.CANCELLED && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditAppointment(appointment)}
+                                title="Reschedule"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCancelAppointment(appointment.id)}
+                                title="Cancel"
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {hasMore && (
-              <div className="text-center mt-6">
-                <Button onClick={loadMore} variant="outline">
-                  Load More
-                </Button>
-              </div>
-            )}
+                </div>
+              </Card>
+            ))}
           </div>
-        </Card>
+        )}
+
+        {/* Appointment Form Modal */}
+        {showAppointmentForm && (
+          <AppointmentForm
+            isOpen={showAppointmentForm}
+            onClose={() => {
+              setShowAppointmentForm(false);
+              setSelectedAppointment(null);
+              setIsEditing(false);
+            }}
+            onSubmit={isEditing ? handleRescheduleAppointment : handleBookAppointment}
+            initialData={isEditing ? selectedAppointment : null}
+            isEditing={isEditing}
+            loading={false}
+          />
+        )}
+
+        {/* Appointment Details Modal */}
+        {showAppointmentDetails && selectedAppointment && (
+          <AppointmentDetails
+            isOpen={showAppointmentDetails}
+            onClose={() => {
+              setShowAppointmentDetails(false);
+              setSelectedAppointment(null);
+            }}
+            appointment={selectedAppointment}
+            onEdit={() => {
+              setShowAppointmentDetails(false);
+              handleEditAppointment(selectedAppointment);
+            }}
+            onCancel={() => {
+              setShowAppointmentDetails(false);
+              handleCancelAppointment(selectedAppointment.id);
+            }}
+            loading={false}
+          />
+        )}
       </div>
-
-      {/* Modals */}
-      {showAppointmentForm && (
-        <AppointmentForm
-          appointment={selectedAppointment}
-          isEditing={isEditing}
-          onSubmit={handleAppointmentSubmit}
-          onClose={handleCloseModals}
-          loading={formLoading}
-          branches={branches}
-          stylists={stylists}
-          clients={[{ id: userData.uid, name: userData.name }]} // Only current user
-        />
-      )}
-
-      {showAppointmentDetails && (
-        <AppointmentDetails
-          appointment={selectedAppointment}
-          onClose={handleCloseModals}
-          onEdit={() => {
-            setShowAppointmentDetails(false);
-            handleEditAppointment(selectedAppointment);
-          }}
-        />
-      )}
     </DashboardLayout>
   );
 };

@@ -11,7 +11,7 @@ const ClientDashboard = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'My Appointments', icon: Calendar },
+    { path: '/my-appointments', label: 'My Appointments', icon: Calendar },
     { path: '/services', label: 'Services', icon: Scissors },
     { path: '/branches', label: 'Branches', icon: MapPin },
     { path: '/profile', label: 'Profile', icon: UserCog },

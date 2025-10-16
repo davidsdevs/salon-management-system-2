@@ -1,38 +1,38 @@
 {
   "indexes": [
     {
-      "collectionGroup": "users",
+      "collectionGroup": "appointments",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "role",
+          "fieldPath": "appointmentDate",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "isActive",
+          "fieldPath": "appointmentTime",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
         }
       ]
     },
     {
-      "collectionGroup": "users",
+      "collectionGroup": "appointments",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "branchId",
+          "fieldPath": "status",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "isActive",
+          "fieldPath": "appointmentDate",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
         }
       ]
     },
@@ -49,7 +49,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "appointmentTime",
+          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
       ]
@@ -67,7 +67,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "appointmentTime",
+          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
       ]
@@ -85,43 +85,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "appointmentTime",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "inventory",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "branchId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "category",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "inventory",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "branchId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "quantity",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
+          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
       ]

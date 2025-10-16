@@ -13,6 +13,7 @@ const SystemAdminDashboard = () => {
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/user-management', label: 'User Management', icon: Users },
     { path: '/branch-management', label: 'Branch Management', icon: Building2 },
+    { path: '/appointment-management', label: 'Appointment Management', icon: Calendar },
     { path: '/system-settings', label: 'System Settings', icon: Settings },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
     { path: '/profile', label: 'Profile', icon: UserCog },

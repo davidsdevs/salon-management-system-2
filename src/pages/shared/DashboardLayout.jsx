@@ -10,7 +10,7 @@ import {
   Home
 } from 'lucide-react';
 
-const DashboardLayout = ({ children, menuItems, pageTitle = 'Dashboard' }) => {
+const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) => {
   const { userData, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -60,10 +60,12 @@ const DashboardLayout = ({ children, menuItems, pageTitle = 'Dashboard' }) => {
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center">
             <div className="h-10 w-10 rounded-full bg-[#160B53] flex items-center justify-center text-white font-semibold">
-              {userData?.name?.charAt(0).toUpperCase()}
+              {userData?.firstName?.charAt(0).toUpperCase()}
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-900">{userData?.name}</p>
+              <p className="text-sm font-medium text-gray-900">
+                {userData?.firstName} {userData?.lastName}
+              </p>
               <p className="text-xs text-gray-500">{getRoleDisplayName(userData?.currentRole || userData?.role)}</p>
             </div>
           </div>
@@ -71,7 +73,7 @@ const DashboardLayout = ({ children, menuItems, pageTitle = 'Dashboard' }) => {
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-1">
-          {menuItems.map((item) => {
+          {menuItems && menuItems.length > 0 ? menuItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
             
@@ -90,7 +92,11 @@ const DashboardLayout = ({ children, menuItems, pageTitle = 'Dashboard' }) => {
                 {item.label}
               </Link>
             );
-          })}
+          }) : (
+            <div className="px-4 py-3 text-sm text-gray-500">
+              No menu items available
+            </div>
+          )}
         </nav>
 
         {/* Sidebar Footer */}
