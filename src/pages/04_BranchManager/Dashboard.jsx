@@ -29,7 +29,6 @@
 
   const BranchManagerDashboard = () => {
     const { userData } = useAuth();
-
     // Sample Data
     const appointmentData = [
       { day: "Mon", appointments: 15 },
