@@ -1,5 +1,5 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardLayout from "../shared/DashboardLayout";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
@@ -16,11 +16,73 @@ import {
   XCircle,
 } from "lucide-react";
 
+// === Modal Component ===
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <Button
+            className="text-gray-500 hover:text-gray-800"
+            onClick={onClose}
+          >
+            X
+          </Button>
+        </div>
+        <div>{children}</div>
+        <div className="mt-4 flex justify-end">
+          <Button
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            onClick={onClose}
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StaffDetails = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedServices, setSelectedServices] = useState([
+    "Haircut",
+    "Shampoo",
+    "Beard Trim",
+    "Hair Coloring",
+    "Facial",
+    "Manicure",
+    "Pedicure",
+    "Massage",
+    "Hair Treatment",
+  ]);
 
-  // === Static Staff Info Example ===
-  const staff = {
+  const allServices = [
+    "Haircut",
+    "Shampoo",
+    "Beard Trim",
+    "Hair Coloring",
+    "Facial",
+    "Manicure",
+    "Pedicure",
+    "Massage",
+    "Hair Treatment",
+  ];
+
+  const toggleService = (service) => {
+    if (selectedServices.includes(service)) {
+      setSelectedServices(selectedServices.filter((s) => s !== service));
+    } else {
+      setSelectedServices([...selectedServices, service]);
+    }
+  };
+
+  // Get staff info from state or fallback to hardcoded values
+  const staff = location.state?.staff || {
     name: "Marvin Santos",
     role: "Stylist",
     branch: "Subic Branch",
@@ -98,6 +160,16 @@ const StaffDetails = () => {
               )}
             </div>
           </div>
+
+          {/* === Edit Services Button === */}
+          <div className="mt-4">
+            <Button
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+              onClick={() => setIsModalOpen(true)}
+            >
+              Edit Services
+            </Button>
+          </div>
         </Card>
 
         {/* === Performance Overview === */}
@@ -140,6 +212,27 @@ const StaffDetails = () => {
             </div>
           </div>
         </Card>
+
+        {/* === Services Modal === */}
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Edit Services"
+        >
+          <div className="grid grid-cols-1 gap-2">
+            {allServices.map((service) => (
+              <label key={service} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedServices.includes(service)}
+                  onChange={() => toggleService(service)}
+                  className="accent-indigo-600"
+                />
+                {service}
+              </label>
+            ))}
+          </div>
+        </Modal>
       </div>
     </DashboardLayout>
   );

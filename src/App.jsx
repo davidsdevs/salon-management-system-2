@@ -252,13 +252,13 @@ function AppRoutes() {
         }
       />
      <Route
-  path="/staff/details"
-  element={
-    <StaffRoute>
-      <StaffDetails />
-    </StaffRoute>
-  }
-/>
+        path="/staff/details"
+        element={
+          <StaffRoute>
+            <StaffDetails />
+          </StaffRoute>
+        }
+      />
       <Route
         path="/unauthorized"
         element={
