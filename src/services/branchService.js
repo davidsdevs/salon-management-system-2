@@ -92,10 +92,14 @@ class BranchService {
       const newBranch = {
         name: branchData.name,
         address: branchData.address,
+        city: branchData.city,
         contactNumber: branchData.contactNumber,
+        email: branchData.email,
         operatingHours: branchData.operatingHours || this.getDefaultOperatingHours(),
         holidays: branchData.holidays || [],
         services: branchData.services || [],
+        amenities: branchData.amenities || [],
+        capacity: branchData.capacity || 10,
         branchAdminId: branchData.branchAdminId || null,
         managerId: branchData.managerId || null,
         isActive: true,
@@ -105,8 +109,14 @@ class BranchService {
 
       const docRef = await addDoc(collection(this.db, this.collection), newBranch);
       
+      // Update the document with the branchId set to the document ID
+      await updateDoc(docRef, {
+        branchId: docRef.id
+      });
+      
       return {
         id: docRef.id,
+        branchId: docRef.id,
         ...newBranch
       };
     } catch (error) {
@@ -183,6 +193,67 @@ class BranchService {
     }
   }
 
+  // Search branches
+  async searchBranches(searchTerm, currentUserRole, currentUserId, filters = {}) {
+    try {
+      const q = query(collection(this.db, this.collection));
+      const snapshot = await getDocs(q);
+      const branches = [];
+
+      snapshot.forEach((doc) => {
+        const branchData = doc.data();
+        
+        // Filter by permissions first
+        if (!this.canViewBranch(currentUserRole, branchData, currentUserId)) return;
+        
+        // Apply all filters independently
+        let passesAllFilters = true;
+        
+        // Search term filter
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          const matchesSearch = 
+            branchData.name?.toLowerCase().includes(searchLower) ||
+            branchData.address?.toLowerCase().includes(searchLower) ||
+            branchData.city?.toLowerCase().includes(searchLower) ||
+            branchData.contactNumber?.toLowerCase().includes(searchLower) ||
+            branchData.email?.toLowerCase().includes(searchLower) ||
+            branchData.branchId?.toLowerCase().includes(searchLower);
+          
+          if (!matchesSearch) passesAllFilters = false;
+        }
+
+        // Status filter
+        if (filters.status) {
+          if (filters.status === 'active' && !branchData.isActive) passesAllFilters = false;
+          if (filters.status === 'inactive' && branchData.isActive) passesAllFilters = false;
+        }
+
+        // City filter
+        if (filters.city && branchData.city !== filters.city) {
+          passesAllFilters = false;
+        }
+        
+        // Active status filter
+        if (filters.isActive !== undefined && branchData.isActive !== filters.isActive) {
+          passesAllFilters = false;
+        }
+
+        if (passesAllFilters) {
+          branches.push({
+            id: doc.id,
+            ...branchData
+          });
+        }
+      });
+
+      return branches;
+    } catch (error) {
+      console.error('Error searching branches:', error);
+      throw error;
+    }
+  }
+
   // Get branch statistics
   async getBranchStats(currentUserRole, currentUserId) {
     try {
@@ -219,13 +290,13 @@ class BranchService {
   // Get default operating hours
   getDefaultOperatingHours() {
     return {
-      monday: { open: "09:00", close: "18:00" },
-      tuesday: { open: "09:00", close: "18:00" },
-      wednesday: { open: "09:00", close: "18:00" },
-      thursday: { open: "09:00", close: "18:00" },
-      friday: { open: "09:00", close: "18:00" },
-      saturday: { open: "09:00", close: "17:00" },
-      sunday: { open: "10:00", close: "16:00" }
+      monday: { open: "9:00 AM", close: "6:00 PM" },
+      tuesday: { open: "9:00 AM", close: "6:00 PM" },
+      wednesday: { open: "9:00 AM", close: "6:00 PM" },
+      thursday: { open: "9:00 AM", close: "6:00 PM" },
+      friday: { open: "9:00 AM", close: "6:00 PM" },
+      saturday: { open: "9:00 AM", close: "5:00 PM" },
+      sunday: { open: "10:00 AM", close: "4:00 PM" }
     };
   }
 
@@ -278,4 +349,5 @@ class BranchService {
 // Export singleton instance
 export const branchService = new BranchService();
 export default branchService;
+
 

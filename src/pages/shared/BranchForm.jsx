@@ -1,79 +1,106 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { branchService } from '../../services/branchService';
-import { userService } from '../../services/userService';
+import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Card } from '../ui/card';
-import { X, Save, Building2 } from 'lucide-react';
+import { X, Building2, MapPin, Phone, Clock, Calendar, DollarSign } from 'lucide-react';
 
-const BranchForm = ({ branch = null, onSave, onCancel, isOpen }) => {
-  const { userData } = useAuth();
+const BranchForm = ({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  initialData = null, 
+  isEditing = false,
+  loading = false 
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     address: '',
+    city: '',
     contactNumber: '',
-    operatingHours: {},
-    holidays: [],
+    email: '',
+    managerId: '',
+    isActive: true,
+    operatingHours: {
+      monday: { open: '09:00', close: '18:00', isOpen: true },
+      tuesday: { open: '09:00', close: '18:00', isOpen: true },
+      wednesday: { open: '09:00', close: '18:00', isOpen: true },
+      thursday: { open: '09:00', close: '18:00', isOpen: true },
+      friday: { open: '09:00', close: '18:00', isOpen: true },
+      saturday: { open: '09:00', close: '17:00', isOpen: true },
+      sunday: { open: '10:00', close: '16:00', isOpen: false }
+    },
     services: [],
-    branchAdminId: '',
-    managerId: ''
+    amenities: [],
+    capacity: 10
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [availableAdmins, setAvailableAdmins] = useState([]);
-  const [availableManagers, setAvailableManagers] = useState([]);
+  const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    if (isOpen) {
-      if (branch) {
-        setFormData({
-          name: branch.name || '',
-          address: branch.address || '',
-          contactNumber: branch.contactNumber || '',
-          operatingHours: branch.operatingHours || branchService.getDefaultOperatingHours(),
-          holidays: branch.holidays || [],
-          services: branch.services || [],
-          branchAdminId: branch.branchAdminId || '',
-          managerId: branch.managerId || ''
-        });
-      } else {
-        setFormData({
-          name: '',
-          address: '',
-          contactNumber: '',
-          operatingHours: branchService.getDefaultOperatingHours(),
-          holidays: [],
-          services: [],
-          branchAdminId: '',
-          managerId: ''
-        });
-      }
-      loadAvailableStaff();
-    }
-  }, [isOpen, branch]);
-
-  const loadAvailableStaff = async () => {
-    try {
-      // Load available admins and managers
-      const adminRoles = ['systemAdmin', 'branchAdmin'];
-      const managerRoles = ['branchManager'];
-      
-      // This would need to be implemented in userService
-      // For now, we'll use placeholder data
-      setAvailableAdmins([]);
-      setAvailableManagers([]);
-    } catch (error) {
-      console.error('Error loading staff:', error);
-    }
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const dayLabels = {
+    monday: 'Monday',
+    tuesday: 'Tuesday', 
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+    sunday: 'Sunday'
   };
 
+  useEffect(() => {
+    if (isEditing && initialData) {
+      setFormData({
+        name: initialData.name || '',
+        address: initialData.address || '',
+        city: initialData.city || '',
+        contactNumber: initialData.contactNumber || initialData.phone || '',
+        email: initialData.email || '',
+        managerId: initialData.managerId || '',
+        isActive: initialData.isActive !== undefined ? initialData.isActive : true,
+        operatingHours: initialData.operatingHours || formData.operatingHours,
+        services: initialData.services || [],
+        amenities: initialData.amenities || [],
+        capacity: initialData.capacity || 10
+      });
+    } else {
+      setFormData({
+        name: '',
+        address: '',
+        city: '',
+        contactNumber: '',
+        email: '',
+        branchId: '',
+        managerId: '',
+        isActive: true,
+        operatingHours: {
+          monday: { open: '09:00', close: '18:00', isOpen: true },
+          tuesday: { open: '09:00', close: '18:00', isOpen: true },
+          wednesday: { open: '09:00', close: '18:00', isOpen: true },
+          thursday: { open: '09:00', close: '18:00', isOpen: true },
+          friday: { open: '09:00', close: '18:00', isOpen: true },
+          saturday: { open: '09:00', close: '17:00', isOpen: true },
+          sunday: { open: '10:00', close: '16:00', isOpen: false }
+        },
+        services: [],
+        amenities: [],
+        capacity: 10
+      });
+    }
+    setErrors({});
+  }, [isOpen, isEditing, initialData]);
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
+    
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
   const handleOperatingHoursChange = (day, field, value) => {
@@ -89,228 +116,280 @@ const BranchForm = ({ branch = null, onSave, onCancel, isOpen }) => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const validateForm = () => {
+    const newErrors = {};
     
-    if (!formData.name || !formData.address) {
-      setError('Please fill in all required fields');
-      return;
+    if (!formData.name.trim()) {
+      newErrors.name = 'Branch name is required';
     }
-
-    try {
-      setLoading(true);
-      setError('');
-
-      if (branch) {
-        // Update existing branch
-        await branchService.updateBranch(
-          branch.id, 
-          formData, 
-          userData.role, 
-          userData.uid
-        );
-      } else {
-        // Create new branch
-        await branchService.createBranch(
-          formData, 
-          userData.role, 
-          userData.uid
-        );
-      }
-
-      if (onSave) {
-        onSave();
-      }
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+    
+    if (!formData.address.trim()) {
+      newErrors.address = 'Address is required';
     }
+    
+    if (!formData.city.trim()) {
+      newErrors.city = 'City is required';
+    }
+    
+    if (!formData.contactNumber.trim()) {
+      newErrors.contactNumber = 'Phone number is required';
+    }
+    
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Email is invalid';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const days = [
-    { key: 'monday', label: 'Monday' },
-    { key: 'tuesday', label: 'Tuesday' },
-    { key: 'wednesday', label: 'Wednesday' },
-    { key: 'thursday', label: 'Thursday' },
-    { key: 'friday', label: 'Friday' },
-    { key: 'saturday', label: 'Saturday' },
-    { key: 'sunday', label: 'Sunday' }
-  ];
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      onSubmit(formData);
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <Building2 className="h-6 w-6 text-[#160B53] mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">
-                {branch ? 'Edit Branch' : 'Add New Branch'}
-              </h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">
+            {isEditing ? 'Edit Branch' : 'Add New Branch'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Basic Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Branch Name *
+              </label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Enter branch name"
+                  className={`pl-10 ${errors.name ? 'border-red-500' : ''}`}
+                />
+              </div>
+              {errors.name && (
+                <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+              )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City *
+              </label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  placeholder="Enter city"
+                  className={`pl-10 ${errors.city ? 'border-red-500' : ''}`}
+                />
+              </div>
+              {errors.city && (
+                <p className="text-red-500 text-sm mt-1">{errors.city}</p>
+              )}
+            </div>
           </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-800">{error}</p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Address *
+            </label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                placeholder="Enter full address"
+                className={`pl-10 ${errors.address ? 'border-red-500' : ''}`}
+              />
             </div>
-          )}
+            {errors.address && (
+              <p className="text-red-500 text-sm mt-1">{errors.address}</p>
+            )}
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <Card>
-              <div className="p-6">
-                <h4 className="text-md font-semibold text-gray-900 mb-4">Basic Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Branch Name *
-                    </label>
-                    <Input
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      placeholder="Enter branch name"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Contact Number
-                    </label>
-                    <Input
-                      name="contactNumber"
-                      value={formData.contactNumber}
-                      onChange={handleChange}
-                      placeholder="Enter contact number"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address *
-                  </label>
-                  <Input
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="Enter branch address"
-                    required
-                  />
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number *
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="tel"
+                  name="contactNumber"
+                  value={formData.contactNumber}
+                  onChange={handleChange}
+                  placeholder="Enter phone number"
+                  className={`pl-10 ${errors.contactNumber ? 'border-red-500' : ''}`}
+                />
               </div>
-            </Card>
+              {errors.contactNumber && (
+                <p className="text-red-500 text-sm mt-1">{errors.contactNumber}</p>
+              )}
+            </div>
 
-            {/* Operating Hours */}
-            <Card>
-              <div className="p-6">
-                <h4 className="text-md font-semibold text-gray-900 mb-4">Operating Hours</h4>
-                <div className="space-y-3">
-                  {days.map((day) => (
-                    <div key={day.key} className="flex items-center space-x-4">
-                      <div className="w-24 text-sm font-medium text-gray-700">
-                        {day.label}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="Enter email address"
+                  className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
+                />
+              </div>
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Manager ID
+              </label>
+              <Input
+                type="text"
+                name="managerId"
+                value={formData.managerId}
+                onChange={handleChange}
+                placeholder="Enter manager ID"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Capacity
+              </label>
+              <Input
+                type="number"
+                name="capacity"
+                value={formData.capacity}
+                onChange={handleChange}
+                placeholder="Enter capacity"
+                min="1"
+              />
+            </div>
+          </div>
+
+          {/* Operating Hours */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Operating Hours</h3>
+            <div className="space-y-3">
+              {days.map(day => (
+                <div key={day} className="flex items-center space-x-4">
+                  <div className="w-24">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {dayLabels[day]}
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.operatingHours[day].isOpen}
+                      onChange={(e) => handleOperatingHoursChange(day, 'isOpen', e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Open</span>
+                  </div>
+                  {formData.operatingHours[day].isOpen && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <label className="text-sm text-gray-700">From:</label>
+                        <Input
+                          type="time"
+                          value={formData.operatingHours[day].open}
+                          onChange={(e) => handleOperatingHoursChange(day, 'open', e.target.value)}
+                          className="w-32"
+                        />
                       </div>
                       <div className="flex items-center space-x-2">
+                        <label className="text-sm text-gray-700">To:</label>
                         <Input
                           type="time"
-                          value={formData.operatingHours[day.key]?.open || ''}
-                          onChange={(e) => handleOperatingHoursChange(day.key, 'open', e.target.value)}
-                          className="w-32"
-                        />
-                        <span className="text-gray-500">to</span>
-                        <Input
-                          type="time"
-                          value={formData.operatingHours[day.key]?.close || ''}
-                          onChange={(e) => handleOperatingHoursChange(day.key, 'close', e.target.value)}
+                          value={formData.operatingHours[day].close}
+                          onChange={(e) => handleOperatingHoursChange(day, 'close', e.target.value)}
                           className="w-32"
                         />
                       </div>
-                    </div>
-                  ))}
+                    </>
+                  )}
                 </div>
-              </div>
-            </Card>
-
-            {/* Staff Assignment */}
-            <Card>
-              <div className="p-6">
-                <h4 className="text-md font-semibold text-gray-900 mb-4">Staff Assignment</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Branch Admin
-                    </label>
-                    <select
-                      name="branchAdminId"
-                      value={formData.branchAdminId}
-                      onChange={handleChange}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm"
-                    >
-                      <option value="">Select Branch Admin</option>
-                      {availableAdmins.map((admin) => (
-                        <option key={admin.id} value={admin.id}>
-                          {admin.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Branch Manager
-                    </label>
-                    <select
-                      name="managerId"
-                      value={formData.managerId}
-                      onChange={handleChange}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm"
-                    >
-                      <option value="">Select Branch Manager</option>
-                      {availableManagers.map((manager) => (
-                        <option key={manager.id} value={manager.id}>
-                          {manager.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Form Actions */}
-            <div className="flex justify-end space-x-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-[#160B53] hover:bg-[#160B53]/90 text-white"
-                disabled={loading}
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                {loading ? 'Saving...' : (branch ? 'Update Branch' : 'Create Branch')}
-              </Button>
+              ))}
             </div>
-          </form>
-        </div>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              name="isActive"
+              checked={formData.isActive}
+              onChange={handleChange}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label className="ml-2 text-sm text-gray-700">
+              Active branch
+            </label>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-[#160B53] hover:bg-[#160B53]/90 text-white"
+            >
+              {loading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isEditing ? 'Updating...' : 'Creating...'}
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  {isEditing ? 'Update Branch' : 'Create Branch'}
+                </div>
+              )}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

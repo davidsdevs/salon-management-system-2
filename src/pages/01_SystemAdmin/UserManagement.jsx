@@ -6,6 +6,8 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
+import UserForm from '../shared/UserForm';
+import UserDetails from '../shared/UserDetails';
 import { 
   Users, 
   Plus, 
@@ -20,7 +22,8 @@ import {
   Building2,
   Settings,
   BarChart3,
-  UserCog
+  UserCog,
+  Eye
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -28,12 +31,20 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
+  
+  // Modal states
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
 
   const pageSize = 20;
 
@@ -51,31 +62,14 @@ const UserManagement = () => {
         isActive: showInactive ? undefined : true
       };
 
-      if (searchTerm) {
-        const searchResults = await userService.searchUsers(
-          searchTerm, 
-          userData.role, 
-          filters
-        );
-        setUsers(searchResults);
-        setHasMore(false);
-      } else {
-        const result = await userService.getUsers(
-          userData.role, 
-          userData.uid, 
-          pageSize, 
-          currentPage === 1 ? null : lastDoc
-        );
-        
-        if (currentPage === 1) {
-          setUsers(result.users);
-        } else {
-          setUsers(prev => [...prev, ...result.users]);
-        }
-        
-        setLastDoc(result.lastDoc);
-        setHasMore(result.hasMore);
-      }
+      // Always use search method to apply filters, even without search term
+      const searchResults = await userService.searchUsers(
+        searchTerm || '', 
+        userData.currentRole || userData.roles?.[0], 
+        filters
+      );
+      setUsers(searchResults);
+      setHasMore(false);
     } catch (error) {
       setError(error.message);
     } finally {
@@ -99,9 +93,9 @@ const UserManagement = () => {
   const handleToggleUserStatus = async (userId, isActive) => {
     try {
       if (isActive) {
-        await userService.deleteUser(userId, userData.role);
+        await userService.deleteUser(userId, userData.currentRole || userData.roles?.[0]);
       } else {
-        await userService.reactivateUser(userId, userData.role);
+        await userService.reactivateUser(userId, userData.currentRole || userData.roles?.[0]);
       }
       
       // Reload users
@@ -117,10 +111,84 @@ const UserManagement = () => {
     setCurrentPage(prev => prev + 1);
   };
 
+  // Modal handlers
+  const handleAddUser = () => {
+    setSelectedUser(null);
+    setIsEditing(false);
+    setShowUserForm(true);
+  };
+
+  const handleEditUser = (user) => {
+    setSelectedUser(user);
+    setIsEditing(true);
+    setShowUserForm(true);
+  };
+
+  const handleViewUser = (user) => {
+    setSelectedUser(user);
+    setShowUserDetails(true);
+  };
+
+  const handleCloseModals = () => {
+    setShowUserForm(false);
+    setShowUserDetails(false);
+    setSelectedUser(null);
+    setIsEditing(false);
+    setFormLoading(false);
+    setError('');
+    setSuccess('');
+  };
+
+  // Form submission
+  const handleUserSubmit = async (formData) => {
+    try {
+      setFormLoading(true);
+      setError('');
+      setSuccess('');
+
+      if (isEditing && selectedUser) {
+        // Update existing user
+        await userService.updateUser(selectedUser.id, formData, userData.currentRole || userData.roles?.[0]);
+        setSuccess('User updated successfully!');
+      } else {
+        // Create new user with Firebase Auth (tries Firebase Functions first, fallback to client-side)
+        const result = await userService.createUserWithAuth(formData, userData.currentRole || userData.roles?.[0]);
+        
+        if (result.requiresReauth) {
+          setSuccess(`User created successfully! The user ${formData.email} has been added to the system with Firebase Auth credentials. A password reset email has been sent to them. You will need to sign in again to continue.`);
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 3000);
+        } else {
+          setSuccess(`User created successfully! The user ${formData.email} has been added to the system with Firebase Auth credentials. A password reset email has been sent to them.`);
+        }
+      }
+
+      // Reload users
+      setCurrentPage(1);
+      setLastDoc(null);
+      await loadUsers();
+      
+      // Close modal after a short delay to show success message
+      setTimeout(() => {
+        handleCloseModals();
+      }, 2000);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   const getStatusBadge = (isActive) => {
@@ -156,6 +224,7 @@ const UserManagement = () => {
     );
   };
 
+
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/user-management', label: 'User Management', icon: Users },
@@ -169,16 +238,10 @@ const UserManagement = () => {
     <DashboardLayout menuItems={menuItems} pageTitle="User Management">
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <p className="text-sm text-gray-600">
-            Manage staff users and their roles. Clients can self-register.
-          </p>
-        </div>
-        
-        <Button>
+      <div className="flex justify-end items-center">
+        <Button onClick={handleAddUser}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Staff User
+          Add User
         </Button>
       </div>
 
@@ -192,13 +255,15 @@ const UserManagement = () => {
                 <Input
                   placeholder="Search users..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                    setLastDoc(null);
+                    loadUsers();
+                  }}
                   className="pl-10"
                 />
               </div>
-              <Button type="submit" variant="outline">
-                Search
-              </Button>
             </form>
           </div>
           
@@ -206,7 +271,7 @@ const UserManagement = () => {
             <select
               value={selectedRole}
               onChange={(e) => handleRoleChange(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
               <option value="">All Roles</option>
               {getAllRoles().map(role => (
@@ -223,13 +288,20 @@ const UserManagement = () => {
                 type="checkbox"
                 checked={showInactive}
                 onChange={(e) => setShowInactive(e.target.checked)}
-                className="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <span className="ml-2 text-sm text-gray-700">Show Inactive</span>
             </label>
           </div>
         </div>
       </Card>
+
+      {/* Success Message */}
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+          <p className="text-sm text-green-800">{success}</p>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -246,9 +318,6 @@ const UserManagement = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   User
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Branch
@@ -268,7 +337,7 @@ const UserManagement = () => {
               {loading ? (
                 <tr>
                   <td colSpan="6" className="px-6 py-4 text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600 mx-auto"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
@@ -289,16 +358,13 @@ const UserManagement = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {user.name}
+                            {`${user.firstName || ''} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName || ''}`.trim()}
                           </div>
                           <div className="text-sm text-gray-500">
                             {user.email}
                           </div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getRoleBadge(user.role)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {user.branchId || 'N/A'}
@@ -314,7 +380,17 @@ const UserManagement = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {/* Edit user */}}
+                          onClick={() => handleViewUser(user)}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditUser(user)}
+                          title="Edit User"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -323,6 +399,7 @@ const UserManagement = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => handleToggleUserStatus(user.id, user.isActive)}
+                          title={user.isActive ? "Deactivate User" : "Activate User"}
                         >
                           {user.isActive ? (
                             <UserX className="h-4 w-4 text-red-600" />
@@ -352,6 +429,25 @@ const UserManagement = () => {
           </div>
         )}
       </Card>
+
+      {/* Modals */}
+      <UserForm
+        isOpen={showUserForm}
+        onClose={handleCloseModals}
+        onSubmit={handleUserSubmit}
+        initialData={selectedUser}
+        isEditing={isEditing}
+        loading={formLoading}
+      />
+
+      <UserDetails
+        isOpen={showUserDetails}
+        onClose={handleCloseModals}
+        user={selectedUser}
+        onEdit={handleEditUser}
+        onToggleStatus={handleToggleUserStatus}
+        loading={formLoading}
+      />
     </div>
     </DashboardLayout>
   );

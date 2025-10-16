@@ -6,6 +6,8 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
+import BranchForm from '../shared/BranchForm';
+import BranchDetails from '../shared/BranchDetails';
 import { 
   Building2, 
   Plus, 
@@ -22,7 +24,6 @@ import {
   UserCog,
   MapPin,
   Phone,
-  Clock,
   Users
 } from 'lucide-react';
 
@@ -32,23 +33,31 @@ const BranchManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
+  
+  // Modal states
+  const [showBranchForm, setShowBranchForm] = useState(false);
+  const [showBranchDetails, setShowBranchDetails] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
 
   // Menu items for System Admin
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/user-management', label: 'User Management', icon: UserCog },
+    { path: '/user-management', label: 'User Management', icon: Users },
     { path: '/branch-management', label: 'Branch Management', icon: Building2 },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
-    { path: '/settings', label: 'Settings', icon: Settings },
-    { path: '/profile', label: 'Profile', icon: UserCog }
+    { path: '/system-settings', label: 'System Settings', icon: Settings },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 
   useEffect(() => {
     loadBranches();
-  }, [searchTerm, showInactive]);
+  }, [searchTerm, showInactive, statusFilter]);
 
   const loadBranches = async () => {
     try {
@@ -56,24 +65,18 @@ const BranchManagement = () => {
       setError('');
 
       const filters = {
+        status: statusFilter || undefined,
         isActive: showInactive ? undefined : true
       };
 
-      if (searchTerm) {
-        const searchResults = await branchService.searchBranches(
-          searchTerm, 
-          userData.role, 
-          userData.uid,
-          filters
-        );
-        setBranches(searchResults);
-      } else {
-        const branchResults = await branchService.getBranches(
-          userData.role, 
-          userData.uid
-        );
-        setBranches(branchResults);
-      }
+      // Always use search method to apply filters, even without search term
+      const searchResults = await branchService.searchBranches(
+        searchTerm || '', 
+        userData.currentRole || userData.roles?.[0], 
+        userData.uid,
+        filters
+      );
+      setBranches(searchResults);
     } catch (error) {
       setError(error.message);
     } finally {
@@ -85,7 +88,7 @@ const BranchManagement = () => {
     try {
       setLoading(true);
       const moreBranches = await branchService.getBranches(
-        userData.role, 
+        userData.currentRole || userData.roles?.[0], 
         userData.uid, 
         20, 
         lastDoc
@@ -108,9 +111,9 @@ const BranchManagement = () => {
   const handleToggleBranchStatus = async (branchId, isActive) => {
     try {
       if (isActive) {
-        await branchService.deactivateBranch(branchId, userData.role, userData.uid);
+        await branchService.deactivateBranch(branchId, userData.currentRole || userData.role, userData.uid);
       } else {
-        await branchService.activateBranch(branchId, userData.role, userData.uid);
+        await branchService.activateBranch(branchId, userData.currentRole || userData.role, userData.uid);
       }
       
       // Reload branches
@@ -118,6 +121,13 @@ const BranchManagement = () => {
     } catch (error) {
       setError(error.message);
     }
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    setLastDoc(null);
+    loadBranches();
   };
 
   const formatDate = (timestamp) => {
@@ -142,64 +152,114 @@ const BranchManagement = () => {
     );
   };
 
-  const getOperatingHours = (operatingHours) => {
-    if (!operatingHours) return 'Not set';
-    
-    const days = Object.keys(operatingHours);
-    if (days.length === 0) return 'Not set';
-    
-    const firstDay = days[0];
-    const hours = operatingHours[firstDay];
-    return `${hours.open} - ${hours.close}`;
+
+  // Modal handlers
+  const handleAddBranch = () => {
+    setSelectedBranch(null);
+    setIsEditing(false);
+    setShowBranchForm(true);
   };
+
+  const handleEditBranch = (branch) => {
+    setSelectedBranch(branch);
+    setIsEditing(true);
+    setShowBranchForm(true);
+  };
+
+  const handleViewBranch = (branch) => {
+    setSelectedBranch(branch);
+    setShowBranchDetails(true);
+  };
+
+  const handleCloseModals = () => {
+    setShowBranchForm(false);
+    setShowBranchDetails(false);
+    setSelectedBranch(null);
+    setIsEditing(false);
+    setFormLoading(false);
+  };
+
+  // Form submission
+  const handleBranchSubmit = async (formData) => {
+    try {
+      setFormLoading(true);
+      setError('');
+
+      if (isEditing && selectedBranch) {
+        // Update existing branch
+        await branchService.updateBranch(selectedBranch.id, formData, userData.currentRole || userData.role);
+      } else {
+        // Create new branch
+        await branchService.createBranch(formData, userData.currentRole || userData.role);
+      }
+
+      // Reload branches
+      await loadBranches();
+      
+      handleCloseModals();
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
 
   return (
     <DashboardLayout menuItems={menuItems} pageTitle="Branch Management">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="text-gray-600">Manage salon branches and their configurations</p>
-          </div>
-          <Button className="bg-[#160B53] hover:bg-[#160B53]/90 text-white">
+        <div className="flex justify-end items-center">
+          <Button onClick={handleAddBranch}>
             <Plus className="h-4 w-4 mr-2" />
             Add Branch
           </Button>
         </div>
 
-        {/* Search and Filters */}
-        <Card>
-          <div className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <form onSubmit={(e) => { e.preventDefault(); loadBranches(); }} className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      type="text"
-                      placeholder="Search branches..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Button type="submit" variant="outline">
-                    Search
-                  </Button>
-                </form>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={showInactive}
-                    onChange={(e) => setShowInactive(e.target.checked)}
-                    className="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
+        {/* Filters and Search */}
+        <Card className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="md:col-span-2">
+              <form onSubmit={handleSearch} className="flex space-x-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search branches..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setCurrentPage(1);
+                      setLastDoc(null);
+                      loadBranches();
+                    }}
+                    className="pl-10"
                   />
-                  <span className="ml-2 text-sm text-gray-700">Show Inactive</span>
-                </label>
-              </div>
+                </div>
+              </form>
+            </div>
+            
+            <div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              >
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={showInactive}
+                  onChange={(e) => setShowInactive(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Show Inactive</span>
+              </label>
             </div>
           </div>
         </Card>
@@ -222,9 +282,6 @@ const BranchManagement = () => {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Hours
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -274,12 +331,6 @@ const BranchManagement = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {getOperatingHours(branch.operatingHours)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(branch.isActive)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -290,7 +341,8 @@ const BranchManagement = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {/* View branch details */}}
+                            onClick={() => handleViewBranch(branch)}
+                            title="View Details"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -298,7 +350,8 @@ const BranchManagement = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {/* Edit branch */}}
+                            onClick={() => handleEditBranch(branch)}
+                            title="Edit Branch"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -334,9 +387,28 @@ const BranchManagement = () => {
                 Load More
               </Button>
             </div>
-          )}
-        </Card>
-      </div>
+        )}
+      </Card>
+
+      {/* Modals */}
+      <BranchForm
+        isOpen={showBranchForm}
+        onClose={handleCloseModals}
+        onSubmit={handleBranchSubmit}
+        initialData={selectedBranch}
+        isEditing={isEditing}
+        loading={formLoading}
+      />
+
+      <BranchDetails
+        isOpen={showBranchDetails}
+        onClose={handleCloseModals}
+        branch={selectedBranch}
+        onEdit={handleEditBranch}
+        onToggleStatus={handleToggleBranchStatus}
+        loading={formLoading}
+      />
+    </div>
     </DashboardLayout>
   );
 };

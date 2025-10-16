@@ -158,7 +158,7 @@ export const AuthProvider = ({ children }) => {
   // Check if user has permission
   const hasPermission = (permission) => {
     if (!userData) return false;
-    return authService.hasPermission(userData.role, permission);
+    return authService.hasPermission(userData.currentRole || userData.roles?.[0], permission);
   };
 
   // Check if user has role
@@ -202,7 +202,7 @@ export const AuthProvider = ({ children }) => {
       }
       
       // Check if user has this role
-      const userRoles = userData.roles || [userData.role];
+      const userRoles = userData.roles || [];
       if (!userRoles.includes(newRole)) {
         throw new Error('You do not have this role assigned');
       }

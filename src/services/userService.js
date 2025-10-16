@@ -13,13 +13,31 @@ import {
   startAfter,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  updateProfile,
+  deleteUser as deleteAuthUser,
+  signOut,
+  signInWithEmailAndPassword
+} from 'firebase/auth';
+import { db, auth } from '../lib/firebase';
 import { ROLES, canManageUser } from '../utils/roles';
 
 class UserService {
   constructor() {
     this.db = db;
     this.collection = 'users';
+  }
+
+  // Generate a temporary password
+  generateTemporaryPassword() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
   }
 
   // Get all users (with pagination)
@@ -77,7 +95,7 @@ class UserService {
     }
   }
 
-  // Create new user
+  // Create new user (Alternative approach - no logout)
   async createUser(userData, currentUserRole) {
     try {
       // Check if current user can create users with this role
@@ -85,9 +103,18 @@ class UserService {
         throw new Error('Insufficient permissions to create user with this role');
       }
 
+      // For now, create user in Firestore only
+      // The user will need to register themselves via the login page
+      const primaryRole = Array.isArray(userData.roles) && userData.roles.length > 0 
+        ? userData.roles[0] 
+        : userData.role;
+
       const newUser = {
         ...userData,
+        role: primaryRole,
+        roles: userData.roles || [primaryRole],
         isActive: true,
+        needsRegistration: true, // Flag indicating user needs to register
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -97,6 +124,76 @@ class UserService {
       return {
         id: docRef.id,
         ...newUser
+      };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
+  // Alternative method: Create user with Firebase Auth (causes logout)
+  async createUserWithAuth(userData, currentUserRole) {
+    try {
+      // Check if current user can create users with this role
+      if (!canManageUser(currentUserRole, userData.role)) {
+        throw new Error('Insufficient permissions to create user with this role');
+      }
+
+      // Store current user info before creating new user
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('No authenticated user found');
+      }
+
+      // Generate temporary password
+      const temporaryPassword = this.generateTemporaryPassword();
+
+      // Create Firebase Authentication account
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        userData.email, 
+        temporaryPassword
+      );
+
+      // Update the user's display name
+      const fullName = `${userData.firstName} ${userData.middleName ? userData.middleName + ' ' : ''}${userData.lastName}`.trim();
+      await updateProfile(userCredential.user, {
+        displayName: fullName
+      });
+
+      // Send password reset email so user can set their own password
+      await sendPasswordResetEmail(auth, userData.email);
+
+      // Store user data in Firestore with Firebase Auth UID
+      const primaryRole = Array.isArray(userData.roles) && userData.roles.length > 0 
+        ? userData.roles[0] 
+        : userData.role;
+
+      const newUser = {
+        ...userData,
+        role: primaryRole,
+        roles: userData.roles || [primaryRole],
+        uid: userCredential.user.uid,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(this.db, this.collection), newUser);
+      
+      // Sign out the newly created user
+      await signOut(auth);
+      
+      // Note: The current user will be logged out due to Firebase Auth limitations
+      // This is expected behavior when creating users from the client side
+      console.log('User created successfully in both Firestore and Firebase Auth.');
+      console.log('Current user has been signed out. Please sign in again to continue.');
+      
+      return {
+        id: docRef.id,
+        uid: userCredential.user.uid,
+        ...newUser,
+        requiresReauth: true // Flag to indicate re-authentication is needed
       };
     } catch (error) {
       console.error('Error creating user:', error);
@@ -163,6 +260,9 @@ class UserService {
         throw new Error('Insufficient permissions to delete this user');
       }
 
+      // Note: We can't delete Firebase Auth users from client side
+      // The Firebase Auth account will remain but the user will be marked as inactive
+      // To fully delete the Firebase Auth account, you would need to use Firebase Functions
       await updateDoc(userRef, {
         isActive: false,
         deletedAt: serverTimestamp(),
@@ -209,32 +309,53 @@ class UserService {
   // Search users
   async searchUsers(searchTerm, currentUserRole, filters = {}) {
     try {
-      let q = query(collection(this.db, this.collection));
-
-      // Add filters
-      if (filters.role) {
-        q = query(q, where('role', '==', filters.role));
-      }
-      if (filters.branchId) {
-        q = query(q, where('branchId', '==', filters.branchId));
-      }
-      if (filters.isActive !== undefined) {
-        q = query(q, where('isActive', '==', filters.isActive));
-      }
-
+      // Get all users first, then apply all filters client-side for independence
+      const q = query(collection(this.db, this.collection));
       const snapshot = await getDocs(q);
       const users = [];
       
       snapshot.forEach((doc) => {
         const userData = doc.data();
         
-        // Filter by search term
-        const matchesSearch = !searchTerm || 
-          userData.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          userData.email?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        // Filter by permissions
-        if (matchesSearch && this.canViewUser(currentUserRole, userData)) {
+        // Filter by permissions first
+        if (!this.canViewUser(currentUserRole, userData)) return;
+        
+        // Apply all filters independently
+        let passesAllFilters = true;
+        
+        // Search term filter
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          const fullName = `${userData.firstName || ''} ${userData.middleName || ''} ${userData.lastName || ''}`.trim().toLowerCase();
+          const matchesSearch = 
+            fullName.includes(searchLower) ||
+            userData.firstName?.toLowerCase().includes(searchLower) ||
+            userData.middleName?.toLowerCase().includes(searchLower) ||
+            userData.lastName?.toLowerCase().includes(searchLower) ||
+            userData.email?.toLowerCase().includes(searchLower) ||
+            userData.phone?.toLowerCase().includes(searchLower) ||
+            userData.role?.toLowerCase().includes(searchLower) ||
+            userData.branchId?.toLowerCase().includes(searchLower);
+          
+          if (!matchesSearch) passesAllFilters = false;
+        }
+        
+        // Role filter
+        if (filters.role && userData.role !== filters.role) {
+          passesAllFilters = false;
+        }
+        
+        // Branch ID filter
+        if (filters.branchId && userData.branchId !== filters.branchId) {
+          passesAllFilters = false;
+        }
+        
+        // Active status filter
+        if (filters.isActive !== undefined && userData.isActive !== filters.isActive) {
+          passesAllFilters = false;
+        }
+        
+        if (passesAllFilters) {
           users.push({
             id: doc.id,
             ...userData
@@ -362,8 +483,6 @@ class UserService {
       // Update user with multiple roles
       await updateDoc(userRef, {
         roles: roles,
-        primaryRole: roles[0], // First role is primary
-        currentRole: roles[0], // Set current role to primary
         updatedAt: serverTimestamp()
       });
       
@@ -436,12 +555,8 @@ class UserService {
           throw new Error('User must have at least one role');
         }
         
-        // Update current role if it was removed
-        const newCurrentRole = userData.currentRole === roleToRemove ? updatedRoles[0] : userData.currentRole;
-        
         await updateDoc(userRef, {
           roles: updatedRoles,
-          currentRole: newCurrentRole,
           updatedAt: serverTimestamp()
         });
       }
