@@ -32,6 +32,8 @@ import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/Protecte
 
 
 //BRANCH MANAGER PAGES
+import Appointment from "./pages/04_BranchManager/Appointments";
+import Staff from "./pages/04_BranchManager/Staff";
 function AppRoutes() {
   return (
     <Routes>
@@ -129,14 +131,7 @@ function AppRoutes() {
         path="/appointments"
         element={
           <StaffRoute>
-            <div className="min-h-screen bg-gray-50 p-6">
-              <div className="max-w-7xl mx-auto">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Appointments</h1>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-600">Appointment management page - Coming soon!</p>
-                </div>
-              </div>
-            </div>
+            <Appointment />
           </StaffRoute>
         }
       />
@@ -146,14 +141,7 @@ function AppRoutes() {
         path="/staff"
         element={
           <StaffRoute>
-            <div className="min-h-screen bg-gray-50 p-6">
-              <div className="max-w-7xl mx-auto">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Staff Management</h1>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-600">Staff management page - Coming soon!</p>
-                </div>
-              </div>
-            </div>
+            <Staff />
           </StaffRoute>
         }
       />
