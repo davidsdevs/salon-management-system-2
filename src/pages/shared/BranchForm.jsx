@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { X, Building2, MapPin, Phone, Clock, Calendar, DollarSign } from 'lucide-react';
+import { X, Building2, MapPin, Phone, Clock, Calendar, DollarSign, Upload, Image as ImageIcon, XCircle } from 'lucide-react';
+import { cloudinaryService } from '../../services/cloudinaryService';
 
 const BranchForm = ({ 
   isOpen, 
@@ -20,6 +21,7 @@ const BranchForm = ({
     email: '',
     managerId: '',
     isActive: true,
+    imageUrl: '',
     operatingHours: {
       monday: { open: '09:00', close: '18:00', isOpen: true },
       tuesday: { open: '09:00', close: '18:00', isOpen: true },
@@ -34,6 +36,8 @@ const BranchForm = ({
     capacity: 10
   });
   const [errors, setErrors] = useState({});
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   const dayLabels = {
@@ -56,6 +60,7 @@ const BranchForm = ({
         email: initialData.email || '',
         managerId: initialData.managerId || '',
         isActive: initialData.isActive !== undefined ? initialData.isActive : true,
+        imageUrl: initialData.imageUrl || '',
         operatingHours: initialData.operatingHours || formData.operatingHours,
         services: initialData.services || [],
         amenities: initialData.amenities || [],
@@ -71,6 +76,7 @@ const BranchForm = ({
         branchId: '',
         managerId: '',
         isActive: true,
+        imageUrl: '',
         operatingHours: {
           monday: { open: '09:00', close: '18:00', isOpen: true },
           tuesday: { open: '09:00', close: '18:00', isOpen: true },
@@ -86,6 +92,7 @@ const BranchForm = ({
       });
     }
     setErrors({});
+    setUploadError('');
   }, [isOpen, isEditing, initialData]);
 
   const handleChange = (e) => {
@@ -101,6 +108,42 @@ const BranchForm = ({
         [name]: ''
       }));
     }
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    setUploadError('');
+
+    try {
+      const result = await cloudinaryService.uploadImage(file, 'salon-branches');
+      
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          imageUrl: result.url
+        }));
+        console.log('✅ Branch image uploaded successfully:', result.url);
+      } else {
+        setUploadError(result.error || 'Failed to upload image');
+        console.error('❌ Image upload failed:', result.error);
+      }
+    } catch (error) {
+      setUploadError('Failed to upload image');
+      console.error('❌ Image upload error:', error);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: ''
+    }));
+    setUploadError('');
   };
 
   const handleOperatingHoursChange = (day, field, value) => {
@@ -270,6 +313,69 @@ const BranchForm = ({
               {errors.email && (
                 <p className="text-red-500 text-sm mt-1">{errors.email}</p>
               )}
+            </div>
+          </div>
+
+          {/* Branch Image Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Branch Image
+            </label>
+            <div className="space-y-4">
+              {/* Current Image Display */}
+              {formData.imageUrl && (
+                <div className="relative inline-block">
+                  <img
+                    src={formData.imageUrl}
+                    alt="Branch preview"
+                    className="w-32 h-32 object-cover rounded-lg border border-gray-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              
+              {/* Upload Section */}
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  disabled={uploadingImage}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  id="branch-image-upload"
+                />
+                <label
+                  htmlFor="branch-image-upload"
+                  className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <div className="flex items-center space-x-2">
+                    {uploadingImage ? (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-gray-400" />
+                    )}
+                    <span className="text-sm font-medium text-gray-700">
+                      {uploadingImage ? 'Uploading...' : 'Choose Branch Image'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+              
+              {/* Upload Error */}
+              {uploadError && (
+                <p className="text-red-500 text-sm">{uploadError}</p>
+              )}
+              
+              {/* Upload Tips */}
+              <p className="text-xs text-gray-500">
+                Recommended: JPG, PNG format. Max size: 5MB. Optimal dimensions: 800x600px
+              </p>
             </div>
           </div>
 

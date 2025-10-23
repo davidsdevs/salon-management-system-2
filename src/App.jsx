@@ -37,6 +37,7 @@ import Appointment from "./pages/04_BranchManager/Appointments";
 import Staff from "./pages/04_BranchManager/Staff";
 import Schedule from "./pages/04_BranchManager/Schedule";
 import StaffDetails from "./pages/04_BranchManager/StaffDetails";
+import BranchManagerTransactions from "./pages/04_BranchManager/Transactions";
 
 // APPOINTMENT PAGES
 import ClientAppointments from "./pages/02_Client/ClientAppointments";
@@ -46,6 +47,7 @@ import BranchAdminAppointments from "./pages/03_BranchAdmin/BranchAdminAppointme
 import OperationalManagerAppointments from "./pages/02_OperationalManager/OperationalManagerAppointments";
 import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
 import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
+import Transactions from "./pages/01_SystemAdmin/Transactions";
 
 // NEW BRANCH MANAGEMENT PAGES
 import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
@@ -54,6 +56,21 @@ import BranchMonitoring from "./pages/02_OperationalManager/BranchMonitoring";
 import BranchDetailsManagement from "./pages/01_SystemAdmin/BranchDetailsManagement";
 import ServiceConfiguration from "./pages/03_BranchAdmin/ServiceConfiguration";
 import HolidayManagement from "./pages/03_BranchAdmin/HolidayManagement";
+import BranchProducts from "./pages/03_BranchAdmin/BranchProducts";
+
+// INVENTORY CONTROLLER PAGES
+import InventoryControllerDashboard from "./pages/06_InventoryController/Dashboard";
+import InventoryProducts from "./pages/06_InventoryController/Products";
+import InventoryStocks from "./pages/06_InventoryController/Stocks";
+import InventoryStockTransfer from "./pages/06_InventoryController/StockTransfer";
+import InventoryUpcGenerator from "./pages/06_InventoryController/UpcGenerator";
+import InventoryPurchaseOrders from "./pages/06_InventoryController/PurchaseOrders";
+import InventorySuppliers from "./pages/06_InventoryController/Suppliers";
+import InventoryStockAlerts from "./pages/06_InventoryController/StockAlerts";
+import InventoryReports from "./pages/06_InventoryController/Reports";
+import InventoryCostAnalysis from "./pages/06_InventoryController/CostAnalysis";
+import InventoryAudit from "./pages/06_InventoryController/InventoryAudit";
+import InventoryExpiryTracker from "./pages/06_InventoryController/ExpiryTracker";
 function AppRoutes() {
   return (
     <Routes>
@@ -216,6 +233,15 @@ function AppRoutes() {
         }
       />
       
+      <Route
+        path="/transactions"
+        element={
+          <AdminRoute>
+            <Transactions />
+          </AdminRoute>
+        }
+      />
+      
       {/* Legacy Branch Manager Route */}
       <Route
         path="/appointments"
@@ -290,12 +316,143 @@ function AppRoutes() {
         }
       />
 
+      {/* Branch Products - Branch Admin */}
+      <Route
+        path="/branch-products"
+        element={
+          <StaffRoute>
+            <BranchProducts />
+          </StaffRoute>
+        }
+      />
+
       {/* Branch Monitoring - Operational Manager */}
       <Route
         path="/branch-monitoring"
         element={
           <StaffRoute>
             <BranchMonitoring />
+          </StaffRoute>
+        }
+      />
+
+      {/* INVENTORY CONTROLLER ROUTES */}
+      {/* Inventory Products */}
+      <Route
+        path="/inventory/products"
+        element={
+          <StaffRoute>
+            <InventoryProducts />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Stocks */}
+      <Route
+        path="/inventory/stocks"
+        element={
+          <StaffRoute>
+            <InventoryStocks />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Stock Transfer */}
+      <Route
+        path="/inventory/stock-transfer"
+        element={
+          <StaffRoute>
+            <InventoryStockTransfer />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory UPC Generator */}
+      <Route
+        path="/inventory/upc-generator"
+        element={
+          <StaffRoute>
+            <InventoryUpcGenerator />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Purchase Orders */}
+      <Route
+        path="/inventory/purchase-orders"
+        element={
+          <StaffRoute>
+            <InventoryPurchaseOrders />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Suppliers */}
+      <Route
+        path="/inventory/suppliers"
+        element={
+          <StaffRoute>
+            <InventorySuppliers />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Stock Alerts */}
+      <Route
+        path="/inventory/stock-alerts"
+        element={
+          <StaffRoute>
+            <InventoryStockAlerts />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Reports */}
+      <Route
+        path="/inventory/reports"
+        element={
+          <StaffRoute>
+            <InventoryReports />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Cost Analysis */}
+      <Route
+        path="/inventory/cost-analysis"
+        element={
+          <StaffRoute>
+            <InventoryCostAnalysis />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Audit */}
+      <Route
+        path="/inventory/inventory-audit"
+        element={
+          <StaffRoute>
+            <InventoryAudit />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Expiry Tracker */}
+      <Route
+        path="/inventory/expiry-tracker"
+        element={
+          <StaffRoute>
+            <InventoryExpiryTracker />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Dashboard */}
+      <Route
+        path="/inventory/dashboard"
+        element={
+          <StaffRoute>
+            <InventoryControllerDashboard />
           </StaffRoute>
         }
       />
@@ -344,6 +501,14 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <StaffDetails />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/transactions"
+        element={
+          <StaffRoute>
+            <BranchManagerTransactions />
           </StaffRoute>
         }
       />

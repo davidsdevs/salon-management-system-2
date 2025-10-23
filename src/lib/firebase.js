@@ -5,16 +5,15 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
-// Firebase configuration
-// Replace with your actual Firebase config
+// Firebase configuration - Hardcoded for Render hosting
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyC-6AX8N96wuqEL-p0rQmJFiS-OZ9JEqGo",
+  authDomain: "david-salon-fff6d.firebaseapp.com",
+  projectId: "david-salon-fff6d",
+  storageBucket: "david-salon-fff6d.firebasestorage.app",
+  messagingSenderId: "248565145509",
+  appId: "1:248565145509:web:a7861697801ebf3848524c",
+  measurementId: "G-PB1LMRZD7J"
 };
 
 // Initialize Firebase

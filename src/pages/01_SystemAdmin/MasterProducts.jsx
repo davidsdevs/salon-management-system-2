@@ -10,6 +10,8 @@ import {
   Search,
   Edit,
   Trash2,
+  ToggleLeft,
+  ToggleRight,
   Eye,
   Package,
   DollarSign,
@@ -34,6 +36,7 @@ const MasterProducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -52,6 +55,7 @@ const MasterProducts = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package2 },
+    { path: '/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
   
@@ -75,13 +79,131 @@ const MasterProducts = () => {
     upc: '',
     shelfLife: '',
     imageUrl: '',
-    status: 'Active'
+    status: 'Active',
+    commissionPercentage: 0
   });
+
+  // Validation states
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
   
   // Image upload states
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Validation functions
+  const validateField = (name, value) => {
+    let error = '';
+    
+    switch (name) {
+      case 'name':
+        if (!value.trim()) {
+          error = 'Product name is required';
+        } else if (value.trim().length < 2) {
+          error = 'Product name must be at least 2 characters';
+        } else if (value.trim().length > 100) {
+          error = 'Product name must be less than 100 characters';
+        }
+        break;
+      
+      case 'category':
+        if (!value.trim()) {
+          error = 'Category is required';
+        } else if (value.trim().length < 2) {
+          error = 'Category must be at least 2 characters';
+        }
+        break;
+      
+      case 'brand':
+        if (!value.trim()) {
+          error = 'Brand is required';
+        } else if (value.trim().length < 2) {
+          error = 'Brand must be at least 2 characters';
+        }
+        break;
+      
+      case 'supplier':
+        if (!value.trim()) {
+          error = 'Supplier is required';
+        } else if (value.trim().length < 2) {
+          error = 'Supplier must be at least 2 characters';
+        }
+        break;
+      
+      case 'unitCost':
+        if (!value || value <= 0) {
+          error = 'Unit cost must be greater than 0';
+        } else if (value > 1000000) {
+          error = 'Unit cost must be less than ₱1,000,000';
+        }
+        break;
+      
+      case 'salonUsePrice':
+        if (!value || value <= 0) {
+          error = 'Salon use price must be greater than 0';
+        } else if (value > 1000000) {
+          error = 'Salon use price must be less than ₱1,000,000';
+        }
+        break;
+      
+      case 'otcPrice':
+        if (!value || value <= 0) {
+          error = 'OTC price must be greater than 0';
+        } else if (value > 1000000) {
+          error = 'OTC price must be less than ₱1,000,000';
+        }
+        break;
+      
+      case 'upc':
+        if (!value.trim()) {
+          error = 'UPC code is required';
+        } else if (!/^\d{12}$/.test(value.trim())) {
+          error = 'UPC code must be exactly 12 digits';
+        }
+        break;
+      
+      case 'description':
+        if (value.trim().length > 500) {
+          error = 'Description must be less than 500 characters';
+        }
+        break;
+      
+      case 'imageUrl':
+        if (value && !/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(value)) {
+          error = 'Please enter a valid image URL (jpg, jpeg, png, gif, webp)';
+        }
+        break;
+      
+      case 'commissionPercentage':
+        if (value < 0) {
+          error = 'Commission percentage cannot be negative';
+        } else if (value > 100) {
+          error = 'Commission percentage cannot exceed 100%';
+        }
+        break;
+      
+      default:
+        break;
+    }
+    
+    return error;
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Validate all fields
+    Object.keys(formData).forEach(key => {
+      const error = validateField(key, formData[key]);
+      if (error) {
+        newErrors[key] = error;
+      }
+    });
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   // Load products on component mount
   useEffect(() => {
@@ -162,10 +284,14 @@ const MasterProducts = () => {
       supplier: '',
       description: '',
       unitCost: 0,
+      salonUsePrice: 0,
+      otcPrice: 0,
+      variants: '',
       upc: '',
       shelfLife: '',
       imageUrl: '',
-      status: 'Active'
+      status: 'Active',
+      commissionPercentage: 0
     });
     setModalMode('create');
     setSelectedProduct(null);
@@ -186,7 +312,8 @@ const MasterProducts = () => {
       upc: product.upc || '',
       shelfLife: product.shelfLife || '',
       imageUrl: product.imageUrl || '',
-      status: product.status || 'Active'
+      status: product.status || 'Active',
+      commissionPercentage: product.commissionPercentage || 0
     });
     setModalMode('edit');
     setSelectedProduct(product);
@@ -216,6 +343,7 @@ const MasterProducts = () => {
       shelfLife: product.shelfLife || '',
       imageUrl: product.imageUrl || '',
       status: product.status || 'Active',
+      commissionPercentage: product.commissionPercentage || 0,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt
     });
@@ -224,7 +352,7 @@ const MasterProducts = () => {
     setShowModal(true);
   };
 
-  const openDeleteModal = (product) => {
+  const openInactiveModal = (product) => {
     setSelectedProduct(product);
     setShowDeleteModal(true);
   };
@@ -246,20 +374,49 @@ const MasterProducts = () => {
       upc: '',
       shelfLife: '',
       imageUrl: '',
-      status: 'Active'
+      status: 'Active',
+      commissionPercentage: 0
     });
     // Reset image states
     setImageFile(null);
     setImagePreview(null);
     setUploadingImage(false);
+    // Reset validation states
+    setErrors({});
+    setTouched({});
+    // Clear any error messages
+    setError(null);
   };
 
   // Form handlers
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
+    const newValue = type === 'number' ? parseFloat(value) || 0 : value;
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
+      [name]: newValue
+    }));
+
+    // Mark field as touched
+    setTouched(prev => ({
+      ...prev,
+      [name]: true
+    }));
+
+    // Validate field in real-time
+    const error = validateField(name, newValue);
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const handleBlur = (e) => {
+    const { name } = e.target;
+    setTouched(prev => ({
+      ...prev,
+      [name]: true
     }));
   };
 
@@ -277,21 +434,6 @@ const MasterProducts = () => {
     }
   };
 
-  // Test Cloudinary connection
-  const testCloudinary = async () => {
-    console.log('🧪 Testing Cloudinary connection...');
-    try {
-      const result = await cloudinaryService.testConnection();
-      if (result.success) {
-        alert('✅ Cloudinary connection test successful!');
-      } else {
-        alert('❌ Cloudinary connection test failed: ' + result.error);
-      }
-    } catch (error) {
-      console.error('❌ Cloudinary test error:', error);
-      alert('❌ Cloudinary test error: ' + error.message);
-    }
-  };
 
   // Upload image to Cloudinary
   const uploadImage = async () => {
@@ -356,16 +498,18 @@ const MasterProducts = () => {
         console.log('✅ Product created successfully with ID:', result.id);
         // Reload products from database
         await loadProducts();
+        setSuccess('Product created successfully!');
         closeModal();
-        alert('Product created successfully!');
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         console.error('❌ Failed to create product:', result.error);
-        alert('Error creating product: ' + result.error);
+        setError('Failed to create product: ' + result.error);
       }
       
     } catch (err) {
       console.error('❌ Error creating product:', err);
-      alert('Error creating product: ' + err.message);
+      setError('Error creating product: ' + err.message);
     }
   };
 
@@ -403,45 +547,67 @@ const MasterProducts = () => {
         console.log('✅ Product updated successfully');
         // Reload products from database
         await loadProducts();
+        setSuccess('Product updated successfully!');
         closeModal();
-        alert('Product updated successfully!');
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         console.error('❌ Failed to update product:', result.error);
-        alert('Error updating product: ' + result.error);
+        setError('Failed to update product: ' + result.error);
       }
       
     } catch (err) {
       console.error('❌ Error updating product:', err);
-      alert('Error updating product: ' + err.message);
+      setError('Error updating product: ' + err.message);
     }
   };
 
-  const handleDelete = async () => {
+  const handleToggleStatus = async () => {
     try {
-      console.log('🗑️ Deleting product:', selectedProduct.id);
+      const newStatus = selectedProduct.status === 'Active' ? 'Inactive' : 'Active';
+      console.log('🔄 Toggling product status:', selectedProduct.id, 'to', newStatus);
       
-      // Use the actual productService to delete from database
-      const result = await productService.deleteProduct(selectedProduct.id);
+      // Use the actual productService to update status
+      const result = await productService.updateProduct(selectedProduct.id, { 
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+      });
       
       if (result.success) {
-        console.log('✅ Product deleted successfully');
+        console.log('✅ Product status updated successfully');
         // Reload products from database
         await loadProducts();
         setShowDeleteModal(false);
-        alert('Product deleted successfully!');
+        setSuccess(`Product ${newStatus.toLowerCase()} successfully!`);
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
       } else {
-        console.error('❌ Failed to delete product:', result.error);
-        alert('Error deleting product: ' + result.error);
+        console.error('❌ Failed to update product status:', result.error);
+        setError('Failed to update product status: ' + result.error);
       }
       
     } catch (err) {
-      console.error('❌ Error deleting product:', err);
-      alert('Error deleting product: ' + err.message);
+      console.error('❌ Error updating product status:', err);
+      setError('Error updating product status: ' + err.message);
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Mark all fields as touched
+    const allTouched = {};
+    Object.keys(formData).forEach(key => {
+      allTouched[key] = true;
+    });
+    setTouched(allTouched);
+    
+    // Validate form
+    if (!validateForm()) {
+      setError('Please fix the validation errors before submitting.');
+      return;
+    }
+    
     if (modalMode === 'create') {
       handleCreate();
     } else if (modalMode === 'edit') {
@@ -481,6 +647,38 @@ const MasterProducts = () => {
   return (
     <DashboardLayout menuItems={menuItems} pageTitle="Master Products">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* === Error Display === */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+              <p className="text-red-800 text-sm">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-600 hover:text-red-800"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* === Success Display === */}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+              <p className="text-green-800 text-sm">{success}</p>
+              <button
+                onClick={() => setSuccess(null)}
+                className="ml-auto text-green-600 hover:text-green-800"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        
         {/* === Summary Cards === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-4 flex items-center gap-4">
@@ -514,94 +712,103 @@ const MasterProducts = () => {
         </div>
 
         {/* === Filter + Actions === */}
-        <Card className="p-6">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-            {/* Left Side: Filter Controls */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <Card className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+            {/* Left Side: Add Product Button */}
+            <div className="flex-shrink-0">
               <Button
-                className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors shadow-sm whitespace-nowrap"
+                className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors shadow-sm"
                 onClick={openCreateModal}
               >
                 <Plus className="h-4 w-4" /> Add Product
               </Button>
-              
+            </div>
+            
+            {/* Center: Search and Filters */}
+            <div className="flex-1 flex flex-col sm:flex-row gap-3">
               {/* Search Input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <div className="relative flex-1 min-w-[200px]">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
+                <Search className="absolute left-3 top-8 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search products, brands, suppliers..."
+                  placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
                 />
               </div>
               
-              {/* Category Filter */}
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] whitespace-nowrap"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-              
-              {/* Brand Filter */}
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] whitespace-nowrap"
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-              >
-                {brands.map(brand => (
-                  <option key={brand} value={brand}>{brand}</option>
-                ))}
-              </select>
-              
-              {/* Supplier Filter */}
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] whitespace-nowrap"
-                value={supplierFilter}
-                onChange={(e) => setSupplierFilter(e.target.value)}
-              >
-                {suppliers.map(supplier => (
-                  <option key={supplier} value={supplier}>{supplier}</option>
-                ))}
-              </select>
-              
-              {/* Status Filter */}
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] whitespace-nowrap"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Discontinued">Discontinued</option>
-              </select>
+              {/* Filters Row */}
+              <div className="flex gap-2 flex-wrap">
+                {/* Category Filter */}
+                <div className="min-w-[100px]">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                  >
+                    {categories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Brand Filter */}
+                <div className="min-w-[100px]">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Brand</label>
+                  <select
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                  >
+                    {brands.map(brand => (
+                      <option key={brand} value={brand}>{brand}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Supplier Filter */}
+                <div className="min-w-[100px]">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
+                  <select
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
+                    value={supplierFilter}
+                    onChange={(e) => setSupplierFilter(e.target.value)}
+                  >
+                    {suppliers.map(supplier => (
+                      <option key={supplier} value={supplier}>{supplier}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Status Filter */}
+                <div className="min-w-[100px]">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="All">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Discontinued">Discontinued</option>
+                  </select>
+                </div>
+              </div>
             </div>
-
-            {/* Right Side: Status Info and Test Button */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            
+            {/* Right Side: Status Info */}
+            <div className="flex-shrink-0">
               <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg whitespace-nowrap">
                 Showing <span className="font-semibold text-gray-900">{paginatedProducts.length}</span> of <span className="font-semibold text-gray-900">{filteredProducts.length}</span> products
                 {filteredProducts.length !== products.length && (
-                  <span className="text-blue-600"> (filtered from {products.length} total)</span>
+                  <span className="text-blue-600"> (filtered)</span>
                 )}
                 {searchTerm && ` for "${searchTerm}"`}
               </div>
-              
-              {/* Cloudinary Test Button */}
-              <Button
-                onClick={testCloudinary}
-                variant="outline"
-                size="sm"
-                className="text-xs"
-              >
-                🧪 Test Cloudinary
-              </Button>
             </div>
           </div>
         </Card>
@@ -628,6 +835,9 @@ const MasterProducts = () => {
                     Pricing
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                    Commission
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                     Status
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
@@ -638,7 +848,7 @@ const MasterProducts = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {paginatedProducts.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center">
+                    <td colSpan="8" className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <Package className="h-12 w-12 text-gray-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
@@ -713,6 +923,13 @@ const MasterProducts = () => {
                         </div>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      <div className="text-center">
+                        <span className="font-semibold text-purple-600">
+                          {product.commissionPercentage || 0}%
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={product.status} />
                     </td>
@@ -737,10 +954,10 @@ const MasterProducts = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => openDeleteModal(product)}
-                          className="text-red-600 hover:text-red-800"
+                          onClick={() => openInactiveModal(product)}
+                          className={product.status === 'Active' ? 'text-orange-600 hover:text-orange-800' : 'text-green-600 hover:text-green-800'}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {product.status === 'Active' ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
                         </Button>
                       </div>
                     </td>
@@ -858,46 +1075,33 @@ const MasterProducts = () => {
           </div>
         </Card>
 
-        {/* Enhanced Create/Edit/View Modal */}
+        {/* Simple Create/Edit/View Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-300">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full mx-4 max-h-[95vh] overflow-hidden ${
-              modalMode === 'view' ? 'max-w-6xl' : 'max-w-4xl'
-            } animate-in zoom-in-95 duration-300`}>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className={`bg-white rounded-lg shadow-lg w-full mx-4 max-h-[90vh] overflow-hidden ${
+              modalMode === 'view' ? 'max-w-4xl' : 'max-w-3xl'
+            }`}>
               
-              {/* Enhanced Modal Header */}
-              <div className="bg-gradient-to-r from-[#160B53] via-[#2D1B69] to-[#160B53] text-white p-6 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-                <div className="relative flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-3 rounded-xl shadow-lg ${
-                      modalMode === 'create' ? 'bg-emerald-500/20 border border-emerald-400/30' :
-                      modalMode === 'edit' ? 'bg-blue-500/20 border border-blue-400/30' : 
-                      'bg-purple-500/20 border border-purple-400/30'
-                    }`}>
-                      {modalMode === 'create' && <Plus className="h-6 w-6 text-emerald-300" />}
-                      {modalMode === 'edit' && <Edit className="h-6 w-6 text-blue-300" />}
-                      {modalMode === 'view' && <Package className="h-6 w-6 text-purple-300" />}
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-bold">
-                        {modalMode === 'create' && 'Add New Product'}
-                        {modalMode === 'edit' && 'Edit Product'}
-                        {modalMode === 'view' && 'Product Details'}
-                      </h2>
-                      <p className="text-white/80 text-sm mt-1">
-                        {modalMode === 'create' && 'Create a new product in your inventory'}
-                        {modalMode === 'edit' && 'Update product information and settings'}
-                        {modalMode === 'view' && 'View comprehensive product information'}
-                      </p>
-                    </div>
+              {/* Simple Modal Header */}
+              <div className="bg-[#160B53] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {modalMode === 'create' && <Plus className="h-5 w-5 text-white" />}
+                    {modalMode === 'edit' && <Edit className="h-5 w-5 text-white" />}
+                    {modalMode === 'view' && <Eye className="h-5 w-5 text-white" />}
+                    <h2 className="text-xl font-semibold text-white">
+                      {modalMode === 'create' && 'Add New Product'}
+                      {modalMode === 'edit' && 'Edit Product'}
+                      {modalMode === 'view' && 'Product Details'}
+                    </h2>
                   </div>
                   <Button 
                     variant="outline" 
+                    size="sm"
                     onClick={closeModal} 
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30 backdrop-blur-sm transition-all duration-200"
+                    className="text-white border-white hover:bg-white hover:text-[#160B53]"
                   >
-                    <XCircle className="h-5 w-5" />
+                    <XCircle className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -905,36 +1109,34 @@ const MasterProducts = () => {
               <div className="p-8 max-h-[calc(95vh-120px)] overflow-y-auto">
 
                 {modalMode === 'view' ? (
-                  /* Enhanced View Modal Layout */
+                  /* Clean View Modal Layout */
                   <div className="space-y-6">
-                    {/* Product Header with Image */}
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6">
-                      <div className="flex items-start space-x-6">
+                    {/* Product Header */}
+                    <div className="bg-gray-50 rounded-lg p-6">
+                      <div className="flex items-start space-x-4">
                         {/* Product Image */}
                         <div className="flex-shrink-0">
                           {formData.imageUrl ? (
                             <img
                               src={formData.imageUrl}
                               alt={formData.name}
-                              className="w-24 h-24 object-cover rounded-lg border-2 border-white shadow-lg"
+                              className="w-20 h-20 object-cover rounded-lg border border-gray-200"
                             />
                           ) : (
-                            <div className="w-24 h-24 bg-gray-200 rounded-lg border-2 border-white shadow-lg flex items-center justify-center">
-                              <Package className="h-8 w-8 text-gray-400" />
+                            <div className="w-20 h-20 bg-gray-200 rounded-lg border border-gray-200 flex items-center justify-center">
+                              <Package className="h-6 w-6 text-gray-400" />
                             </div>
                           )}
                         </div>
                         
                         {/* Product Basic Info */}
                         <div className="flex-1">
-                          <h3 className="text-2xl font-bold text-gray-900 mb-2">{formData.name}</h3>
-                          <div className="flex items-center space-x-4 mb-3">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          <h3 className="text-xl font-semibold text-gray-900 mb-2">{formData.name}</h3>
+                          <div className="flex items-center space-x-3 mb-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
                               formData.status === 'Active' 
                                 ? 'bg-green-100 text-green-800' 
-                                : formData.status === 'Inactive'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-gray-100 text-gray-800'
+                                : 'bg-red-100 text-red-800'
                             }`}>
                               {formData.status}
                             </span>
@@ -942,140 +1144,81 @@ const MasterProducts = () => {
                               UPC: {formData.upc}
                             </span>
                           </div>
-                          <p className="text-gray-700 text-lg">{formData.description}</p>
+                          <p className="text-gray-600 text-sm">{formData.description}</p>
                         </div>
                         
                         {/* Price Display */}
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-[#160B53]">
+                          <div className="text-xl font-semibold text-[#160B53]">
                             ₱{formData.unitCost?.toLocaleString()}
                           </div>
-                          <div className="text-sm text-gray-600">Unit Cost</div>
-                          <div className="mt-2 space-y-1">
-                            <div className="text-lg font-semibold text-blue-600">
-                              ₱{formData.salonUsePrice?.toLocaleString()}
-                            </div>
-                            <div className="text-xs text-gray-500">Salon Use Price</div>
-                            <div className="text-lg font-semibold text-green-600">
-                              ₱{formData.otcPrice?.toLocaleString()}
-                            </div>
-                            <div className="text-xs text-gray-500">OTC Price</div>
-                          </div>
+                          <div className="text-xs text-gray-500">Unit Cost</div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Product Details Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Left Column */}
-                      <div className="space-y-6">
-                        {/* Category & Brand */}
-                        <div className="bg-white border border-gray-200 rounded-lg p-4">
-                          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                            Product Information
-                          </h4>
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="text-sm font-medium text-gray-600">Category</span>
-                              <span className="text-sm text-gray-900 font-medium">{formData.category}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="text-sm font-medium text-gray-600">Brand</span>
-                              <span className="text-sm text-gray-900 font-medium">{formData.brand}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="text-sm font-medium text-gray-600">Supplier</span>
-                              <span className="text-sm text-gray-900 font-medium">{formData.supplier}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="text-sm font-medium text-gray-600">Shelf Life</span>
-                              <span className="text-sm text-gray-900 font-medium">{formData.shelfLife}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2">
-                              <span className="text-sm font-medium text-gray-600">Variants</span>
-                              <span className="text-sm text-gray-900 font-medium">{formData.variants || 'N/A'}</span>
-                            </div>
+                    {/* Product Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Product Information */}
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                          <Package className="h-5 w-5 text-blue-600 mr-2" />
+                          Product Information
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-gray-600">Category</span>
+                            <span className="text-sm text-gray-900">{formData.category}</span>
                           </div>
-                        </div>
-
-                        {/* Timestamps */}
-                        <div className="bg-white border border-gray-200 rounded-lg p-4">
-                          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                            Timeline
-                          </h4>
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="text-sm font-medium text-gray-600">Created</span>
-                              <span className="text-sm text-gray-900 font-medium">
-                                {formData.createdAt ? (
-                                  <div className="text-right">
-                                    <div className="font-medium">
-                                      {new Date(formData.createdAt).toLocaleDateString()}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {new Date(formData.createdAt).toLocaleTimeString()}
-                                    </div>
-                                  </div>
-                                ) : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center py-2">
-                              <span className="text-sm font-medium text-gray-600">Last Updated</span>
-                              <span className="text-sm text-gray-900 font-medium">
-                                {formData.updatedAt ? (
-                                  <div className="text-right">
-                                    <div className="font-medium">
-                                      {new Date(formData.updatedAt).toLocaleDateString()}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {new Date(formData.updatedAt).toLocaleTimeString()}
-                                    </div>
-                                  </div>
-                                ) : 'N/A'}
-                              </span>
-                            </div>
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-gray-600">Brand</span>
+                            <span className="text-sm text-gray-900">{formData.brand}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-gray-600">Supplier</span>
+                            <span className="text-sm text-gray-900">{formData.supplier}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-gray-600">Shelf Life</span>
+                            <span className="text-sm text-gray-900">{formData.shelfLife || 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm font-medium text-gray-600">Variants</span>
+                            <span className="text-sm text-gray-900">{formData.variants || 'N/A'}</span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Right Column */}
-                      <div className="space-y-6">
-                        {/* UPC Details */}
-                        <div className="bg-white border border-gray-200 rounded-lg p-4">
-                          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                            <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
-                            Product Code
+                        {/* Pricing Information */}
+                        <div className="border border-gray-200 rounded-lg p-4">
+                          <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                            <DollarSign className="h-5 w-5 text-green-600 mr-2" />
+                            Pricing Information
                           </h4>
-                          <div className="bg-gray-50 rounded-lg p-3">
-                            <div className="text-sm text-gray-600 mb-1">UPC Code</div>
-                            <div className="text-lg font-mono text-gray-900 break-all">{formData.upc}</div>
-                          </div>
-                        </div>
-
-                        {/* Image Section */}
-                        {formData.imageUrl && (
-                          <div className="bg-white border border-gray-200 rounded-lg p-4">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                              <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
-                              Product Image
-                            </h4>
-                            <div className="text-center">
-                              <img
-                                src={formData.imageUrl}
-                                alt={formData.name}
-                                className="w-full h-48 object-cover rounded-lg border border-gray-200 shadow-sm"
-                              />
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">Unit Cost</span>
+                              <span className="text-sm text-gray-900 font-semibold">₱{formData.unitCost?.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">Salon Use Price</span>
+                              <span className="text-sm text-blue-600 font-semibold">₱{formData.salonUsePrice?.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">OTC Price</span>
+                              <span className="text-sm text-green-600 font-semibold">₱{formData.otcPrice?.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2">
+                              <span className="text-sm font-medium text-gray-600">Commission</span>
+                              <span className="text-sm text-purple-600 font-semibold">{formData.commissionPercentage || 0}%</span>
                             </div>
                           </div>
-                        )}
-                      </div>
+                        </div>
                     </div>
                   </div>
                   ) : (
                     /* Enhanced Create/Edit Form Layout */
-                    <form onSubmit={handleSubmit} className="space-y-8">
+                    <form onSubmit={handleSubmit} className="space-y-6">
                       
                       {/* Form Progress Indicator */}
                       <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
@@ -1096,105 +1239,145 @@ const MasterProducts = () => {
                       </div>
 
                       {/* Basic Information Section */}
-                      <div className="bg-white border-2 border-gray-100 rounded-2xl p-8 shadow-sm">
-                        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                          <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                      <div className="border border-gray-200 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                          <Package className="h-5 w-5 text-blue-600 mr-2" />
                           Basic Information
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              Product Name *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Product Name <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               name="name"
                               value={formData.name}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               required
                               disabled={modalMode === 'view'}
                               placeholder="Enter product name"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
+                                errors.name && touched.name 
+                                  ? 'border-red-500' 
+                                  : 'border-gray-300'
+                              }`}
                             />
+                            {errors.name && touched.name && (
+                              <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                            )}
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              Category *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Category <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               name="category"
                               value={formData.category}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               required
                               disabled={modalMode === 'view'}
                               placeholder="Enter category"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
+                                errors.category && touched.category 
+                                  ? 'border-red-500' 
+                                  : 'border-gray-300'
+                              }`}
                             />
+                            {errors.category && touched.category && (
+                              <p className="mt-1 text-sm text-red-600">{errors.category}</p>
+                            )}
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              Brand *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Brand <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               name="brand"
                               value={formData.brand}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               required
                               disabled={modalMode === 'view'}
                               placeholder="Enter brand name"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
+                                errors.brand && touched.brand 
+                                  ? 'border-red-500' 
+                                  : 'border-gray-300'
+                              }`}
                             />
+                            {errors.brand && touched.brand && (
+                              <p className="mt-1 text-sm text-red-600">{errors.brand}</p>
+                            )}
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              Supplier *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Supplier <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               name="supplier"
                               value={formData.supplier}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               required
                               disabled={modalMode === 'view'}
                               placeholder="Enter supplier name"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
+                                errors.supplier && touched.supplier 
+                                  ? 'border-red-500' 
+                                  : 'border-gray-300'
+                              }`}
                             />
+                            {errors.supplier && touched.supplier && (
+                              <p className="mt-1 text-sm text-red-600">{errors.supplier}</p>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {/* Pricing & Details Section */}
-                      <div className="bg-white border-2 border-gray-100 rounded-2xl p-8 shadow-sm">
-                        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                          <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                      <div className="border border-gray-200 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                          <DollarSign className="h-5 w-5 text-green-600 mr-2" />
                           Pricing & Details
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              UPC Code *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              UPC Code <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               name="upc"
                               value={formData.upc}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               required
                               disabled={modalMode === 'view'}
                               placeholder="12-digit Universal Product Code"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200 font-mono"
+                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 font-mono ${
+                                errors.upc && touched.upc 
+                                  ? 'border-red-500' 
+                                  : 'border-gray-300'
+                              }`}
                             />
+                            {errors.upc && touched.upc && (
+                              <p className="mt-1 text-sm text-red-600">{errors.upc}</p>
+                            )}
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              Unit Cost *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Unit Cost <span className="text-red-500">*</span>
                             </label>
                             <div className="relative">
                               <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold">₱</span>
@@ -1203,19 +1386,27 @@ const MasterProducts = () => {
                                 name="unitCost"
                                 value={formData.unitCost}
                                 onChange={handleInputChange}
+                                onBlur={handleBlur}
                                 required
                                 min="0"
                                 step="0.01"
                                 disabled={modalMode === 'view'}
                                 placeholder="0.00"
-                                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                                className={`w-full pl-8 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
+                                  errors.unitCost && touched.unitCost 
+                                    ? 'border-red-500' 
+                                    : 'border-gray-300'
+                                }`}
                               />
                             </div>
+                            {errors.unitCost && touched.unitCost && (
+                              <p className="mt-1 text-sm text-red-600">{errors.unitCost}</p>
+                            )}
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              Salon Use Price *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Salon Use Price <span className="text-red-500">*</span>
                             </label>
                             <div className="relative">
                               <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-500 font-bold">₱</span>
@@ -1235,8 +1426,8 @@ const MasterProducts = () => {
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                              OTC Price *
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              OTC Price <span className="text-red-500">*</span>
                             </label>
                             <div className="relative">
                               <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-green-500 font-bold">₱</span>
@@ -1256,7 +1447,7 @@ const MasterProducts = () => {
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                               Product Variants
                             </label>
                             <input
@@ -1266,12 +1457,12 @@ const MasterProducts = () => {
                               onChange={handleInputChange}
                               disabled={modalMode === 'view'}
                               placeholder="e.g., 250ml, 500ml, 1L"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
                             />
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                               Shelf Life
                             </label>
                             <input
@@ -1281,22 +1472,51 @@ const MasterProducts = () => {
                               onChange={handleInputChange}
                               disabled={modalMode === 'view'}
                               placeholder="e.g., 24 months"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
                             />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Commission Percentage
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                name="commissionPercentage"
+                                value={formData.commissionPercentage}
+                                onChange={handleInputChange}
+                                onBlur={handleBlur}
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                disabled={modalMode === 'view'}
+                                placeholder="0.00"
+                                className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
+                                  errors.commissionPercentage && touched.commissionPercentage 
+                                    ? 'border-red-500' 
+                                    : 'border-gray-300'
+                                }`}
+                              />
+                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">%</span>
+                            </div>
+                            {errors.commissionPercentage && touched.commissionPercentage && (
+                              <p className="mt-1 text-sm text-red-600">{errors.commissionPercentage}</p>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {/* Media & Status Section */}
-                      <div className="bg-white border-2 border-gray-100 rounded-2xl p-8 shadow-sm">
-                        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                          <div className="w-3 h-3 bg-purple-500 rounded-full mr-3"></div>
+                      <div className="border border-gray-200 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                          <Settings className="h-5 w-5 text-purple-600 mr-2" />
                           Media & Status
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                               Product Status
                             </label>
                             <select
@@ -1304,7 +1524,7 @@ const MasterProducts = () => {
                               value={formData.status}
                               onChange={handleInputChange}
                               disabled={modalMode === 'view'}
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
                             >
                               <option value="Active">🟢 Active</option>
                               <option value="Inactive">🔴 Inactive</option>
@@ -1313,7 +1533,7 @@ const MasterProducts = () => {
                           </div>
 
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                               Shelf Life
                             </label>
                             <input
@@ -1323,33 +1543,47 @@ const MasterProducts = () => {
                               onChange={handleInputChange}
                               disabled={modalMode === 'view'}
                               placeholder="e.g., 24 months"
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Enhanced Image Upload Section */}
-                      <div className="bg-white border-2 border-gray-100 rounded-2xl p-8 shadow-sm">
-                        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                          <div className="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
+                      <div className="border border-gray-200 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                          <Package className="h-5 w-5 text-orange-600 mr-2" />
                           Product Image
                         </h3>
                         
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           {/* Left Side: Upload Controls */}
-                          <div className="space-y-6">
+                          <div className="space-y-4">
                             <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Upload Image File
                               </label>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                                disabled={modalMode === 'view' || uploadingImage}
-                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
-                              />
+                              <div className="relative">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleImageChange}
+                                  disabled={modalMode === 'view' || uploadingImage}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                                  id="image-upload"
+                                />
+                                <label
+                                  htmlFor="image-upload"
+                                  className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <Package className="h-5 w-5 text-gray-400" />
+                                    <span className="text-sm font-medium text-gray-700">
+                                      {uploadingImage ? 'Uploading...' : 'Choose Image File'}
+                                    </span>
+                                  </div>
+                                </label>
+                              </div>
                               
                               {/* Upload Status */}
                               {uploadingImage && (
@@ -1363,7 +1597,7 @@ const MasterProducts = () => {
                             </div>
                             
                             <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Or Enter Image URL
                               </label>
                               <input
@@ -1373,7 +1607,7 @@ const MasterProducts = () => {
                                 onChange={handleInputChange}
                                 disabled={modalMode === 'view'}
                                 placeholder="https://example.com/image.jpg"
-                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] disabled:bg-gray-50 transition-all duration-200"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
                               />
                             </div>
                           </div>
@@ -1409,7 +1643,7 @@ const MasterProducts = () => {
                       </div>
 
                       {/* Description Section */}
-                      <div className="bg-white border-2 border-gray-100 rounded-2xl p-8 shadow-sm">
+                      <div className="border border-gray-200 rounded-lg p-6">
                         <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
                           <div className="w-3 h-3 bg-indigo-500 rounded-full mr-3"></div>
                           Additional Information
@@ -1437,13 +1671,13 @@ const MasterProducts = () => {
                             type="button" 
                             variant="outline" 
                             onClick={closeModal}
-                            className="px-8 py-3 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all duration-200 font-medium"
+                            className="px-6 py-2 text-gray-700 hover:bg-gray-50"
                           >
                             Cancel
                           </Button>
                           <Button 
                             type="submit" 
-                            className="bg-gradient-to-r from-[#160B53] to-[#2D1B69] hover:from-[#12094A] hover:to-[#1A0B3D] text-white px-8 py-3 shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 font-medium"
                           >
                             {modalMode === 'create' ? 'Create Product' : 'Update Product'}
                           </Button>
@@ -1492,8 +1726,8 @@ const MasterProducts = () => {
                     <AlertTriangle className="h-6 w-6 text-red-200" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold">Delete Product</h3>
-                    <p className="text-red-100 text-sm">This action cannot be undone</p>
+                    <h3 className="text-2xl font-bold">Toggle Product Status</h3>
+                    <p className="text-red-100 text-sm">Change product availability</p>
                   </div>
                 </div>
               </div>
@@ -1522,7 +1756,7 @@ const MasterProducts = () => {
                 </div>
                 
                 <p className="text-gray-700 mb-8 text-center leading-relaxed">
-                  Are you sure you want to permanently delete this product? This action cannot be undone and will remove all associated data from the system.
+                  Are you sure you want to {selectedProduct?.status === 'Active' ? 'make this product inactive' : 'make this product active'}? This will {selectedProduct?.status === 'Active' ? 'hide' : 'show'} the product from branch availability.
                 </p>
                 
                 <div className="flex justify-end space-x-4">
@@ -1534,11 +1768,14 @@ const MasterProducts = () => {
                     Cancel
                   </Button>
                   <Button 
-                    onClick={handleDelete}
-                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
+                    onClick={handleToggleStatus}
+                    className={selectedProduct?.status === 'Active' ? 
+                      "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-200 font-medium" :
+                      "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
+                    }
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Product
+                    {selectedProduct?.status === 'Active' ? <ToggleLeft className="h-4 w-4 mr-2" /> : <ToggleRight className="h-4 w-4 mr-2" />}
+                    {selectedProduct?.status === 'Active' ? 'Make Inactive' : 'Make Active'}
                   </Button>
                 </div>
               </div>
