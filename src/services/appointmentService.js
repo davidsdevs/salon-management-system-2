@@ -289,15 +289,8 @@ class AppointmentService {
       console.log('Total documents found:', snapshot.docs.length);
       console.log('Query executed successfully');
       
-<<<<<<< HEAD
-      const appointments = [];
-      
       console.log('📋 PROCESSING EACH DOCUMENT:');
-      snapshot.forEach((doc, index) => {
-=======
-      // Process appointments with async operations
-      const appointmentPromises = snapshot.docs.map(async (doc) => {
->>>>>>> origin/main
+      const appointmentPromises = snapshot.docs.map(async (doc, index) => {
         const appointmentData = doc.data();
         console.log(`\n📄 Document ${index + 1}/${snapshot.docs.length}:`);
         console.log('Document ID:', doc.id);
@@ -311,7 +304,6 @@ class AppointmentService {
           serviceStylistPairs: appointmentData.serviceStylistPairs
         });
         
-<<<<<<< HEAD
         // Check permission
         const canView = this.canViewAppointment(currentUserRole, appointmentData, currentUserId);
         console.log('Can view appointment?', canView);
@@ -324,15 +316,7 @@ class AppointmentService {
         
         if (canView) {
           console.log('✅ Appointment APPROVED for viewing');
-          appointments.push({
-=======
-        // Filter based on user permissions
-        if (this.canViewAppointment(currentUserRole, appointmentData, currentUserId)) {
-          console.log('Appointment approved for viewing');
-          
-          // Process serviceStylistPairs to extract service and stylist names
           let processedAppointment = {
->>>>>>> origin/main
             id: doc.id,
             ...appointmentData
           };
@@ -383,25 +367,21 @@ class AppointmentService {
           
           return processedAppointment;
         } else {
-<<<<<<< HEAD
           console.log('❌ Appointment REJECTED due to permissions');
-=======
-          console.log('Appointment rejected due to permissions');
           return null;
->>>>>>> origin/main
         }
       });
       
       // Wait for all appointments to be processed
       const appointmentResults = await Promise.all(appointmentPromises);
-      const appointments = appointmentResults.filter(appointment => appointment !== null);
+      const filteredAppointments = appointmentResults.filter(appointment => appointment !== null);
 
-      console.log('Final appointments array length:', appointments.length);
-      console.log('Final appointments array:', appointments);
+      console.log('Final appointments array length:', filteredAppointments.length);
+      console.log('Final appointments array:', filteredAppointments);
       console.log('📊 FINAL RESULT SUMMARY:');
       console.log('Total documents found:', snapshot.docs.length);
-      console.log('Appointments approved for viewing:', appointments.length);
-      console.log('Appointments details:', appointments.map((apt, index) => ({
+      console.log('Appointments approved for viewing:', filteredAppointments.length);
+      console.log('Appointments details:', filteredAppointments.map((apt, index) => ({
         index,
         id: apt.id,
         clientName: apt.clientName || apt.clientInfo?.name,
@@ -410,7 +390,7 @@ class AppointmentService {
       })));
       
       return {
-        appointments,
+        appointments: filteredAppointments,
         lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
         hasMore: snapshot.docs.length === pageSize
       };
