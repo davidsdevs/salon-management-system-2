@@ -29,7 +29,6 @@
 
   const BranchManagerDashboard = () => {
     const { userData } = useAuth();
-
     // Sample Data
     const appointmentData = [
       { day: "Mon", appointments: 15 },
@@ -52,7 +51,7 @@
       { path: "/dashboard", label: "Dashboard", icon: Home },
       { path: "/appointments", label: "Appointments", icon: Calendar },
       { path: "/staff", label: "Staff", icon: Users },
-      { path: "/staff", label: "Schedules", icon: Users },
+      { path: "/schedule", label: "Schedule", icon: Calendar },
       { path: "/inventory", label: "Inventory", icon: Package },
       { path: "/reports", label: "Reports", icon: BarChart3 },
       { path: "/profile", label: "Profile", icon: UserCog },

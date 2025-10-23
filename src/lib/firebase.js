@@ -3,6 +3,7 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 
 // Firebase configuration
 // Replace with your actual Firebase config
@@ -23,6 +24,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
 // Initialize Analytics if supported (avoids SSR errors)
 export let analytics = null;
