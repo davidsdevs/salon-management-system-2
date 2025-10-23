@@ -26,26 +26,26 @@ const ProtectedRoute = ({ children, requiredRole = null, requiredPermission = nu
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Get current role (support both old and new structure)
-  const currentRole = userData.currentRole || userData.roles?.[0];
+  // Get user roles
   const userRoles = userData.roles || [];
+  const primaryRole = userRoles[0]; // First role is the primary/current role
 
   // Check required role
   if (requiredRole) {
-    if (!userRoles.includes(requiredRole) && !hasRoleAccess(currentRole, requiredRole)) {
+    if (!userRoles.includes(requiredRole) && !hasRoleAccess(primaryRole, requiredRole)) {
       return <Navigate to="/unauthorized" replace />;
     }
   }
 
   // Check allowedRoles array (for StaffRoute)
   if (allowedRoles) {
-    const hasAllowedRole = userRoles.some(r => allowedRoles.includes(r)) || allowedRoles.includes(currentRole);
+    const hasAllowedRole = userRoles.some(r => allowedRoles.includes(r)) || allowedRoles.includes(primaryRole);
     if (!hasAllowedRole) return <Navigate to="/unauthorized" replace />;
   }
 
   // Check required permission
   if (requiredPermission) {
-    const hasPerm = userRoles.some(role => hasPermission(role, requiredPermission)) || hasPermission(currentRole, requiredPermission);
+    const hasPerm = userRoles.some(role => hasPermission(role, requiredPermission)) || hasPermission(primaryRole, requiredPermission);
     if (!hasPerm) return <Navigate to="/unauthorized" replace />;
   }
 

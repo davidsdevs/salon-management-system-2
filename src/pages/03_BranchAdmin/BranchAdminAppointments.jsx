@@ -28,6 +28,7 @@ import {
 const BranchAdminAppointments = () => {
   const { userData } = useAuth();
   const [appointments, setAppointments] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,15 +39,37 @@ const BranchAdminAppointments = () => {
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Notification states
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorMessage, setShowErrorMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     loadAppointments();
+    loadClients();
   }, []);
+
+  // Helper functions for notifications
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 5000);
+  };
+
+  const showError = (message) => {
+    setErrorMessage(message);
+    setShowErrorMessage(true);
+    setTimeout(() => setShowErrorMessage(false), 5000);
+  };
+
+
 
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const result = await appointmentService.getAppointments(userData.currentRole || userData.roles?.[0], userData.uid);
+      const result = await appointmentService.getAppointments(userData.roles?.[0], userData.uid);
       
       // Filter appointments for this branch
       const branchAppointments = result.appointments.filter(apt => apt.branchId === userData.branchId);
@@ -59,24 +82,34 @@ const BranchAdminAppointments = () => {
     }
   };
 
+  const loadClients = async () => {
+    try {
+      const clientsData = await appointmentService.getClients();
+      setClients(clientsData);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+    }
+  };
+
   const handleCreateAppointment = async (appointmentData) => {
     try {
       const newAppointment = {
         ...appointmentData,
         branchId: userData.branchId
       };
-      await appointmentService.createAppointment(newAppointment, userData.currentRole || userData.roles?.[0]);
+      await appointmentService.createAppointment(newAppointment, userData.roles?.[0]);
       setShowAppointmentForm(false);
       await loadAppointments();
+      showSuccess('Appointment created successfully!');
     } catch (error) {
       console.error('Error creating appointment:', error);
-      setError('Failed to create appointment');
+      showError('Failed to create appointment: ' + error.message);
     }
   };
 
   const handleUpdateAppointment = async (appointmentId, updateData) => {
     try {
-      await appointmentService.updateAppointment(appointmentId, updateData, userData.currentRole || userData.roles?.[0]);
+      await appointmentService.updateAppointment(appointmentId, updateData, userData.roles?.[0]);
       setShowAppointmentForm(false);
       setSelectedAppointment(null);
       setIsEditing(false);
@@ -91,7 +124,7 @@ const BranchAdminAppointments = () => {
     try {
       await appointmentService.updateAppointment(appointmentId, { 
         status: APPOINTMENT_STATUS.CONFIRMED 
-      }, userData.currentRole || userData.roles?.[0]);
+      }, userData.roles?.[0]);
       await loadAppointments();
     } catch (error) {
       console.error('Error confirming appointment:', error);
@@ -103,7 +136,7 @@ const BranchAdminAppointments = () => {
     try {
       await appointmentService.updateAppointment(appointmentId, { 
         status: APPOINTMENT_STATUS.CANCELLED 
-      }, userData.currentRole || userData.roles?.[0]);
+      }, userData.roles?.[0]);
       await loadAppointments();
     } catch (error) {
       console.error('Error cancelling appointment:', error);
@@ -150,12 +183,22 @@ const BranchAdminAppointments = () => {
     });
   };
 
-  const formatTime = (date) => {
-    if (!date) return 'N/A';
-    const d = date.toDate ? date.toDate() : new Date(date);
+  const formatTime = (time) => {
+    if (!time) return 'N/A';
+    // If time is already in HH:MM format, convert to 12-hour format
+    if (typeof time === 'string' && time.match(/^\d{2}:\d{2}$/)) {
+      const [hours, minutes] = time.split(':');
+      const hour = parseInt(hours, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+      return `${displayHour}:${minutes} ${ampm}`;
+    }
+    // If time is a timestamp, format it
+    const d = time.toDate ? time.toDate() : new Date(time);
     return d.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
@@ -188,11 +231,7 @@ const BranchAdminAppointments = () => {
     <DashboardLayout menuItems={menuItems} pageTitle="Branch Appointments">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Branch Appointments</h1>
-            <p className="text-gray-600">Monitor and manage all branch appointments</p>
-          </div>
+        <div className="flex justify-end items-center mb-6">
           <Button 
             onClick={() => setShowAppointmentForm(true)}
             className="bg-[#160B53] hover:bg-[#160B53]/90"
@@ -358,7 +397,7 @@ const BranchAdminAppointments = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <Clock className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">{formatTime(appointment.appointmentDate)}</span>
+                              <span className="text-sm text-gray-600">{formatTime(appointment.appointmentTime)}</span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-gray-400" />
@@ -447,6 +486,8 @@ const BranchAdminAppointments = () => {
             initialData={isEditing ? selectedAppointment : null}
             isEditing={isEditing}
             loading={false}
+            clients={clients}
+            userData={userData}
           />
         )}
 
@@ -470,10 +511,30 @@ const BranchAdminAppointments = () => {
             loading={false}
           />
         )}
+
+
+        {/* Success Message */}
+        {showSuccessMessage && (
+          <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-lg z-50">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 mr-2" />
+              {successMessage}
+            </div>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {showErrorMessage && (
+          <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50">
+            <div className="flex items-center">
+              <XCircle className="h-5 w-5 mr-2" />
+              {errorMessage}
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
 };
 
 export default BranchAdminAppointments;
-

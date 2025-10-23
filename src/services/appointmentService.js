@@ -45,11 +45,32 @@ class AppointmentService {
   // Create new appointment
   async createAppointment(appointmentData, currentUserRole, currentUserId) {
     try {
-      // Validate required fields
-      if (!appointmentData.clientId || !appointmentData.branchId || !appointmentData.stylistId || 
+      // Validate required fields based on client type
+      const isNewClient = appointmentData.clientInfo?.isNewClient;
+      
+      if (isNewClient) {
+        // For new clients, validate client info instead of clientId
+        const hasServiceStylistPairs = appointmentData.serviceStylistPairs && 
+          appointmentData.serviceStylistPairs.length > 0 && 
+          appointmentData.serviceStylistPairs.every(pair => pair.serviceId && pair.stylistId);
+        
+        if (!appointmentData.clientInfo?.name || !appointmentData.clientInfo?.phone || 
+            !appointmentData.branchId || 
+            !appointmentData.appointmentDate || !appointmentData.appointmentTime || 
+            !hasServiceStylistPairs) {
+          throw new Error('Missing required appointment fields for new client');
+        }
+      } else {
+        // For existing clients, validate clientId
+        const hasServiceStylistPairs = appointmentData.serviceStylistPairs && 
+          appointmentData.serviceStylistPairs.length > 0 && 
+          appointmentData.serviceStylistPairs.every(pair => pair.serviceId && pair.stylistId);
+        
+        if (!appointmentData.clientId || !appointmentData.branchId || 
           !appointmentData.appointmentDate || !appointmentData.appointmentTime || 
-          !appointmentData.serviceIds || appointmentData.serviceIds.length === 0) {
+            !hasServiceStylistPairs) {
         throw new Error('Missing required appointment fields');
+        }
       }
 
       // Check if user can create appointments
@@ -57,18 +78,124 @@ class AppointmentService {
         throw new Error('Insufficient permissions to create appointments');
       }
 
+      // Extract serviceIds from serviceStylistPairs
+      const serviceIds = appointmentData.serviceStylistPairs.map(pair => pair.serviceId);
+
       // Validate appointment time and availability
+      // Use the first stylist for validation (since we have multiple stylists now)
+      const firstStylistId = appointmentData.serviceStylistPairs[0].stylistId;
       await this.validateAppointmentTime(
         appointmentData.branchId,
-        appointmentData.stylistId,
+        firstStylistId,
         appointmentData.appointmentDate,
         appointmentData.appointmentTime,
-        appointmentData.serviceIds
+        serviceIds
       );
 
+      let clientId = appointmentData.clientId;
+      let clientName = '';
+      let clientPhone = '';
+      let clientEmail = '';
+      
+      // If it's a new client, create a client record first
+      if (isNewClient) {
+        const clientData = {
+          name: appointmentData.clientInfo.name,
+          phone: appointmentData.clientInfo.phone,
+          email: appointmentData.clientInfo.email || '',
+          isRegistered: false, // Non-registered client
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        
+        const clientRef = await addDoc(collection(this.db, 'clients'), clientData);
+        clientId = clientRef.id;
+        clientName = appointmentData.clientInfo.name;
+        clientPhone = appointmentData.clientInfo.phone;
+        clientEmail = appointmentData.clientInfo.email || '';
+      } else {
+        // For existing clients, fetch their details from users collection
+        try {
+          const userDoc = await getDoc(doc(this.db, 'users', appointmentData.clientId));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            clientName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.name || 'Unknown';
+            clientPhone = userData.phone || '';
+            clientEmail = userData.email || '';
+          }
+        } catch (error) {
+          console.error('Error fetching client details:', error);
+          clientName = 'Unknown Client';
+        }
+      }
+
+      // Fetch service and stylist names with prices
+      const serviceStylistPairsWithNames = [];
+      for (const pair of appointmentData.serviceStylistPairs) {
+        try {
+          // Fetch service details (name and price)
+          const serviceDoc = await getDoc(doc(this.db, 'services', pair.serviceId));
+          const serviceData = serviceDoc.exists() ? serviceDoc.data() : null;
+          const serviceName = serviceData ? serviceData.name : `Service ${pair.serviceId}`;
+          
+          // Get price for this branch
+          let servicePrice = 0;
+          if (serviceData && serviceData.prices && serviceData.branches) {
+            const branchIndex = serviceData.branches.indexOf(appointmentData.branchId);
+            if (branchIndex !== -1 && serviceData.prices[branchIndex] !== undefined) {
+              servicePrice = parseFloat(serviceData.prices[branchIndex]);
+            } else if (serviceData.prices.length > 0) {
+              servicePrice = parseFloat(serviceData.prices[0]); // Fallback to first price
+            }
+          }
+          
+          // Fetch stylist name
+          const stylistDoc = await getDoc(doc(this.db, 'users', pair.stylistId));
+          const stylistData = stylistDoc.exists() ? stylistDoc.data() : null;
+          const stylistName = stylistData ? 
+            `${stylistData.firstName || ''} ${stylistData.lastName || ''}`.trim() || 
+            stylistData.name || 
+            `Stylist ${pair.stylistId}` : 
+            `Stylist ${pair.stylistId}`;
+          
+          serviceStylistPairsWithNames.push({
+            serviceId: pair.serviceId,
+            serviceName: serviceName,
+            servicePrice: servicePrice,
+            stylistId: pair.stylistId,
+            stylistName: stylistName
+          });
+        } catch (error) {
+          console.error('Error fetching service/stylist details:', error);
+          // Fallback to IDs if fetching fails
+          serviceStylistPairsWithNames.push({
+            serviceId: pair.serviceId,
+            serviceName: `Service ${pair.serviceId}`,
+            servicePrice: 0,
+            stylistId: pair.stylistId,
+            stylistName: `Stylist ${pair.stylistId}`
+          });
+        }
+      }
+
+      // Calculate total price
+      const totalPrice = serviceStylistPairsWithNames.reduce((total, pair) => total + (pair.servicePrice || 0), 0);
+
       const newAppointment = {
-        ...appointmentData,
+        // Core appointment data
+        clientId: clientId,
+        clientName: clientName,
+        clientPhone: clientPhone,
+        clientEmail: clientEmail,
+        branchId: appointmentData.branchId,
+        appointmentDate: appointmentData.appointmentDate,
+        appointmentTime: appointmentData.appointmentTime,
+        serviceStylistPairs: serviceStylistPairsWithNames,
+        totalPrice: totalPrice,
+        notes: appointmentData.notes || '',
         status: APPOINTMENT_STATUS.SCHEDULED,
+        
+        // System fields
         createdBy: currentUserId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -76,7 +203,7 @@ class AppointmentService {
           action: 'created',
           by: currentUserId,
           timestamp: new Date().toISOString(),
-          notes: 'Appointment created'
+          notes: isNewClient ? 'Appointment created for new client' : 'Appointment created'
         }]
       };
 
@@ -149,23 +276,75 @@ class AppointmentService {
       const snapshot = await getDocs(q);
       console.log('Query executed, found', snapshot.docs.length, 'documents');
       
-      const appointments = [];
-      
-      snapshot.forEach((doc) => {
+      // Process appointments with async operations
+      const appointmentPromises = snapshot.docs.map(async (doc) => {
         const appointmentData = doc.data();
         console.log('Processing appointment:', doc.id, appointmentData);
         
         // Filter based on user permissions
         if (this.canViewAppointment(currentUserRole, appointmentData, currentUserId)) {
           console.log('Appointment approved for viewing');
-          appointments.push({
+          
+          // Process serviceStylistPairs to extract service and stylist names
+          let processedAppointment = {
             id: doc.id,
             ...appointmentData
-          });
+          };
+          
+          // If appointment has serviceStylistPairs, process them
+          if (appointmentData.serviceStylistPairs && appointmentData.serviceStylistPairs.length > 0) {
+            // Use stored names if available, otherwise fetch them
+            const serviceNames = [];
+            const stylistNames = [];
+            
+            for (const pair of appointmentData.serviceStylistPairs) {
+              if (pair.serviceName && pair.stylistName) {
+                // Use stored names and prices
+                serviceNames.push(pair.serviceName);
+                stylistNames.push(pair.stylistName);
+              } else {
+                // Fallback: fetch names from database
+                try {
+                  const serviceDoc = await getDoc(doc(this.db, 'services', pair.serviceId));
+                  const serviceName = serviceDoc.exists() ? serviceDoc.data().name : `Service ${pair.serviceId}`;
+                  serviceNames.push(serviceName);
+                  
+                  const stylistDoc = await getDoc(doc(this.db, 'users', pair.stylistId));
+                  const stylistData = stylistDoc.exists() ? stylistDoc.data() : null;
+                  const stylistName = stylistData ? 
+                    `${stylistData.firstName || ''} ${stylistData.lastName || ''}`.trim() || 
+                    stylistData.name || 
+                    `Stylist ${pair.stylistId}` : 
+                    `Stylist ${pair.stylistId}`;
+                  stylistNames.push(stylistName);
+                } catch (error) {
+                  console.error('Error fetching service/stylist names:', error);
+                  serviceNames.push(`Service ${pair.serviceId}`);
+                  stylistNames.push(`Stylist ${pair.stylistId}`);
+                }
+              }
+            }
+            
+            processedAppointment.serviceName = serviceNames.join(', ');
+            processedAppointment.stylistName = stylistNames.join(', ');
+            processedAppointment.serviceCount = appointmentData.serviceStylistPairs.length;
+          } else if (appointmentData.serviceIds && appointmentData.serviceIds.length > 0) {
+            // Handle old structure for backward compatibility
+            processedAppointment.serviceName = `Service ${appointmentData.serviceIds.join(', ')}`;
+            processedAppointment.stylistName = appointmentData.stylistName || `Stylist ${appointmentData.stylistId}`;
+            processedAppointment.serviceCount = appointmentData.serviceIds.length;
+          }
+          
+          return processedAppointment;
         } else {
           console.log('Appointment rejected due to permissions');
+          return null;
         }
       });
+      
+      // Wait for all appointments to be processed
+      const appointmentResults = await Promise.all(appointmentPromises);
+      const appointments = appointmentResults.filter(appointment => appointment !== null);
 
       console.log('Final appointments array:', appointments);
       return {
@@ -201,10 +380,57 @@ class AppointmentService {
         throw new Error('Insufficient permissions to view this appointment');
       }
 
-      return {
+      // Process serviceStylistPairs to extract service and stylist names
+      let processedAppointment = {
         id: appointmentDoc.id,
         ...appointmentData
       };
+      
+      // If appointment has serviceStylistPairs, process them
+      if (appointmentData.serviceStylistPairs && appointmentData.serviceStylistPairs.length > 0) {
+        // Use stored names if available, otherwise fetch them
+        const serviceNames = [];
+        const stylistNames = [];
+        
+        for (const pair of appointmentData.serviceStylistPairs) {
+          if (pair.serviceName && pair.stylistName) {
+            // Use stored names and prices
+            serviceNames.push(pair.serviceName);
+            stylistNames.push(pair.stylistName);
+          } else {
+            // Fallback: fetch names from database
+            try {
+              const serviceDoc = await getDoc(doc(this.db, 'services', pair.serviceId));
+              const serviceName = serviceDoc.exists() ? serviceDoc.data().name : `Service ${pair.serviceId}`;
+              serviceNames.push(serviceName);
+              
+              const stylistDoc = await getDoc(doc(this.db, 'users', pair.stylistId));
+              const stylistData = stylistDoc.exists() ? stylistDoc.data() : null;
+              const stylistName = stylistData ? 
+                `${stylistData.firstName || ''} ${stylistData.lastName || ''}`.trim() || 
+                stylistData.name || 
+                `Stylist ${pair.stylistId}` : 
+                `Stylist ${pair.stylistId}`;
+              stylistNames.push(stylistName);
+            } catch (error) {
+              console.error('Error fetching service/stylist names:', error);
+              serviceNames.push(`Service ${pair.serviceId}`);
+              stylistNames.push(`Stylist ${pair.stylistId}`);
+            }
+          }
+        }
+        
+        processedAppointment.serviceName = serviceNames.join(', ');
+        processedAppointment.stylistName = stylistNames.join(', ');
+        processedAppointment.serviceCount = appointmentData.serviceStylistPairs.length;
+      } else if (appointmentData.serviceIds && appointmentData.serviceIds.length > 0) {
+        // Handle old structure for backward compatibility
+        processedAppointment.serviceName = `Service ${appointmentData.serviceIds.join(', ')}`;
+        processedAppointment.stylistName = appointmentData.stylistName || `Stylist ${appointmentData.stylistId}`;
+        processedAppointment.serviceCount = appointmentData.serviceIds.length;
+      }
+      
+      return processedAppointment;
     } catch (error) {
       console.error('Error getting appointment by ID:', error);
       throw error;
@@ -236,13 +462,23 @@ class AppointmentService {
       }
 
       // Validate appointment time if being rescheduled
-      if (updateData.appointmentDate || updateData.appointmentTime || updateData.stylistId) {
+      if (updateData.appointmentDate || updateData.appointmentTime || updateData.serviceStylistPairs) {
+        // Extract serviceIds from serviceStylistPairs or use existing serviceIds
+        const serviceIds = updateData.serviceStylistPairs ? 
+          updateData.serviceStylistPairs.map(pair => pair.serviceId) : 
+          updateData.serviceIds || currentAppointment.serviceIds || [];
+        
+        // Use first stylist from serviceStylistPairs or fallback to stylistId
+        const stylistId = updateData.serviceStylistPairs && updateData.serviceStylistPairs.length > 0 ?
+          updateData.serviceStylistPairs[0].stylistId :
+          updateData.stylistId || currentAppointment.stylistId;
+        
         await this.validateAppointmentTime(
           updateData.branchId || currentAppointment.branchId,
-          updateData.stylistId || currentAppointment.stylistId,
+          stylistId,
           updateData.appointmentDate || currentAppointment.appointmentDate,
           updateData.appointmentTime || currentAppointment.appointmentTime,
-          updateData.serviceIds || currentAppointment.serviceIds,
+          serviceIds,
           appointmentId // Exclude current appointment from conflict check
         );
       }
@@ -305,6 +541,96 @@ class AppointmentService {
     }
   }
 
+  // Reschedule appointment
+  async rescheduleAppointment(appointmentId, newDate, newTime, currentUserRole, currentUserId, reason) {
+    try {
+      const appointmentRef = doc(this.db, this.collection, appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (!appointmentDoc.exists()) {
+        throw new Error('Appointment not found');
+      }
+
+      const currentAppointment = appointmentDoc.data();
+
+      // Check if user can reschedule this appointment
+      if (!this.canUpdateAppointment(currentUserRole, currentAppointment, currentUserId)) {
+        throw new Error('Insufficient permissions to reschedule this appointment');
+      }
+
+      // Check if appointment can be rescheduled (not completed or cancelled)
+      if (currentAppointment.status === APPOINTMENT_STATUS.COMPLETED || 
+          currentAppointment.status === APPOINTMENT_STATUS.CANCELLED) {
+        throw new Error('Cannot reschedule completed or cancelled appointments');
+      }
+
+      // Validate new appointment time
+      const serviceIds = currentAppointment.serviceStylistPairs ? 
+        currentAppointment.serviceStylistPairs.map(pair => pair.serviceId) : 
+        currentAppointment.serviceIds || [];
+      
+      const stylistId = currentAppointment.serviceStylistPairs && currentAppointment.serviceStylistPairs.length > 0 ?
+        currentAppointment.serviceStylistPairs[0].stylistId :
+        currentAppointment.stylistId;
+
+      await this.validateAppointmentTime(
+        currentAppointment.branchId,
+        stylistId,
+        newDate,
+        newTime,
+        serviceIds,
+        appointmentId // Exclude current appointment from conflict check
+      );
+
+      // Add to history
+      const historyEntry = {
+        action: 'rescheduled',
+        by: currentUserId,
+        timestamp: new Date().toISOString(),
+        reason: reason || 'No reason provided',
+        details: {
+          oldDate: currentAppointment.appointmentDate,
+          oldTime: currentAppointment.appointmentTime,
+          newDate: newDate,
+          newTime: newTime
+        }
+      };
+
+      const updatedData = {
+        appointmentDate: newDate,
+        appointmentTime: newTime,
+          rescheduleReason: reason || 'No reason provided',
+        updatedAt: serverTimestamp(),
+        history: [...(currentAppointment.history || []), historyEntry]
+      };
+
+      await updateDoc(appointmentRef, updatedData);
+      
+      const rescheduledAppointment = {
+        id: appointmentId,
+        ...currentAppointment,
+        ...updatedData
+      };
+
+      // Send reschedule notification
+      try {
+        await notificationService.sendAppointmentNotification(
+          NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED,
+          rescheduledAppointment,
+          currentAppointment.clientId,
+          'client'
+        );
+      } catch (notificationError) {
+        console.warn('Failed to send reschedule notification:', notificationError);
+      }
+      
+      return rescheduledAppointment;
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
+      throw error;
+    }
+  }
+
   // Cancel appointment
   async cancelAppointment(appointmentId, reason, currentUserRole, currentUserId) {
     try {
@@ -312,6 +638,7 @@ class AppointmentService {
         appointmentId,
         {
           status: APPOINTMENT_STATUS.CANCELLED,
+          cancelReason: reason || 'No reason provided',
           notes: reason || 'Appointment cancelled'
         },
         currentUserRole,
@@ -563,6 +890,56 @@ class AppointmentService {
       );
     } catch (error) {
       console.error('Error searching appointments:', error);
+      throw error;
+    }
+  }
+
+  // Get all clients (for dropdowns, etc.) - includes both registered and non-registered
+  async getClients() {
+    try {
+      const clientsRef = collection(this.db, 'clients');
+      const snapshot = await getDocs(clientsRef);
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      throw error;
+    }
+  }
+
+  // Get registered clients only (users with accounts)
+  async getRegisteredClients() {
+    try {
+      const clientsRef = collection(this.db, 'clients');
+      const q = query(clientsRef, where('isRegistered', '==', true));
+      const snapshot = await getDocs(q);
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching registered clients:', error);
+      throw error;
+    }
+  }
+
+  // Get non-registered clients only (walk-in clients)
+  async getNonRegisteredClients() {
+    try {
+      const clientsRef = collection(this.db, 'clients');
+      const q = query(clientsRef, where('isRegistered', '==', false));
+      const snapshot = await getDocs(q);
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching non-registered clients:', error);
       throw error;
     }
   }

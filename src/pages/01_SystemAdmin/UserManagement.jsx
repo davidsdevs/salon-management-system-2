@@ -23,7 +23,8 @@ import {
   Settings,
   BarChart3,
   UserCog,
-  Eye
+  Eye,
+  Calendar
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -65,7 +66,7 @@ const UserManagement = () => {
       // Always use search method to apply filters, even without search term
       const searchResults = await userService.searchUsers(
         searchTerm || '', 
-        userData.currentRole || userData.roles?.[0], 
+        userData.roles?.[0], 
         filters
       );
       setUsers(searchResults);
@@ -93,9 +94,9 @@ const UserManagement = () => {
   const handleToggleUserStatus = async (userId, isActive) => {
     try {
       if (isActive) {
-        await userService.deleteUser(userId, userData.currentRole || userData.roles?.[0]);
+        await userService.deleteUser(userId, userData.roles?.[0]);
       } else {
-        await userService.reactivateUser(userId, userData.currentRole || userData.roles?.[0]);
+        await userService.reactivateUser(userId, userData.roles?.[0]);
       }
       
       // Reload users
@@ -148,11 +149,11 @@ const UserManagement = () => {
 
       if (isEditing && selectedUser) {
         // Update existing user
-        await userService.updateUser(selectedUser.id, formData, userData.currentRole || userData.roles?.[0]);
+        await userService.updateUser(selectedUser.id, formData, userData.roles?.[0]);
         setSuccess('User updated successfully!');
       } else {
         // Create new user with Firebase Auth (tries Firebase Functions first, fallback to client-side)
-        const result = await userService.createUserWithAuth(formData, userData.currentRole || userData.roles?.[0]);
+        const result = await userService.createUserWithAuth(formData, userData.roles?.[0]);
         
         if (result.requiresReauth) {
           setSuccess(`User created successfully! The user ${formData.email} has been added to the system with Firebase Auth credentials. A password reset email has been sent to them. You will need to sign in again to continue.`);
@@ -227,10 +228,9 @@ const UserManagement = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/user-management', label: 'User Management', icon: Users },
-    { path: '/branch-management', label: 'Branch Management', icon: Building2 },
-    { path: '/system-settings', label: 'System Settings', icon: Settings },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/appointment-management', label: 'Appointments', icon: Calendar },
+    { path: '/user-management', label: 'Users', icon: UserCog },
+    { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

@@ -41,7 +41,7 @@ const OperationalManagerAppointments = () => {
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const result = await appointmentService.getAppointments(userData.currentRole || userData.roles?.[0], userData.uid);
+      const result = await appointmentService.getAppointments(userData.roles?.[0], userData.uid);
       setAppointments(result.appointments);
     } catch (error) {
       console.error('Error loading appointments:', error);
@@ -84,12 +84,22 @@ const OperationalManagerAppointments = () => {
     });
   };
 
-  const formatTime = (date) => {
-    if (!date) return 'N/A';
-    const d = date.toDate ? date.toDate() : new Date(date);
+  const formatTime = (time) => {
+    if (!time) return 'N/A';
+    // If time is already in HH:MM format, convert to 12-hour format
+    if (typeof time === 'string' && time.match(/^\d{2}:\d{2}$/)) {
+      const [hours, minutes] = time.split(':');
+      const hour = parseInt(hours, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+      return `${displayHour}:${minutes} ${ampm}`;
+    }
+    // If time is a timestamp, format it
+    const d = time.toDate ? time.toDate() : new Date(time);
     return d.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
@@ -122,11 +132,7 @@ const OperationalManagerAppointments = () => {
     <DashboardLayout menuItems={menuItems} pageTitle="Appointment Reports">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Appointment Reports</h1>
-            <p className="text-gray-600">Monitor appointment performance across all branches</p>
-          </div>
+        <div className="flex justify-end items-center mb-6">
           <Button 
             className="bg-[#160B53] hover:bg-[#160B53]/90"
           >
@@ -284,7 +290,7 @@ const OperationalManagerAppointments = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <Clock className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">{formatTime(appointment.appointmentDate)}</span>
+                              <span className="text-sm text-gray-600">{formatTime(appointment.appointmentTime)}</span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-gray-400" />

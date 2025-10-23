@@ -231,7 +231,7 @@ class AuthService {
   async switchRole(userId, newRole) {
     try {
       // Role switching is now handled in memory only
-      // No database update needed - currentRole is managed in AuthContext
+      // No database update needed - roles are managed in AuthContext
       return true;
     } catch (error) {
       throw this.handleAuthError(error);

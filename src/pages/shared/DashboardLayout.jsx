@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getRoleDisplayName } from '../../utils/roles';
@@ -7,14 +7,37 @@ import {
   LogOut, 
   Menu, 
   X,
-  Home
+  Home,
+  MapPin
 } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) => {
   const { userData, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [branchName, setBranchName] = useState('');
+
+  // Fetch branch name when userData changes
+  useEffect(() => {
+    const fetchBranchName = async () => {
+      if (userData?.branchId) {
+        try {
+          const branchRef = doc(db, 'branches', userData.branchId);
+          const branchDoc = await getDoc(branchRef);
+          if (branchDoc.exists()) {
+            setBranchName(branchDoc.data().name);
+          }
+        } catch (error) {
+          console.error('Error fetching branch name:', error);
+        }
+      }
+    };
+
+    fetchBranchName();
+  }, [userData?.branchId]);
 
   const handleSignOut = async () => {
     try {
@@ -66,7 +89,7 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
               <p className="text-sm font-medium text-gray-900">
                 {userData?.firstName} {userData?.lastName}
               </p>
-              <p className="text-xs text-gray-500">{getRoleDisplayName(userData?.currentRole || userData?.role)}</p>
+              <p className="text-xs text-gray-500">{getRoleDisplayName(userData?.roles?.[0] || userData?.role)}</p>
             </div>
           </div>
         </div>
@@ -117,30 +140,42 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
         {/* Header Container */}
         <div className="bg-white border-b border-gray-200">
           <div className="px-6 py-4">
-            <div className="flex items-center">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden text-gray-500 hover:text-gray-700 mr-4"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-semibold text-[#160B53]">{pageTitle}</h1>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {new Date().toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric',
-                    year: 'numeric' 
-                  })}
-                  {' • '}
-                  {new Date().toLocaleTimeString('en-US', { 
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
-                </p>
+              <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="lg:hidden text-gray-500 hover:text-gray-700 mr-4"
+                >
+                  <Menu className="h-6 w-6" />
+                </button>
+                <div>
+                  <h1 className="text-2xl font-semibold text-[#160B53]">{pageTitle}</h1>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {new Date().toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      month: 'long', 
+                      day: 'numeric',
+                      year: 'numeric' 
+                    })}
+                    {' • '}
+                    {new Date().toLocaleTimeString('en-US', { 
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })}
+                  </p>
+                </div>
               </div>
+              
+              {/* Branch Information */}
+              {branchName && (
+                <div className="flex items-center space-x-2 bg-gray-50 px-4 py-2 rounded-lg">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">{branchName}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -68,11 +68,11 @@ const LoginForm = () => {
         return;
       }
       
-      // Single role - set currentRole and proceed to dashboard
+      // Single role - proceed to dashboard (no role switching needed)
       if (userRoles.length === 1) {
-        console.log('Setting currentRole to:', userRoles[0]);
-        // Ensure currentRole is set for single-role users
-        await switchRole(userRoles[0]);
+        console.log('Single role user, proceeding to dashboard with role:', userRoles[0]);
+        // Store the single role preference
+        localStorage.setItem('selectedRole', userRoles[0]);
       }
       
       navigate('/dashboard');
@@ -92,6 +92,9 @@ const LoginForm = () => {
     try {
       setIsLoading(true);
       setError('');
+      
+      // Store the selected role in localStorage
+      localStorage.setItem('selectedRole', role);
       
       // Switch to selected role
       await switchRole(role);

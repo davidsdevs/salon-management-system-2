@@ -103,13 +103,13 @@ const BranchManagerAppointments = () => {
 
   // Menu (kept as your real code)
   const menuItems = [
-  { path: "/dashboard", label: "Dashboard", icon: Home },
-  { path: "/appointments", label: "Appointments", icon: Calendar },
-  { path: "/staff", label: "Staff", icon: Users },
+    { path: "/dashboard", label: "Dashboard", icon: Home },
+    { path: "/appointments", label: "Appointments", icon: Calendar },
+    { path: "/staff", label: "Staff", icon: Users },
   { path: "/schedule", label: "Schedule", icon: Calendar },
-  { path: "/inventory", label: "Inventory", icon: Package },
-  { path: "/reports", label: "Reports", icon: BarChart3 },
-  { path: "/profile", label: "Profile", icon: UserCog },
+    { path: "/inventory", label: "Inventory", icon: Package },
+    { path: "/reports", label: "Reports", icon: BarChart3 },
+    { path: "/profile", label: "Profile", icon: UserCog },
   ];
 
   // === Filter State ===
