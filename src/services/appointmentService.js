@@ -46,10 +46,29 @@ class AppointmentService {
   async createAppointment(appointmentData, currentUserRole, currentUserId) {
     try {
       // Validate required fields
-      if (!appointmentData.clientId || !appointmentData.branchId || !appointmentData.stylistId || 
+      if (!appointmentData.branchId || !appointmentData.stylistId || 
           !appointmentData.appointmentDate || !appointmentData.appointmentTime || 
           !appointmentData.serviceIds || appointmentData.serviceIds.length === 0) {
         throw new Error('Missing required appointment fields');
+      }
+
+      // Handle client information - support both existing clients and new clients
+      let clientId = appointmentData.clientId;
+      let clientInfo = appointmentData.clientInfo || {};
+      let isNewClient = appointmentData.isNewClient || false;
+      let clientName = appointmentData.clientName || '';
+
+      // If it's a new client, generate a temporary clientId or use the provided one
+      if (isNewClient && !clientId) {
+        clientId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      // Ensure clientInfo has required fields
+      if (!clientInfo.name && clientName) {
+        clientInfo.name = clientName;
+      }
+      if (!clientInfo.id && clientId) {
+        clientInfo.id = clientId;
       }
 
       // Check if user can create appointments
@@ -67,8 +86,17 @@ class AppointmentService {
       );
 
       const newAppointment = {
-        ...appointmentData,
+        appointmentDate: appointmentData.appointmentDate,
+        appointmentTime: appointmentData.appointmentTime,
+        branchId: appointmentData.branchId,
+        clientId: clientId,
+        clientInfo: clientInfo,
+        isNewClient: isNewClient,
+        newClientName: appointmentData.newClientName || '',
+        notes: appointmentData.notes || '',
+        serviceIds: appointmentData.serviceIds,
         status: APPOINTMENT_STATUS.SCHEDULED,
+        stylistId: appointmentData.stylistId,
         createdBy: currentUserId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -87,16 +115,18 @@ class AppointmentService {
         ...newAppointment
       };
 
-      // Send notification to client
-      try {
-        await notificationService.sendAppointmentNotification(
-          NOTIFICATION_TYPES.APPOINTMENT_CREATED,
-          createdAppointment,
-          appointmentData.clientId,
-          'client'
-        );
-      } catch (notificationError) {
-        console.warn('Failed to send appointment notification:', notificationError);
+      // Send notification to client (only if clientId is not temporary)
+      if (clientId && !clientId.startsWith('temp_')) {
+        try {
+          await notificationService.sendAppointmentNotification(
+            NOTIFICATION_TYPES.APPOINTMENT_CREATED,
+            createdAppointment,
+            clientId,
+            'client'
+          );
+        } catch (notificationError) {
+          console.warn('Failed to send appointment notification:', notificationError);
+        }
       }
 
       return createdAppointment;
@@ -207,6 +237,59 @@ class AppointmentService {
       };
     } catch (error) {
       console.error('Error getting appointment by ID:', error);
+      throw error;
+    }
+  }
+
+  // Update appointment status only (simpler method for status changes)
+  async updateAppointmentStatus(appointmentId, newStatus, notes = '', currentUserRole, currentUserId) {
+    try {
+      const appointmentRef = doc(this.db, this.collection, appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (!appointmentDoc.exists()) {
+        throw new Error('Appointment not found');
+      }
+
+      const currentAppointment = appointmentDoc.data();
+
+      // Check if user can update this appointment
+      if (!this.canUpdateAppointment(currentUserRole, currentAppointment, currentUserId)) {
+        throw new Error('Insufficient permissions to update this appointment');
+      }
+
+      // Validate status transition
+      if (newStatus !== currentAppointment.status) {
+        if (!this.isValidStatusTransition(currentAppointment.status, newStatus)) {
+          throw new Error(`Invalid status transition from ${currentAppointment.status} to ${newStatus}`);
+        }
+      }
+
+      // Add to history
+      const historyEntry = {
+        action: `status_changed_to_${newStatus}`,
+        by: currentUserId,
+        timestamp: new Date().toISOString(),
+        notes: notes || `Appointment status changed to ${newStatus}`
+      };
+
+      const updatedData = {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+        history: [...(currentAppointment.history || []), historyEntry]
+      };
+
+      await updateDoc(appointmentRef, updatedData);
+      
+      const updatedAppointment = {
+        id: appointmentId,
+        ...currentAppointment,
+        ...updatedData
+      };
+
+      return updatedAppointment;
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
       throw error;
     }
   }
@@ -557,12 +640,141 @@ class AppointmentService {
 
       const searchLower = searchTerm.toLowerCase();
       return appointments.appointments.filter(appointment => 
+        appointment.clientInfo?.name?.toLowerCase().includes(searchLower) ||
         appointment.clientName?.toLowerCase().includes(searchLower) ||
         appointment.notes?.toLowerCase().includes(searchLower) ||
         appointment.stylistName?.toLowerCase().includes(searchLower)
       );
     } catch (error) {
       console.error('Error searching appointments:', error);
+      throw error;
+    }
+  }
+
+  // Create new client and update appointment
+  async createNewClientAndUpdateAppointment(appointmentId, clientData, currentUserRole, currentUserId) {
+    try {
+      // This would typically create a new user account
+      // For now, we'll update the appointment with the new client information
+      const clientInfo = {
+        id: clientData.id || `client_${Date.now()}`,
+        name: clientData.name,
+        phone: clientData.phone || '',
+        email: clientData.email || '',
+        address: clientData.address || ''
+      };
+
+      const updateData = {
+        clientId: clientInfo.id,
+        clientInfo: clientInfo,
+        isNewClient: false,
+        newClientName: '',
+        updatedAt: serverTimestamp()
+      };
+
+      // Add to history
+      const historyEntry = {
+        action: 'client_created',
+        by: currentUserId,
+        timestamp: new Date().toISOString(),
+        notes: `New client created: ${clientInfo.name}`
+      };
+
+      const appointmentRef = doc(this.db, this.collection, appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (!appointmentDoc.exists()) {
+        throw new Error('Appointment not found');
+      }
+
+      const currentAppointment = appointmentDoc.data();
+      updateData.history = [...(currentAppointment.history || []), historyEntry];
+
+      await updateDoc(appointmentRef, updateData);
+
+      return {
+        id: appointmentId,
+        ...currentAppointment,
+        ...updateData
+      };
+    } catch (error) {
+      console.error('Error creating new client and updating appointment:', error);
+      throw error;
+    }
+  }
+
+  // Update client information in appointment
+  async updateClientInfo(appointmentId, clientInfo, currentUserRole, currentUserId) {
+    try {
+      const updateData = {
+        clientInfo: clientInfo,
+        updatedAt: serverTimestamp()
+      };
+
+      // Add to history
+      const historyEntry = {
+        action: 'client_info_updated',
+        by: currentUserId,
+        timestamp: new Date().toISOString(),
+        notes: `Client information updated for ${clientInfo.name}`
+      };
+
+      const appointmentRef = doc(this.db, this.collection, appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (!appointmentDoc.exists()) {
+        throw new Error('Appointment not found');
+      }
+
+      const currentAppointment = appointmentDoc.data();
+      updateData.history = [...(currentAppointment.history || []), historyEntry];
+
+      await updateDoc(appointmentRef, updateData);
+
+      return {
+        id: appointmentId,
+        ...currentAppointment,
+        ...updateData
+      };
+    } catch (error) {
+      console.error('Error updating client info:', error);
+      throw error;
+    }
+  }
+
+  // Get appointments by client ID
+  async getAppointmentsByClientId(clientId, currentUserRole, currentUserId) {
+    try {
+      const filters = { clientId };
+      return await this.getAppointments(filters, currentUserRole, currentUserId, 100);
+    } catch (error) {
+      console.error('Error getting appointments by client ID:', error);
+      throw error;
+    }
+  }
+
+  // Get appointments by stylist ID
+  async getAppointmentsByStylistId(stylistId, currentUserRole, currentUserId) {
+    try {
+      const filters = { stylistId };
+      return await this.getAppointments(filters, currentUserRole, currentUserId, 100);
+    } catch (error) {
+      console.error('Error getting appointments by stylist ID:', error);
+      throw error;
+    }
+  }
+
+  // Get appointments by date range
+  async getAppointmentsByDateRange(startDate, endDate, branchId = null, currentUserRole, currentUserId) {
+    try {
+      const filters = {
+        dateFrom: startDate,
+        dateTo: endDate,
+        ...(branchId && { branchId })
+      };
+      return await this.getAppointments(filters, currentUserRole, currentUserId, 100);
+    } catch (error) {
+      console.error('Error getting appointments by date range:', error);
       throw error;
     }
   }
