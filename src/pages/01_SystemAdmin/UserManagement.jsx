@@ -53,7 +53,6 @@ const UserManagement = () => {
         isActive: showInactive ? undefined : true
       };
 
-<<<<<<< HEAD
       // Always use search method to apply filters, even without search term
       const searchResults = await userService.searchUsers(
         searchTerm || '', 
@@ -62,33 +61,6 @@ const UserManagement = () => {
       );
       setUsers(searchResults);
       setHasMore(false);
-=======
-      if (searchTerm) {
-        const searchResults = await userService.searchUsers(
-          searchTerm, 
-          userData.role, 
-          filters
-        );
-        setUsers(searchResults);
-        setHasMore(false);
-      } else {
-        const result = await userService.getUsers(
-          userData.role, 
-          userData.uid, 
-          pageSize, 
-          currentPage === 1 ? null : lastDoc
-        );
-        
-        if (currentPage === 1) {
-          setUsers(result.users);
-        } else {
-          setUsers(prev => [...prev, ...result.users]);
-        }
-        
-        setLastDoc(result.lastDoc);
-        setHasMore(result.hasMore);
-      }
->>>>>>> 52132c55b0d2b0546e840924d6048530b076194a
     } catch (error) {
       setError(error.message);
     } finally {
@@ -112,15 +84,9 @@ const UserManagement = () => {
   const handleToggleUserStatus = async (userId, isActive) => {
     try {
       if (isActive) {
-<<<<<<< HEAD
         await userService.deleteUser(userId, userData.roles?.[0]);
       } else {
         await userService.reactivateUser(userId, userData.roles?.[0]);
-=======
-        await userService.deleteUser(userId, userData.role);
-      } else {
-        await userService.reactivateUser(userId, userData.role);
->>>>>>> 52132c55b0d2b0546e840924d6048530b076194a
       }
       
       // Reload users
@@ -136,7 +102,6 @@ const UserManagement = () => {
     setCurrentPage(prev => prev + 1);
   };
 
-<<<<<<< HEAD
   // Modal handlers
   const handleAddUser = () => {
     setSelectedUser(null);
@@ -206,9 +171,6 @@ const UserManagement = () => {
       setFormLoading(false);
     }
   };
-
-=======
->>>>>>> 52132c55b0d2b0546e840924d6048530b076194a
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
