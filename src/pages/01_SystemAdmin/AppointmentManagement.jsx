@@ -25,7 +25,8 @@ import {
   Settings,
   BarChart3,
   UserCog,
-  Eye
+  Eye,
+  Scissors
 } from 'lucide-react';
 
 const AppointmentManagement = () => {
@@ -340,6 +341,7 @@ const AppointmentManagement = () => {
     { path: '/appointment-management', label: 'Appointments', icon: Calendar },
     { path: '/user-management', label: 'Users', icon: UserCog },
     { path: '/branch-management', label: 'Branches', icon: Building2 },
+    { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

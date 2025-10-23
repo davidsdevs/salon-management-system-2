@@ -22,7 +22,11 @@ import {
   XCircle,
   AlertCircle,
   Users,
-  BarChart3
+  BarChart3,
+  Home,
+  Settings,
+  Package,
+  UserCog
 } from 'lucide-react';
 
 const BranchAdminAppointments = () => {
@@ -219,12 +223,15 @@ const BranchAdminAppointments = () => {
   });
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Calendar },
+    { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/branch-appointments', label: 'Appointments', icon: Calendar },
     { path: '/staff', label: 'Staff Management', icon: Users },
-    { path: '/inventory', label: 'Inventory', icon: Scissors },
+    { path: '/branch-settings', label: 'Branch Settings', icon: Settings },
+    { path: '/service-config', label: 'Service Configuration', icon: Scissors },
+    { path: '/holiday-management', label: 'Holiday Management', icon: Calendar },
+    { path: '/inventory', label: 'Inventory', icon: Package },
     { path: '/reports', label: 'Reports', icon: BarChart3 },
-    { path: '/profile', label: 'Profile', icon: User },
+    { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 
   return (

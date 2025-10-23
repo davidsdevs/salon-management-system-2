@@ -23,7 +23,9 @@ import {
   UserCog,
   MoreVertical,
   Edit,
-  Trash2
+  Trash2,
+  Scissors,
+  Package
 } from 'lucide-react';
 
 const StaffManagement = () => {
@@ -40,7 +42,9 @@ const StaffManagement = () => {
     { path: '/branch-appointments', label: 'Appointments', icon: Calendar },
     { path: '/staff', label: 'Staff Management', icon: Users },
     { path: '/branch-settings', label: 'Branch Settings', icon: Settings },
-    { path: '/inventory', label: 'Inventory', icon: Building2 },
+    { path: '/service-config', label: 'Service Configuration', icon: Scissors },
+    { path: '/holiday-management', label: 'Holiday Management', icon: Calendar },
+    { path: '/inventory', label: 'Inventory', icon: Package },
     { path: '/reports', label: 'Reports', icon: BarChart3 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];

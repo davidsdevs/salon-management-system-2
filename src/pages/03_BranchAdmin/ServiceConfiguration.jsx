@@ -1,6 +1,8 @@
     import React, { useState, useEffect } from 'react';
     import { useAuth } from '../../context/AuthContext';
     import { branchService } from '../../services/branchService';
+    import { db } from '../../lib/firebase';
+    import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
     import { Card } from '../ui/card';
     import { Button } from '../ui/button';
     import { Input } from '../ui/input';
@@ -35,8 +37,12 @@
       const [success, setSuccess] = useState('');
       const [searchTerm, setSearchTerm] = useState('');
       const [categoryFilter, setCategoryFilter] = useState('all');
-      const [showServiceModal, setShowServiceModal] = useState(false);
-      const [editingService, setEditingService] = useState(null);
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
+  const [branchPrice, setBranchPrice] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
       const menuItems = [
         { path: '/dashboard', label: 'Dashboard', icon: Home },
@@ -44,6 +50,7 @@
         { path: '/staff', label: 'Staff Management', icon: Users },
         { path: '/branch-settings', label: 'Branch Settings', icon: Settings },
         { path: '/service-config', label: 'Service Configuration', icon: Scissors },
+        { path: '/holiday-management', label: 'Holiday Management', icon: Calendar },
         { path: '/inventory', label: 'Inventory', icon: Package },
         { path: '/reports', label: 'Reports', icon: BarChart3 },
         { path: '/profile', label: 'Profile', icon: UserCog },
@@ -54,9 +61,11 @@
         description: '',
         category: '',
         duration: '',
-        price: '',
+        prices: [0], // Array of prices for different branches
+        imageURL: '',
         isActive: true,
-        requirements: []
+        isChemical: false,
+        branches: userData?.branchId ? [userData.branchId] : [] // Array of branch IDs
       });
 
       const serviceCategories = [
@@ -70,17 +79,32 @@
       ];
 
       useEffect(() => {
-        loadServices();
-      }, []);
+        if (userData?.branchId) {
+          loadServices();
+          // Update formData branches when userData becomes available
+          setFormData(prev => ({
+            ...prev,
+            branches: [userData.branchId]
+          }));
+        }
+      }, [userData?.branchId]);
 
       const loadServices = async () => {
         try {
           setLoading(true);
           setError('');
           
-          // Load services for this branch
-          const branch = await branchService.getBranch(userData.branchId, userData.roles?.[0], userData.uid);
-          setServices(branch.services || []);
+          // Load all services from services collection
+          const servicesRef = collection(db, 'services');
+          const snapshot = await getDocs(servicesRef);
+          
+          const servicesData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            isAssignedToBranch: doc.data().branches?.includes(userData.branchId) || false
+          }));
+          
+          setServices(servicesData);
         } catch (error) {
           console.error('Error loading services:', error);
           setError('Failed to load services');
@@ -97,76 +121,70 @@
         }));
       };
 
-      const handleAddRequirement = () => {
-        setFormData(prev => ({
-          ...prev,
-          requirements: [...prev.requirements, '']
-        }));
-      };
-
-      const handleRequirementChange = (index, value) => {
-        setFormData(prev => ({
-          ...prev,
-          requirements: prev.requirements.map((req, i) => i === index ? value : req)
-        }));
-      };
-
-      const handleRemoveRequirement = (index) => {
-        setFormData(prev => ({
-          ...prev,
-          requirements: prev.requirements.filter((_, i) => i !== index)
-        }));
-      };
 
       const handleSubmit = async (e) => {
         e.preventDefault();
         try {
           setError('');
           
-          const serviceData = {
-            ...formData,
-            id: editingService ? editingService.id : Date.now().toString(),
-            createdAt: editingService ? editingService.createdAt : new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-
-          let updatedServices;
-          if (editingService) {
-            // Update existing service
-            updatedServices = services.map(service => 
-              service.id === editingService.id ? serviceData : service
-            );
-          } else {
-            // Add new service
-            updatedServices = [...services, serviceData];
-          }
-
-          // Update branch with new services
-          try {
-            await branchService.updateBranch(userData.branchId, { services: updatedServices }, userData.roles?.[0], userData.uid);
-          } catch (updateError) {
-            console.error('Error updating branch:', updateError);
-            throw new Error('Failed to update branch services. Please check your permissions.');
+          // Ensure we have at least one valid branch ID
+          const validBranches = (formData.branches || []).filter(branchId => branchId && branchId !== '');
+          if (validBranches.length === 0) {
+            setError('At least one branch must be assigned to this service');
+            return;
           }
           
-          setServices(updatedServices);
-          setShowServiceModal(false);
-          setEditingService(null);
-          setFormData({
-            name: '',
-            description: '',
-            category: '',
-            duration: '',
-            price: '',
-            isActive: true,
-            requirements: []
-          });
-          setSuccess(editingService ? 'Service updated successfully' : 'Service added successfully');
-          setTimeout(() => setSuccess(''), 3000);
+          const serviceData = {
+            name: formData.name,
+            description: formData.description,
+            category: formData.category,
+            duration: parseInt(formData.duration),
+            prices: formData.prices.map(price => parseFloat(price) || 0),
+            imageURL: formData.imageURL,
+            isActive: formData.isActive,
+            isChemical: formData.isChemical,
+            branches: validBranches,
+            updatedAt: serverTimestamp()
+          };
+
+          if (editingService) {
+            // Update existing service
+            const serviceRef = doc(db, 'services', editingService.id);
+            await updateDoc(serviceRef, serviceData);
+            setSuccess('Service updated successfully!');
+          } else {
+            // Add new service
+            const newServiceData = {
+              ...serviceData,
+              createdAt: serverTimestamp()
+            };
+            await addDoc(collection(db, 'services'), newServiceData);
+            setSuccess('Service added successfully!');
+          }
+
+          // Reload services
+          await loadServices();
+          handleCloseModal();
         } catch (error) {
           console.error('Error saving service:', error);
-          setError('Failed to save service');
+          setError(error.message);
         }
+      };
+
+      const handleCloseModal = () => {
+        setShowServiceModal(false);
+        setEditingService(null);
+        setFormData({
+          name: '',
+          description: '',
+          category: '',
+          duration: '',
+          prices: [0],
+          imageURL: '',
+          isActive: true,
+          isChemical: false,
+          branches: userData?.branchId ? [userData.branchId] : []
+        });
       };
 
       const handleEdit = (service) => {
@@ -176,9 +194,11 @@
           description: service.description || '',
           category: service.category || '',
           duration: service.duration || '',
-          price: service.price || '',
+          prices: service.prices || [0],
+          imageURL: service.imageURL || '',
           isActive: service.isActive !== false,
-          requirements: service.requirements || []
+          isChemical: service.isChemical || false,
+          branches: service.branches || (userData?.branchId ? [userData.branchId] : [])
         });
         setShowServiceModal(true);
       };
@@ -186,10 +206,9 @@
       const handleDelete = async (serviceId) => {
         if (window.confirm('Are you sure you want to delete this service?')) {
           try {
-            const updatedServices = services.filter(service => service.id !== serviceId);
-            await branchService.updateBranch(userData.branchId, { services: updatedServices }, userData.roles?.[0], userData.uid);
-            setServices(updatedServices);
+            await deleteDoc(doc(db, 'services', serviceId));
             setSuccess('Service deleted successfully');
+            await loadServices(); // Reload services
             setTimeout(() => setSuccess(''), 3000);
           } catch (error) {
             console.error('Error deleting service:', error);
@@ -198,18 +217,113 @@
         }
       };
 
-      const handleToggleStatus = async (serviceId) => {
+      const handleToggleAssignment = async (serviceId) => {
+        const service = services.find(s => s.id === serviceId);
+        if (service) {
+          const isCurrentlyAssigned = service.isAssignedToBranch;
+          
+          if (isCurrentlyAssigned) {
+            // Remove from branch
+            await removeServiceFromBranch(serviceId);
+          } else {
+            // Show price modal for assignment
+            setSelectedService(service);
+            let currentBranchPrice = '';
+            if (service.branches && service.prices) {
+              const branchIndex = service.branches.indexOf(userData.branchId);
+              if (branchIndex !== -1 && service.prices[branchIndex] !== undefined) {
+                currentBranchPrice = service.prices[branchIndex].toString();
+              }
+            }
+            if (!currentBranchPrice && service.prices && service.prices.length > 0) {
+              currentBranchPrice = service.prices[0].toString();
+            }
+            setBranchPrice(currentBranchPrice);
+            setShowPriceModal(true);
+          }
+        }
+      };
+
+      const removeServiceFromBranch = async (serviceId) => {
+        setIsLoading(true);
+        setLoadingMessage('Removing service from branch...');
+
         try {
-          const updatedServices = services.map(service => 
-            service.id === serviceId 
-              ? { ...service, isActive: !service.isActive, updatedAt: new Date().toISOString() }
-              : service
-          );
-          await branchService.updateBranch(userData.branchId, { services: updatedServices }, userData.roles?.[0], userData.uid);
-          setServices(updatedServices);
+          const service = services.find(s => s.id === serviceId);
+          const serviceRef = doc(db, 'services', serviceId);
+          const currentBranches = service.branches || [];
+          const currentPrices = service.prices || [];
+          const branchIndex = currentBranches.indexOf(userData.branchId);
+          
+          // Remove branch and corresponding price
+          const updatedBranches = currentBranches.filter(branchId => branchId !== userData.branchId);
+          const updatedPrices = currentPrices.filter((_, index) => index !== branchIndex);
+          
+          await updateDoc(serviceRef, {
+            branches: updatedBranches,
+            prices: updatedPrices,
+            updatedAt: serverTimestamp()
+          });
+          
+          setSuccess('Service removed from branch');
+          await loadServices();
+          setTimeout(() => setSuccess(''), 3000);
         } catch (error) {
-          console.error('Error updating service status:', error);
-          setError('Failed to update service status');
+          console.error('Error removing service from branch:', error);
+          setError('Failed to remove service from branch');
+        } finally {
+          setIsLoading(false);
+          setLoadingMessage('');
+        }
+      };
+
+      const handleAssignService = async () => {
+        if (!selectedService || !branchPrice) {
+          setError('Please enter a valid price');
+          return;
+        }
+
+        setIsLoading(true);
+        setLoadingMessage(selectedService.isAssignedToBranch ? 'Updating service price...' : 'Assigning service to branch...');
+
+        try {
+          const serviceRef = doc(db, 'services', selectedService.id);
+          const currentBranches = selectedService.branches || [];
+          const currentPrices = selectedService.prices || [];
+          const isCurrentlyAssigned = currentBranches.includes(userData.branchId);
+          
+          let updatedBranches = [...currentBranches];
+          let updatedPrices = [...currentPrices];
+          
+          if (isCurrentlyAssigned) {
+            // Update existing branch price
+            const branchIndex = currentBranches.indexOf(userData.branchId);
+            updatedPrices[branchIndex] = parseFloat(branchPrice);
+          } else {
+            // Add new branch and price
+            updatedBranches.push(userData.branchId);
+            updatedPrices.push(parseFloat(branchPrice));
+          }
+          
+          // Update the service with branch assignment and pricing
+          await updateDoc(serviceRef, {
+            branches: updatedBranches,
+            prices: updatedPrices,
+            updatedAt: serverTimestamp()
+          });
+          
+          setSuccess(isCurrentlyAssigned ? 'Branch price updated successfully' : 'Service assigned to branch with custom price');
+          setShowPriceModal(false);
+          setSelectedService(null);
+          setBranchPrice('');
+          await loadServices();
+          setTimeout(() => setSuccess(''), 3000);
+        } catch (error) {
+          console.error('Error updating service:', error);
+          setError('Failed to update service');
+        } finally {
+          setIsLoading(false);
+          setLoadingMessage('');
         }
       };
 
@@ -235,34 +349,26 @@
 
       const stats = getServiceStats();
 
+      // Don't render until userData is available
+      if (!userData?.branchId) {
+        return (
+          <DashboardLayout menuItems={menuItems} pageTitle="Service Configuration">
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#160B53]"></div>
+            </div>
+          </DashboardLayout>
+        );
+      }
+
       return (
         <DashboardLayout menuItems={menuItems} pageTitle="Service Configuration">
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Service Configuration</h1>
-                <p className="text-gray-600">Manage your branch services, pricing, and availability</p>
+                <h1 className="text-2xl font-bold text-gray-900">Service Assignment</h1>
+                <p className="text-gray-600">Assign available services to your branch</p>
               </div>
-              <Button 
-                onClick={() => {
-                  setEditingService(null);
-                  setFormData({
-                    name: '',
-                    description: '',
-                    category: '',
-                    duration: '',
-                    price: '',
-                    isActive: true,
-                    requirements: []
-                  });
-                  setShowServiceModal(true);
-                }}
-                className="flex items-center"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Service
-              </Button>
             </div>
 
             {/* Stats */}
@@ -303,7 +409,7 @@
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Avg. Price</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      ${services.length > 0 ? (services.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0) / services.length).toFixed(0) : '0'}
+                      ₱{services.length > 0 ? (services.reduce((sum, s) => sum + (s.prices && s.prices.length > 0 ? s.prices[0] : 0), 0) / services.length).toFixed(0) : '0'}
                     </p>
                   </div>
                 </div>
@@ -391,13 +497,13 @@
                       </div>
                       
                       <div className="flex items-center space-x-2">
-                        {service.isActive ? (
+                        {service.isAssignedToBranch ? (
                           <CheckCircle className="h-5 w-5 text-green-600" />
                         ) : (
-                          <AlertCircle className="h-5 w-5 text-red-600" />
+                          <AlertCircle className="h-5 w-5 text-gray-400" />
                         )}
-                        <span className={`text-sm font-medium ${service.isActive ? 'text-green-600' : 'text-red-600'}`}>
-                          {service.isActive ? 'Active' : 'Inactive'}
+                        <span className={`text-sm font-medium ${service.isAssignedToBranch ? 'text-green-600' : 'text-gray-500'}`}>
+                          {service.isAssignedToBranch ? 'Assigned' : 'Not Assigned'}
                         </span>
                       </div>
                     </div>
@@ -412,52 +518,68 @@
                       
                       <div className="flex items-center text-sm text-gray-600">
                         <DollarSign className="h-4 w-4 mr-2" />
-                        ${service.price}
+                        ₱{(() => {
+                          if (service.isAssignedToBranch && service.branches && service.prices) {
+                            const branchIndex = service.branches.indexOf(userData.branchId);
+                            if (branchIndex !== -1 && service.prices[branchIndex] !== undefined) {
+                              return service.prices[branchIndex];
+                            }
+                          }
+                          return service.prices && service.prices.length > 0 ? service.prices[0] : '0';
+                        })()}
+                        {service.isAssignedToBranch && service.branches && service.prices && service.branches.indexOf(userData.branchId) !== -1 && (
+                          <span className="ml-2 text-xs text-green-600 font-medium">(Branch Price)</span>
+                        )}
                       </div>
                     </div>
                     
-                    {service.requirements && service.requirements.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Requirements:</p>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          {service.requirements.map((req, index) => (
-                            <li key={index} className="flex items-center">
-                              <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
-                              {req}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                     
                     <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => handleEdit(service)}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleToggleStatus(service.id)}
-                        className={service.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
-                      >
-                        {service.isActive ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
-                      </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDelete(service.id)}
-                        className="text-red-600 hover:text-red-700 hover:border-red-300"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {service.isAssignedToBranch ? (
+                        <>
+                          <Button 
+                            variant="outline"
+                            size="sm" 
+                            className="flex-1 text-blue-600 hover:text-blue-700 border-blue-300"
+                            onClick={() => {
+                              setSelectedService(service);
+                              let currentBranchPrice = '';
+                              if (service.branches && service.prices) {
+                                const branchIndex = service.branches.indexOf(userData.branchId);
+                                if (branchIndex !== -1 && service.prices[branchIndex] !== undefined) {
+                                  currentBranchPrice = service.prices[branchIndex].toString();
+                                }
+                              }
+                              if (!currentBranchPrice && service.prices && service.prices.length > 0) {
+                                currentBranchPrice = service.prices[0].toString();
+                              }
+                              setBranchPrice(currentBranchPrice);
+                              setShowPriceModal(true);
+                            }}
+                          >
+                            <DollarSign className="h-4 w-4 mr-1" />
+                            Edit Price
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 border-red-300"
+                            onClick={() => handleToggleAssignment(service.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button 
+                          variant="default"
+                          size="sm" 
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => handleToggleAssignment(service.id)}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Assign
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}
@@ -529,15 +651,29 @@
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Price ($) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Price (₱) *</label>
                           <Input
-                            name="price"
+                            name="prices"
                             type="number"
                             step="0.01"
-                            value={formData.price}
-                            onChange={handleInputChange}
+                            value={formData.prices?.[0] || ''}
+                            onChange={(e) => {
+                              const newPrices = [...(formData.prices || [0])];
+                              newPrices[0] = parseFloat(e.target.value) || 0;
+                              setFormData(prev => ({ ...prev, prices: newPrices }));
+                            }}
                             required
-                            placeholder="e.g., 25.00"
+                            placeholder="e.g., 500.00"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
+                          <Input
+                            name="imageURL"
+                            value={formData.imageURL}
+                            onChange={handleInputChange}
+                            placeholder="https://example.com/image.jpg"
                           />
                         </div>
                       </div>
@@ -554,50 +690,29 @@
                         />
                       </div>
                       
-                      {/* Requirements */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Requirements</label>
-                        <div className="space-y-2">
-                          {formData.requirements.map((req, index) => (
-                            <div key={index} className="flex items-center space-x-2">
-                              <Input
-                                value={req}
-                                onChange={(e) => handleRequirementChange(index, e.target.value)}
-                                placeholder="Enter requirement..."
-                                className="flex-1"
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRemoveRequirement(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAddRequirement}
-                            className="w-full"
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Requirement
-                          </Button>
-                        </div>
-                      </div>
                       
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          name="isActive"
-                          checked={formData.isActive}
-                          onChange={handleInputChange}
-                          className="mr-2"
-                        />
-                        <label className="text-sm font-medium text-gray-700">Active Service</label>
+                      <div className="flex items-center space-x-6">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="isActive"
+                            checked={formData.isActive}
+                            onChange={handleInputChange}
+                            className="mr-2"
+                          />
+                          <label className="text-sm font-medium text-gray-700">Active Service</label>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="isChemical"
+                            checked={formData.isChemical}
+                            onChange={handleInputChange}
+                            className="mr-2"
+                          />
+                          <label className="text-sm font-medium text-gray-700">Chemical Service</label>
+                        </div>
                       </div>
                     </div>
                     
@@ -612,6 +727,124 @@
                       </Button>
                     </div>
                   </form>
+                </div>
+              </div>
+            )}
+
+            {/* Price Modal */}
+            {showPriceModal && selectedService && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-[#160B53] to-[#2D1B69] text-white p-6 rounded-t-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <DollarSign className="h-6 w-6" />
+                        <div>
+                          <h2 className="text-xl font-semibold">
+                            {selectedService && selectedService.isAssignedToBranch ? 'Edit Branch Price' : 'Set Branch Price'}
+                          </h2>
+                          <p className="text-blue-100 text-sm">
+                            {selectedService && selectedService.isAssignedToBranch 
+                              ? 'Update the price for this service in your branch' 
+                              : 'Set the price for this service in your branch'}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowPriceModal(false);
+                          setSelectedService(null);
+                          setBranchPrice('');
+                        }}
+                        className="text-white border-white hover:bg-white hover:text-[#160B53]"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Form */}
+                  <div className="p-6">
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-900 mb-2">{selectedService.name}</h3>
+                      <p className="text-sm text-gray-600 mb-4">{selectedService.description}</p>
+                      
+                      <div className="bg-gray-50 p-3 rounded-md mb-4">
+                        <p className="text-sm text-gray-600">
+                          <strong>Default Price:</strong> ₱{selectedService.prices && selectedService.prices.length > 0 ? selectedService.prices[0] : '0'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          This is the default price set by the system admin. You can set your own branch price below.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Branch Price (₱) *
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={branchPrice}
+                        onChange={(e) => setBranchPrice(e.target.value)}
+                        placeholder="Enter your branch price"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        This price will be used for appointments in your branch
+                      </p>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-end space-x-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowPriceModal(false);
+                          setSelectedService(null);
+                          setBranchPrice('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleAssignService}
+                        className="bg-[#160B53] hover:bg-[#160B53]/90 text-white"
+                        disabled={!branchPrice || parseFloat(branchPrice) <= 0 || isLoading}
+                      >
+                        {selectedService && selectedService.isAssignedToBranch ? (
+                          <>
+                            <DollarSign className="h-4 w-4 mr-2" />
+                            Update Price
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Assign Service
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Loading Modal */}
+            {isLoading && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#160B53]"></div>
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing...</h3>
+                      <p className="text-gray-600">{loadingMessage}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

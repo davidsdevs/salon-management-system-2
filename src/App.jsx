@@ -44,6 +44,7 @@ import StylistAppointments from "./pages/07_Stylist/StylistAppointments";
 import BranchAdminAppointments from "./pages/03_BranchAdmin/BranchAdminAppointments";
 import OperationalManagerAppointments from "./pages/02_OperationalManager/OperationalManagerAppointments";
 import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
+import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
 
 // NEW BRANCH MANAGEMENT PAGES
 import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
@@ -193,6 +194,15 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <SystemAdminAppointments />
+          </AdminRoute>
+        }
+      />
+      
+      <Route
+        path="/service-management"
+        element={
+          <AdminRoute>
+            <ServiceManagement />
           </AdminRoute>
         }
       />
