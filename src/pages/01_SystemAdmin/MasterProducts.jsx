@@ -24,7 +24,9 @@ import {
   Building2,
   Settings,
   BarChart3,
-  UserCog
+  UserCog,
+  Scissors,
+  Package2
 } from 'lucide-react';
 
 const MasterProducts = () => {
@@ -42,15 +44,14 @@ const MasterProducts = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // System Admin menu items (same as Dashboard)
+  // System Admin menu items (consistent across all pages)
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/user-management', label: 'User Management', icon: Users },
-    { path: '/branch-management', label: 'Branch Management', icon: Building2 },
-    { path: '/appointment-management', label: 'Appointment Management', icon: Calendar },
-    { path: '/master-products', label: 'Master Products', icon: Package },
-    { path: '/system-settings', label: 'System Settings', icon: Settings },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/appointment-management', label: 'Appointments', icon: Calendar },
+    { path: '/user-management', label: 'Users', icon: UserCog },
+    { path: '/branch-management', label: 'Branches', icon: Building2 },
+    { path: '/service-management', label: 'Services', icon: Scissors },
+    { path: '/master-products', label: 'Master Products', icon: Package2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
   

@@ -25,7 +25,9 @@ import {
   AlertCircle,
   CheckCircle,
   Package,
-  Eye
+  Eye,
+  Package2,
+  Building2
 } from 'lucide-react';
 
 const ServiceManagement = () => {
@@ -43,8 +45,9 @@ const ServiceManagement = () => {
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/appointment-management', label: 'Appointments', icon: Calendar },
     { path: '/user-management', label: 'Users', icon: UserCog },
-    { path: '/branch-management', label: 'Branches', icon: Settings },
+    { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
+    { path: '/master-products', label: 'Master Products', icon: Package2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

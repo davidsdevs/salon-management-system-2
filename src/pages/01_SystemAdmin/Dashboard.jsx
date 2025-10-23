@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import DashboardLayout from '../shared/DashboardLayout';
-import { Users, Calendar, Package, DollarSign, User, Home, Building2, Settings, BarChart3, UserCog, Scissors } from 'lucide-react';
+import { Users, Calendar, Package, DollarSign, User, Home, Building2, Settings, BarChart3, UserCog, Scissors, Package2 } from 'lucide-react';
 
 const SystemAdminDashboard = () => {
   const { userData } = useAuth();
@@ -15,6 +15,7 @@ const SystemAdminDashboard = () => {
     { path: '/user-management', label: 'Users', icon: UserCog },
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
+    { path: '/master-products', label: 'Master Products', icon: Package2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

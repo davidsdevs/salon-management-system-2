@@ -23,7 +23,8 @@ import {
   UserCog,
   Eye,
   Calendar,
-  Scissors
+  Scissors,
+  Package2
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -217,6 +218,7 @@ const UserManagement = () => {
     { path: '/user-management', label: 'Users', icon: UserCog },
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
+    { path: '/master-products', label: 'Master Products', icon: Package2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 
