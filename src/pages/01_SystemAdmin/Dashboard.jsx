@@ -75,6 +75,20 @@ const SystemAdminDashboard = () => {
               </Button>
             </Link>
             
+            <Link to="/master-products">
+              <Button className="h-20 w-full flex flex-col items-center justify-center bg-[#160B53] hover:bg-[#160B53]/90">
+                <Package className="h-6 w-6 mb-2" />
+                Master Products
+              </Button>
+            </Link>
+            
+            <Link to="/branch-management">
+              <Button className="h-20 w-full flex flex-col items-center justify-center bg-[#160B53] hover:bg-[#160B53]/90">
+                <Building2 className="h-6 w-6 mb-2" />
+                Branch Management
+              </Button>
+            </Link>
+            
             <Link to="/profile">
               <Button className="h-20 w-full flex flex-col items-center justify-center bg-[#160B53] hover:bg-[#160B53]/90">
                 <User className="h-6 w-6 mb-2" />

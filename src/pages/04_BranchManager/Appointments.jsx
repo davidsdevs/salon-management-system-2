@@ -8,14 +8,10 @@ import { AppointmentModel } from "../../models/AppointmentModel";
 import { userService } from "../../services/userService";
 import { serviceService } from "../../services/serviceService";
 import { branchService } from "../../services/branchService";
-import { emailService } from "../../services/emailService";
-
 import {
   Calendar,
   Users,
   DollarSign,
-  CheckCircle,
-  XCircle,
   BarChart3,
   Printer,
   FileDown,
@@ -100,16 +96,37 @@ const BranchManagerAppointments = () => {
 
   // === State Management ===
   const [appointmentsData, setAppointmentsData] = useState([]);
+  
+  // Debug appointmentsData changes
+  useEffect(() => {
+    console.log('🔄 APPOINTMENTS DATA CHANGED:');
+    console.log('New appointmentsData length:', appointmentsData.length);
+    console.log('New appointmentsData:', appointmentsData);
+    console.log('Stack trace:', new Error().stack);
+  }, [appointmentsData]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [appointmentToConfirm, setAppointmentToConfirm] = useState(null);
   const [appointmentsError, setAppointmentsError] = useState(null);
   const [stylistsData, setStylistsData] = useState({});
   const [servicesData, setServicesData] = useState({});
   const [usersData, setUsersData] = useState({});
   const [branchData, setBranchData] = useState(null);
+
+  // Simple display helper
+  const displayAppointments = (appointments) => {
+    console.log('📋 DISPLAYING APPOINTMENTS:');
+    console.log('Total appointments:', appointments.length);
+    appointments.forEach((apt, index) => {
+      console.log(`Appointment ${index + 1}:`, {
+        id: apt.id,
+        clientName: apt.clientName,
+        appointmentDate: apt.appointmentDate,
+        appointmentTime: apt.appointmentTime,
+        status: apt.status
+      });
+    });
+  };
 
   // === Load Appointments ===
   useEffect(() => {
@@ -118,18 +135,62 @@ const BranchManagerAppointments = () => {
         setAppointmentsLoading(true);
         setAppointmentsError(null);
         
-        // Get appointments for the current branch manager's branch
-        const branchId = userData?.branchId;
-        if (!branchId) {
-          throw new Error('Branch ID not found for user');
-        }
+              // Get user's branchId for filtering
+              const userBranchId = userData.branchId;
+              console.log('🎯 FILTERING BY BRANCH ID:', userBranchId);
 
-        const result = await appointmentApiService.getAppointments({
-          branchId: branchId
-        }, userData.roles && userData.roles.length > 0 ? userData.roles[0] : 'branchManager', userData.uid);
+              console.log('🔍 FETCHING APPOINTMENTS FOR BRANCH:');
+              console.log('User role: branchManager');
+              console.log('User ID:', userData.uid);
+              console.log('User branchId:', userBranchId);
+              console.log('✅ FILTERING BY BRANCH ID - FETCHING APPOINTMENTS FOR BRANCH');
+              
+              // Filter appointments by branchId
+              console.log('🎯 FILTERING APPOINTMENTS BY BRANCH ID:', userBranchId);
+              const result = await appointmentApiService.getAppointments({ branchId: userBranchId }, 'branchManager', userData.uid);
+
+        console.log('📊 APPOINTMENTS RESULT:');
+        console.log('Result object:', result);
+        console.log('Result.appointments:', result.appointments);
+        console.log('Result.appointments length:', result.appointments?.length || 0);
+        
+        // Check if result.appointments is actually an array
+        if (result.appointments) {
+          console.log('✅ result.appointments exists and is:', typeof result.appointments);
+          console.log('Is array?', Array.isArray(result.appointments));
+          console.log('Length:', result.appointments.length);
+        } else {
+          console.log('❌ result.appointments is missing or undefined!');
+        }
+        
+        // Show all appointments found
+              console.log('📊 APPOINTMENTS FOUND FOR BRANCH:', result.appointments?.length || 0);
+              
+              // Display appointments found for this branch
+              if (result.appointments && result.appointments.length > 0) {
+                console.log('📋 APPOINTMENTS TO DISPLAY FOR BRANCH:');
+                result.appointments.forEach((apt, index) => {
+                  console.log(`Appointment ${index + 1}:`, {
+                    id: apt.id,
+                    clientName: apt.clientName,
+                    appointmentDate: apt.appointmentDate,
+                    appointmentTime: apt.appointmentTime,
+                    status: apt.status,
+                    branchId: apt.branchId
+                  });
+                });
+              }
+              
+              // Branch appointments fetched - showing only appointments for this branch
 
         if (result.appointments && result.appointments.length > 0) {
           setAppointmentsData(result.appointments);
+          
+          // FORCE TEST: Set appointments immediately to test if state update works
+          console.log('🧪 FORCE TESTING: Setting appointments directly...');
+          setTimeout(() => {
+            console.log('🧪 FORCE TEST: Current appointmentsData after timeout:', appointmentsData);
+          }, 100);
           
           // Get unique stylist IDs from appointments
           const stylistIds = [...new Set(result.appointments.flatMap(apt => {
@@ -262,19 +323,9 @@ const BranchManagerAppointments = () => {
             }
           }
 
-          // Fetch branch information
-          if (branchId) {
-            try {
-              const branch = await branchService.getBranch(branchId, userData.roles && userData.roles.length > 0 ? userData.roles[0] : 'branchManager', userData.uid);
-              if (branch) {
-                setBranchData(branch);
-              }
-            } catch (err) {
-              console.warn('Error fetching branch:', err);
-            }
-          }
+              // Branch information loaded - showing only appointments for this branch
         } else {
-          // No appointments found in database
+          // No appointments found for this branch
           setAppointmentsData([]);
           setStylistsData({});
           setServicesData({});
@@ -289,7 +340,7 @@ const BranchManagerAppointments = () => {
       }
     };
 
-    if (userData?.branchId) {
+          if (userData && userData.branchId) {
       loadAppointments();
     }
   }, [userData?.branchId]);
@@ -310,11 +361,12 @@ const BranchManagerAppointments = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [stylistFilter, setStylistFilter] = useState("All");
   const [serviceFilter, setServiceFilter] = useState("All");
+  // Set default date range to show today's appointments only
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // Clear all filters (reset to today's date)
+  // Clear all filters (reset to today's appointments)
   const clearAllFilters = () => {
     setQuery("");
     setStatusFilter("All");
@@ -350,44 +402,88 @@ const BranchManagerAppointments = () => {
 
   // === Filtered Appointments ===
   const filteredAppointments = useMemo(() => {
-    return appointmentsData.filter(a => {
-      const clientName = a.clientInfo?.name || a.clientName || 'Unknown';
-      
-      // Search query matching
-      const matchesQuery = query === "" || 
-        clientName.toLowerCase().includes(query.toLowerCase()) || 
-        a.notes?.toLowerCase().includes(query.toLowerCase());
-      
-      // Status filter matching
-      const matchesStatus = statusFilter === "All" || a.status === statusFilter;
-      
-      // Stylist filter matching - check serviceStylistPairs
-      let matchesStylist = stylistFilter === "All";
-      if (stylistFilter !== "All") {
-        if (a.serviceStylistPairs && Array.isArray(a.serviceStylistPairs)) {
-          matchesStylist = a.serviceStylistPairs.some(pair => pair.stylistId === stylistFilter);
-        } else if (a.stylistId) {
-          matchesStylist = a.stylistId === stylistFilter;
-        }
-      }
-      
-      // Service filter matching - check serviceStylistPairs
-      let matchesService = serviceFilter === "All";
-      if (serviceFilter !== "All") {
-        if (a.serviceStylistPairs && Array.isArray(a.serviceStylistPairs)) {
-          matchesService = a.serviceStylistPairs.some(pair => pair.serviceId === serviceFilter);
-        } else if (a.serviceIds && Array.isArray(a.serviceIds)) {
-          matchesService = a.serviceIds.includes(serviceFilter);
-        }
-      }
-      
-      // Date range filtering
-      const apptDate = new Date(a.appointmentDate);
-      const fromOk = !dateFrom || apptDate >= new Date(dateFrom);
-      const toOk = !dateTo || apptDate <= new Date(dateTo);
-      
-      return matchesQuery && matchesStatus && matchesStylist && matchesService && fromOk && toOk;
+    console.log('🔍 FILTERING APPOINTMENTS:');
+    console.log('Raw appointmentsData:', appointmentsData);
+    console.log('appointmentsData length:', appointmentsData.length);
+    console.log('Current filters:', {
+      query,
+      statusFilter,
+      stylistFilter,
+      serviceFilter,
+      dateFrom,
+      dateTo
     });
+    
+    // If appointmentsData is empty, return empty array
+    if (!appointmentsData || appointmentsData.length === 0) {
+      console.log('❌ NO APPOINTMENTS DATA - RETURNING EMPTY ARRAY');
+      return [];
+    }
+    
+    // Default: Show only today's appointments if no filters are applied
+    const hasFilters = query || statusFilter !== 'All' || stylistFilter !== 'All' || serviceFilter !== 'All' || dateFrom || dateTo;
+    
+    if (!hasFilters) {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      console.log('📅 DEFAULT FILTER: Showing only today\'s appointments:', today);
+      const todayAppointments = appointmentsData.filter(apt => apt.appointmentDate === today);
+      console.log('📊 Today\'s appointments found:', todayAppointments.length);
+      return todayAppointments;
+    }
+    
+    // Apply custom filters when user has set them
+    console.log('🎯 CUSTOM FILTERS APPLIED - Showing filtered data');
+    let filtered = appointmentsData;
+    
+    // Apply search query filter
+    if (query) {
+      filtered = filtered.filter((a) => {
+        const searchTerm = query.toLowerCase();
+        const clientName = (a.clientName || a.clientInfo?.name || '').toLowerCase();
+        const clientEmail = (a.clientEmail || a.clientInfo?.email || '').toLowerCase();
+        const clientPhone = (a.clientPhone || a.clientInfo?.phone || '').toLowerCase();
+        
+        return clientName.includes(searchTerm) || 
+               clientEmail.includes(searchTerm) || 
+               clientPhone.includes(searchTerm);
+      });
+    }
+    
+    // Apply status filter
+    if (statusFilter !== 'All') {
+      filtered = filtered.filter((a) => a.status === statusFilter);
+    }
+    
+    // Apply stylist filter
+    if (stylistFilter !== 'All') {
+      filtered = filtered.filter((a) => {
+        if (a.serviceStylistPairs && Array.isArray(a.serviceStylistPairs)) {
+          return a.serviceStylistPairs.some(pair => pair.stylistId === stylistFilter);
+        }
+        return a.stylistId === stylistFilter;
+      });
+    }
+    
+    // Apply service filter
+    if (serviceFilter !== 'All') {
+      filtered = filtered.filter((a) => {
+        if (a.serviceStylistPairs && Array.isArray(a.serviceStylistPairs)) {
+          return a.serviceStylistPairs.some(pair => pair.serviceId === serviceFilter);
+        }
+        return a.serviceIds && a.serviceIds.includes(serviceFilter);
+      });
+    }
+    
+    // Apply date filters
+    if (dateFrom) {
+      filtered = filtered.filter((a) => a.appointmentDate >= dateFrom);
+    }
+    if (dateTo) {
+      filtered = filtered.filter((a) => a.appointmentDate <= dateTo);
+    }
+    
+    console.log('✅ FINAL FILTERED APPOINTMENTS:', filtered.length);
+    return filtered;
   }, [appointmentsData, query, statusFilter, stylistFilter, serviceFilter, dateFrom, dateTo]);
 
   // === Service Helper Functions ===
@@ -454,6 +550,7 @@ const BranchManagerAppointments = () => {
   // === Stylist Helper Functions ===
   const getStylistName = (stylistId) => {
     if (!stylistId) return 'Unassigned';
+    if (stylistId === 'any_available') return 'No One Preferred';
     return stylistsData[stylistId]?.name || `Stylist ${stylistId.slice(-4)}`;
   };
 
@@ -585,6 +682,444 @@ const BranchManagerAppointments = () => {
   }, [filteredAppointments, stylistsData]);
 
   // === Actions ===
+  const exportToExcel = async (rows = filteredAppointments, filename = "appointments.xlsx") => {
+    if (!rows.length) { alert("No data to export."); return; }
+    
+    console.log('📊 EXPORTING EXCEL - Data received:', rows.length, 'appointments');
+    console.log('📊 First appointment structure:', rows[0]);
+    
+    try {
+      // Import the XLSX library for better customization
+      const XLSX = await import('xlsx');
+      
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      
+      // Find maximum number of services across all appointments
+      const findMaxServices = (appointments) => {
+        let maxServices = 0;
+        appointments.forEach(appointment => {
+          const serviceCount = appointment.serviceStylistPairs?.length || 0;
+          if (serviceCount > maxServices) {
+            maxServices = serviceCount;
+          }
+        });
+        return Math.min(maxServices, 10); // Cap at 10 services for Excel readability
+      };
+
+      // Prepare data with dynamic service breakdown
+      const prepareAppointmentData = (appointments) => {
+        const maxServices = findMaxServices(appointments);
+        console.log(`📊 Maximum services found: ${maxServices}`);
+        
+        return appointments.map((appointment, index) => {
+          const services = appointment.serviceStylistPairs || [];
+          const totalPrice = services.reduce((sum, service) => sum + (service.servicePrice || 0), 0);
+          
+          const result = {
+            rowNumber: index + 1,
+            clientName: appointment.clientName || appointment.client || 'N/A',
+            appointmentDate: appointment.appointmentDate || appointment.date || 'N/A',
+            appointmentTime: appointment.appointmentTime || appointment.time || 'N/A',
+            status: appointment.status || 'N/A',
+            totalPrice: totalPrice,
+            clientEmail: appointment.clientEmail || 'N/A',
+            clientPhone: appointment.clientPhone || 'N/A',
+            notes: appointment.notes || 'N/A',
+            clientId: appointment.clientId || 'N/A',
+            updatedAt: appointment.updatedAt ? new Date(appointment.updatedAt).toLocaleString() : 'N/A'
+          };
+          
+          // Add dynamic service columns
+          for (let i = 0; i < maxServices; i++) {
+            const service = services[i] || { serviceName: '', servicePrice: 0, stylistName: '' };
+            result[`service${i + 1}Name`] = service.serviceName || '';
+            result[`service${i + 1}Price`] = service.servicePrice || 0;
+            result[`service${i + 1}Stylist`] = service.stylistName || '';
+          }
+          
+          return result;
+        });
+      };
+      
+      // Create main data sheet with detailed service breakdown
+      const mainData = prepareAppointmentData(rows);
+      const maxServices = findMaxServices(rows);
+      
+      // Create main worksheet with dynamic service breakdown
+      const mainWorksheetData = [];
+      
+      // Create dynamic headers
+      const headers = [
+        'Row #', 'Client Name', 'Appointment Date', 'Appointment Time', 'Status'
+      ];
+      
+      // Add dynamic service headers
+      for (let i = 1; i <= maxServices; i++) {
+        headers.push(`Service ${i}`, `Price ${i}`, `Stylist ${i}`);
+      }
+      
+      // Add remaining headers
+      headers.push('TOTAL PRICE', 'Client Email', 'Client Phone', 'Notes');
+      
+      mainWorksheetData.push(headers);
+      
+      // Add data rows with dynamic service breakdown
+      mainData.forEach(appointment => {
+        const row = [
+          appointment.rowNumber,
+          appointment.clientName,
+          appointment.appointmentDate,
+          appointment.appointmentTime,
+          appointment.status
+        ];
+        
+        // Add dynamic service data
+        for (let i = 1; i <= maxServices; i++) {
+          row.push(
+            appointment[`service${i}Name`] || '',
+            appointment[`service${i}Price`] || 0,
+            appointment[`service${i}Stylist`] || ''
+          );
+        }
+        
+        // Add remaining data
+        row.push(
+          appointment.totalPrice, // Actual calculated total
+          appointment.clientEmail,
+          appointment.clientPhone,
+          appointment.notes
+        );
+        
+        mainWorksheetData.push(row);
+      });
+      
+      // Add summary row
+      const totalRevenue = mainData.reduce((sum, apt) => sum + apt.totalPrice, 0);
+      const summaryRow = ['SUMMARY', 'TOTAL APPOINTMENTS', mainData.length, '', ''];
+      
+      // Add empty service columns
+      for (let i = 1; i <= maxServices; i++) {
+        summaryRow.push('', '', '');
+      }
+      
+      // Add total revenue and empty columns
+      summaryRow.push(totalRevenue, '', '', '');
+      mainWorksheetData.push(summaryRow);
+      
+      // Create the main worksheet
+      const mainWorksheet = XLSX.utils.aoa_to_sheet(mainWorksheetData);
+      XLSX.utils.book_append_sheet(workbook, mainWorksheet, '📊 Detailed Appointments');
+      
+      // Create individual stylist sheets
+      const allStylists = new Set();
+      rows.forEach(appointment => {
+        appointment.serviceStylistPairs?.forEach(pair => {
+          if (pair.stylistId !== 'any_available' && pair.stylistName) {
+            allStylists.add(pair.stylistName);
+          }
+        });
+      });
+      
+      // Create sheets for each stylist
+      allStylists.forEach(stylistName => {
+        const stylistAppointments = rows.filter(apt => 
+          apt.serviceStylistPairs?.some(pair => pair.stylistName === stylistName)
+        );
+        
+        if (stylistAppointments.length === 0) return; // Skip if no appointments
+        
+        const stylistData = prepareAppointmentData(stylistAppointments);
+        const stylistMaxServices = findMaxServices(stylistAppointments);
+        const stylistWorksheetData = [];
+        
+        // Create dynamic headers for stylist sheet
+        const stylistHeaders = [
+          'Row #', 'Client Name', 'Appointment Date', 'Appointment Time', 'Status'
+        ];
+        
+        // Add dynamic service headers
+        for (let i = 1; i <= stylistMaxServices; i++) {
+          stylistHeaders.push(`Service ${i}`, `Price ${i}`, `Stylist ${i}`);
+        }
+        
+        // Add remaining headers
+        stylistHeaders.push('TOTAL PRICE', 'Client Email', 'Client Phone', 'Notes');
+        stylistWorksheetData.push(stylistHeaders);
+        
+        // Add data rows with dynamic service breakdown
+        stylistData.forEach(appointment => {
+          const row = [
+            appointment.rowNumber,
+            appointment.clientName,
+            appointment.appointmentDate,
+            appointment.appointmentTime,
+            appointment.status
+          ];
+          
+          // Add dynamic service data
+          for (let i = 1; i <= stylistMaxServices; i++) {
+            row.push(
+              appointment[`service${i}Name`] || '',
+              appointment[`service${i}Price`] || 0,
+              appointment[`service${i}Stylist`] || ''
+            );
+          }
+          
+          // Add remaining data
+          row.push(
+            appointment.totalPrice, // Actual calculated total
+            appointment.clientEmail,
+            appointment.clientPhone,
+            appointment.notes
+          );
+          
+          stylistWorksheetData.push(row);
+        });
+        
+        // Add summary row
+        const totalRevenue = stylistData.reduce((sum, apt) => sum + apt.totalPrice, 0);
+        const summaryRow = ['SUMMARY', 'TOTAL APPOINTMENTS', stylistData.length, '', ''];
+        
+        // Add empty service columns
+        for (let i = 1; i <= stylistMaxServices; i++) {
+          summaryRow.push('', '', '');
+        }
+        
+        // Add total revenue and empty columns
+        summaryRow.push(totalRevenue, '', '', '');
+        stylistWorksheetData.push(summaryRow);
+        
+        const cleanStylistName = stylistName.replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 31);
+        const stylistWorksheet = XLSX.utils.aoa_to_sheet(stylistWorksheetData);
+        XLSX.utils.book_append_sheet(workbook, stylistWorksheet, `👤 ${cleanStylistName}`);
+      });
+      
+      // Create "Any Available" sheet if needed
+      const hasAnyAvailable = rows.some(apt => 
+        apt.serviceStylistPairs?.some(pair => pair.stylistId === 'any_available')
+      );
+      
+      if (hasAnyAvailable) {
+        const anyAvailableAppointments = rows.filter(apt => 
+          apt.serviceStylistPairs?.some(pair => pair.stylistId === 'any_available')
+        );
+        
+        if (anyAvailableAppointments.length === 0) return; // Skip if no appointments
+        
+        const anyAvailableData = prepareAppointmentData(anyAvailableAppointments);
+        const anyAvailableMaxServices = findMaxServices(anyAvailableAppointments);
+        const anyAvailableWorksheetData = [];
+        
+        // Create dynamic headers for any available sheet
+        const anyAvailableHeaders = [
+          'Row #', 'Client Name', 'Appointment Date', 'Appointment Time', 'Status'
+        ];
+        
+        // Add dynamic service headers
+        for (let i = 1; i <= anyAvailableMaxServices; i++) {
+          anyAvailableHeaders.push(`Service ${i}`, `Price ${i}`, `Stylist ${i}`);
+        }
+        
+        // Add remaining headers
+        anyAvailableHeaders.push('TOTAL PRICE', 'Client Email', 'Client Phone', 'Notes');
+        anyAvailableWorksheetData.push(anyAvailableHeaders);
+        
+        // Add data rows with dynamic service breakdown
+        anyAvailableData.forEach(appointment => {
+          const row = [
+            appointment.rowNumber,
+            appointment.clientName,
+            appointment.appointmentDate,
+            appointment.appointmentTime,
+            appointment.status
+          ];
+          
+          // Add dynamic service data
+          for (let i = 1; i <= anyAvailableMaxServices; i++) {
+            row.push(
+              appointment[`service${i}Name`] || '',
+              appointment[`service${i}Price`] || 0,
+              appointment[`service${i}Stylist`] || ''
+            );
+          }
+          
+          // Add remaining data
+          row.push(
+            appointment.totalPrice, // Actual calculated total
+            appointment.clientEmail,
+            appointment.clientPhone,
+            appointment.notes
+          );
+          
+          anyAvailableWorksheetData.push(row);
+        });
+        
+        // Add summary row
+        const totalRevenue = anyAvailableData.reduce((sum, apt) => sum + apt.totalPrice, 0);
+        const summaryRow = ['SUMMARY', 'TOTAL APPOINTMENTS', anyAvailableData.length, '', ''];
+        
+        // Add empty service columns
+        for (let i = 1; i <= anyAvailableMaxServices; i++) {
+          summaryRow.push('', '', '');
+        }
+        
+        // Add total revenue and empty columns
+        summaryRow.push(totalRevenue, '', '', '');
+        anyAvailableWorksheetData.push(summaryRow);
+        
+        const anyAvailableWorksheet = XLSX.utils.aoa_to_sheet(anyAvailableWorksheetData);
+        XLSX.utils.book_append_sheet(workbook, anyAvailableWorksheet, '👥 Any Available');
+      }
+      
+      // Generate filename with format: BranchName_CreatedByName_DateCreated
+      const branchNameClean = branchName.replace(/[^a-zA-Z0-9]/g, '_');
+      const createdByName = `${userData?.firstName || 'Unknown'}_${userData?.lastName || 'User'}`.replace(/[^a-zA-Z0-9]/g, '_');
+      const dateCreated = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const finalFilename = `${branchNameClean}_${createdByName}_${dateCreated}.xlsx`;
+      
+      // Generate and download the file
+      const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([buffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = finalFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error creating Excel file:', error);
+      console.log('Falling back to HTML-to-Excel method...');
+      // Fallback to a simpler Excel format
+      try {
+        await createSimpleExcel(rows, filename);
+      } catch (fallbackError) {
+        console.error('Fallback Excel creation failed:', fallbackError);
+        // Final fallback to CSV
+        exportCSV(rows, filename);
+      }
+    }
+  };
+
+  const createSimpleExcel = async (rows, filename) => {
+    // Find maximum number of services
+    const findMaxServices = (appointments) => {
+      let maxServices = 0;
+      appointments.forEach(appointment => {
+        const serviceCount = appointment.serviceStylistPairs?.length || 0;
+        if (serviceCount > maxServices) {
+          maxServices = serviceCount;
+        }
+      });
+      return Math.min(maxServices, 10); // Cap at 10 services
+    };
+
+    const maxServices = findMaxServices(rows);
+    console.log(`📊 HTML-to-Excel: Maximum services found: ${maxServices}`);
+    
+    // Create dynamic headers
+    const headers = [
+      'Row #', 'Client Name', 'Appointment Date', 'Appointment Time', 'Status'
+    ];
+    
+    // Add dynamic service headers
+    for (let i = 1; i <= maxServices; i++) {
+      headers.push(`Service ${i}`, `Price ${i}`, `Stylist ${i}`);
+    }
+    
+    // Add remaining headers
+    headers.push('TOTAL PRICE', 'Client Email', 'Client Phone', 'Notes');
+    
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+            xmlns:x="urn:schemas-microsoft-com:office:excel" 
+            xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <meta name="ExcelCreated" content="1">
+        <meta name="ProgId" content="Excel.Sheet">
+        <meta name="Generator" content="Salon Management System">
+        <!--[if gte mso 9]><xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Appointments Report</x:Name>
+                <x:WorksheetOptions>
+                  <x:DefaultRowHeight>285</x:DefaultRowHeight>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml><![endif]-->
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+          th { background-color: #160B53; color: white; font-weight: bold; padding: 8px; text-align: center; }
+          td { padding: 6px; border: 1px solid #ccc; }
+          tr:nth-child(even) { background-color: #f8f9fa; }
+          .status-completed { background-color: #d4edda; color: #155724; font-weight: bold; }
+          .status-cancelled { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+          .status-confirmed { background-color: #d1ecf1; color: #0c5460; font-weight: bold; }
+          .status-scheduled { background-color: #fff3cd; color: #856404; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            ${headers.map(h => `<th>${h}</th>`).join('')}
+          </tr>
+          ${rows.map((row, index) => {
+            // Process service breakdown
+            const services = row.serviceStylistPairs || [];
+            const totalPrice = services.reduce((sum, service) => sum + (service.servicePrice || 0), 0);
+            
+            let serviceCells = '';
+            for (let i = 0; i < maxServices; i++) {
+              const service = services[i] || { serviceName: '', servicePrice: 0, stylistName: '' };
+              serviceCells += `
+                <td>${service.serviceName || ''}</td>
+                <td>${service.servicePrice || 0}</td>
+                <td>${service.stylistName || ''}</td>
+              `;
+            }
+            
+            return `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${row.clientName || row.client || 'N/A'}</td>
+              <td>${row.appointmentDate || row.date || 'N/A'}</td>
+              <td>${row.appointmentTime || row.time || 'N/A'}</td>
+              <td class="status-${(row.status || '').toLowerCase()}">${row.status || 'N/A'}</td>
+              ${serviceCells}
+              <td>₱${totalPrice}</td>
+              <td>${row.clientEmail || 'N/A'}</td>
+              <td>${row.clientPhone || 'N/A'}</td>
+              <td>${row.notes || 'N/A'}</td>
+            </tr>
+          `;
+          }).join('')}
+        </table>
+      </body>
+      </html>
+    `;
+    
+    const blob = new Blob([html], { 
+      type: 'application/vnd.ms-excel'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.xls') ? filename : filename.replace('.xlsx', '.xls');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const exportCSV = (rows = filteredAppointments, filename = "appointments.csv") => {
     if (!rows.length) { alert("No data to export."); return; }
     const header = ["Date", "Customer", "Service", "Stylist", "Status", "Revenue"];
@@ -594,10 +1129,66 @@ const BranchManagerAppointments = () => {
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
 
-  const printReport = () => {
+  const printReport = async () => {
     try {
       console.log('Print report clicked');
       console.log('Filtered appointments:', filteredAppointments);
+      
+      // Fetch branch name using branchId
+      let branchName = 'Unknown Branch';
+      console.log('Fetching branch name for branchId:', userData?.branchId);
+      
+      if (userData?.branchId) {
+        try {
+          // Get branch name WHERE branchId === branches.doc.id
+          console.log('🔍 Calling branchService.getBranch with ID:', userData.branchId);
+          const branchInfo = await branchService.getBranch(userData.branchId, 'branchManager', userData.uid);
+          console.log('📊 Branch info received:', branchInfo);
+          console.log('📊 Branch info type:', typeof branchInfo);
+          console.log('📊 Branch info keys:', branchInfo ? Object.keys(branchInfo) : 'null/undefined');
+          
+          if (branchInfo && branchInfo.name) {
+            branchName = branchInfo.name;
+            console.log('✅ Branch name found:', branchName);
+          } else {
+            console.warn('❌ Branch info found but no name property');
+            console.log('Branch info structure:', branchInfo);
+            console.log('Available properties:', branchInfo ? Object.keys(branchInfo) : 'none');
+          }
+        } catch (error) {
+          console.error('❌ Error fetching branch name:', error);
+          console.error('Error details:', error.message);
+          console.error('Error stack:', error.stack);
+          
+          // Try alternative approach - direct Firestore query
+          try {
+            console.log('🔄 Trying alternative approach with direct Firestore query...');
+            const { doc, getDoc } = await import('firebase/firestore');
+            const { db } = await import('../../lib/firebase');
+            
+            const branchRef = doc(db, 'branches', userData.branchId);
+            const branchDoc = await getDoc(branchRef);
+            
+            if (branchDoc.exists()) {
+              const branchData = branchDoc.data();
+              console.log('📊 Direct Firestore query result:', branchData);
+              if (branchData.name) {
+                branchName = branchData.name;
+                console.log('✅ Branch name found via direct query:', branchName);
+              }
+            } else {
+              console.warn('❌ Branch document does not exist');
+            }
+          } catch (directError) {
+            console.error('❌ Direct Firestore query also failed:', directError);
+          }
+        }
+      } else {
+        console.warn('❌ No branchId found in userData');
+        console.log('UserData structure:', userData);
+      }
+      
+      console.log('📋 Final branch name for report:', branchName);
       
       // Create a new window for printing
       const printWindow = window.open('', '_blank');
@@ -621,6 +1212,25 @@ const BranchManagerAppointments = () => {
       }
       
       const stylistInfo = getStylistDisplay(appointment);
+        
+        // Get stylist details for the report
+        let stylistDetails = 'No stylist assigned';
+        let stylistType = 'any_available';
+        
+        if (appointment.serviceStylistPairs && appointment.serviceStylistPairs.length > 0) {
+          const stylistNames = appointment.serviceStylistPairs.map(pair => {
+            if (pair.stylistId === 'any_available') {
+              return 'Any Available';
+            } else {
+              return getStylistName(pair.stylistId);
+            }
+          });
+          stylistDetails = stylistNames.join(', ');
+          
+          // Check if any stylist is not "any_available"
+          const hasSpecificStylist = appointment.serviceStylistPairs.some(pair => pair.stylistId !== 'any_available');
+          stylistType = hasSpecificStylist ? 'specific' : 'any_available';
+        }
       
       const appointmentData = {
         client: clientName,
@@ -632,6 +1242,8 @@ const BranchManagerAppointments = () => {
         }),
         time: appointment.appointmentTime,
         services: services,
+          stylist: stylistDetails,
+          stylistType: stylistType,
         status: appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1),
         revenue: `₱${estimatedRevenue.toLocaleString()}`
       };
@@ -641,6 +1253,23 @@ const BranchManagerAppointments = () => {
     });
     
     console.log('Table data generated:', tableData);
+
+    // Calculate stylist statistics
+    const stylistStats = {
+      specificStylists: 0,
+      anyAvailable: 0,
+      total: tableData.length
+    };
+    
+    tableData.forEach(apt => {
+      if (apt.stylistType === 'specific') {
+        stylistStats.specificStylists++;
+      } else if (apt.stylistType === 'any_available') {
+        stylistStats.anyAvailable++;
+      }
+    });
+    
+    console.log('Stylist statistics:', stylistStats);
 
     // Calculate total revenue for the report (excluding cancelled appointments)
     const totalRevenue = filteredAppointments.reduce((sum, apt) => {
@@ -679,14 +1308,19 @@ const BranchManagerAppointments = () => {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Appointments Report - ${userData?.branchId || 'Branch'}</title>
+          <title>Appointments Report - Branch Appointments</title>
+          <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
           <style>
             @page {
               margin: 0.5in;
               size: A4;
             }
+            
+            * {
+              font-family: 'Poppins', sans-serif !important;
+            }
             body {
-              font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
               font-size: 12px;
               line-height: 1.4;
               color: #333;
@@ -716,20 +1350,20 @@ const BranchManagerAppointments = () => {
               object-fit: contain;
             }
             .report-title {
+              font-family: 'Poppins', sans-serif !important;
               font-size: 28px;
               font-weight: 700;
               color: #160B53;
               margin-bottom: 10px;
               text-transform: uppercase;
               letter-spacing: 1px;
-              font-family: 'Poppins', sans-serif;
             }
             .report-subtitle {
+              font-family: 'Poppins', sans-serif !important;
               font-size: 18px;
               color: #666;
               margin-bottom: 20px;
               font-weight: 500;
-              font-family: 'Poppins', sans-serif;
             }
             .report-info {
               display: flex;
@@ -761,6 +1395,51 @@ const BranchManagerAppointments = () => {
               margin-bottom: 8px;
               color: #333;
               font-family: 'Poppins', sans-serif;
+            }
+            .report-info-simple {
+              margin-bottom: 20px;
+              padding: 10px 0;
+              border-bottom: 1px solid #000;
+              font-family: 'Poppins', sans-serif;
+            }
+            .info-row {
+              display: flex;
+              align-items: center;
+              flex-wrap: wrap;
+              font-size: 11px;
+              line-height: 1.2;
+            }
+            .info-label {
+              font-weight: 600;
+              color: #000;
+              margin-right: 5px;
+            }
+            .info-value {
+              font-weight: 400;
+              color: #000;
+              margin-right: 15px;
+            }
+            .info-separator {
+              color: #666;
+              margin: 0 8px;
+              font-weight: 300;
+            }
+            .summary-simple {
+              margin: 15px 0;
+              padding: 8px 0;
+              border-top: 1px solid #000;
+              font-size: 11px;
+              font-family: 'Poppins', sans-serif;
+            }
+            .summary-item {
+              font-weight: 400;
+              color: #000;
+              margin-right: 15px;
+            }
+            .summary-separator {
+              color: #666;
+              margin: 0 8px;
+              font-weight: 300;
             }
             table {
               width: 100%;
@@ -881,38 +1560,38 @@ const BranchManagerAppointments = () => {
                 <img src="/logo.png" alt="David's Salon" />
               </div>
             </div>
-            <div class="report-title">Salon Appointments Report</div>
+            <div class="report-title">Branch Appointments Report</div>
             <div class="report-subtitle">Branch Manager Dashboard</div>
           </div>
           
-          <div class="report-info">
-            <div>
-              <span class="info-label">Branch Information</span>
-              <span class="info-value"><strong>Branch:</strong> ${branchData?.name || 'Unknown Branch'}</span>
-              <span class="info-value"><strong>Report Period:</strong> ${new Date().toLocaleDateString('en-US', { 
+          <div class="report-info-simple">
+            <div class="info-row">
+              <span class="info-label">Branch:</span>
+              <span class="info-value">${branchName}</span>
+              <span class="info-separator">|</span>
+              <span class="info-label">Period:</span>
+              <span class="info-value">${dateFrom && dateTo ? 
+                `${new Date(dateFrom).toLocaleDateString('en-US', { 
                 year: 'numeric', 
-                month: 'long', 
+                  month: 'short', 
                 day: 'numeric' 
-              })}</span>
-            </div>
-            <div>
-              <span class="info-label">Generated By</span>
-              <span class="info-value"><strong>Name:</strong> ${userData?.firstName || 'Unknown'} ${userData?.lastName || 'User'}</span>
-              <span class="info-value"><strong>Email:</strong> ${userData?.email || 'N/A'}</span>
-              <span class="info-value"><strong>Role:</strong> Branch Manager</span>
-            </div>
-            <div>
-              <span class="info-label">Report Details</span>
-              <span class="info-value"><strong>Generated On:</strong> ${new Date().toLocaleString('en-US', {
+                })} - ${new Date(dateTo).toLocaleDateString('en-US', { 
                 year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              })}</span>
-              <span class="info-value"><strong>Status Filter:</strong> All Statuses</span>
-              <span class="info-value"><strong>Total Records:</strong> ${filteredAppointments.length}</span>
+                  month: 'short', 
+                  day: 'numeric' 
+                })}` : 
+                new Date().toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })
+              }</span>
+              <span class="info-separator">|</span>
+              <span class="info-label">Generated by:</span>
+              <span class="info-value">${userData?.firstName || 'Unknown'} ${userData?.lastName || 'User'}</span>
+              <span class="info-separator">|</span>
+              <span class="info-label">Records:</span>
+              <span class="info-value">${filteredAppointments.length}</span>
             </div>
           </div>
 
@@ -938,11 +1617,12 @@ const BranchManagerAppointments = () => {
           <table>
             <thead>
               <tr>
-                <th style="width: 20%;">Client</th>
-                <th style="width: 15%;">Date & Time</th>
-                <th style="width: 30%;">Services</th>
-                <th style="width: 10%;">Status</th>
-                <th style="width: 15%;">Revenue</th>
+                  <th style="width: 15%;">Client</th>
+                  <th style="width: 12%;">Date & Time</th>
+                  <th style="width: 25%;">Services</th>
+                  <th style="width: 20%;">Stylist</th>
+                  <th style="width: 8%;">Status</th>
+                  <th style="width: 12%;">Revenue</th>
               </tr>
             </thead>
             <tbody>
@@ -961,6 +1641,12 @@ const BranchManagerAppointments = () => {
                     ).join('')}</div>
                   </td>
                   <td>
+                    <div class="stylist-info">${row.stylist}</div>
+                    <div class="stylist-type" style="font-size: 10px; color: #666; margin-top: 2px;">
+                      ${row.stylistType === 'specific' ? 'Specific Stylist' : 'Any Available'}
+                    </div>
+                  </td>
+                  <td>
                     <span class="status-badge status-${row.status.toLowerCase()}">${row.status}</span>
                   </td>
                   <td class="revenue">${row.revenue}</td>
@@ -968,6 +1654,16 @@ const BranchManagerAppointments = () => {
               `).join('')}
             </tbody>
           </table>
+          
+          <div class="summary-simple">
+            <span class="summary-item">Total: ${stylistStats.total} appointments</span>
+            <span class="summary-separator">|</span>
+            <span class="summary-item">Revenue: ₱${totalRevenue.toLocaleString()}</span>
+            <span class="summary-separator">|</span>
+            <span class="summary-item">Specific Stylists: ${stylistStats.specificStylists}</span>
+            <span class="summary-separator">|</span>
+            <span class="summary-item">Any Available: ${stylistStats.anyAvailable}</span>
+          </div>
           
           <div class="report-footer">
             <p><strong>Salon Management System - Professional Report</strong></p>
@@ -1004,26 +1700,10 @@ const BranchManagerAppointments = () => {
   const generateStylistReportCSV = (stylist) => {
     const rows = filteredAppointments.filter(r => r.stylistId === stylist);
     if (!rows.length) { alert(`No appointments for ${stylist}`); return; }
-    exportCSV(rows, `${stylist.replace(/\s+/g, "_")}_appointments.csv`);
+    exportToExcel(rows, `${stylist.replace(/\s+/g, "_")}_appointments.xlsx`);
   };
 
   // === Appointment Actions ===
-  const handleShowConfirmModal = (appointment) => {
-    setAppointmentToConfirm(appointment);
-    setShowConfirmModal(true);
-  };
-
-  const handleConfirmAppointmentModal = async () => {
-    if (!appointmentToConfirm) return;
-    
-    try {
-      await handleConfirmAppointment(appointmentToConfirm.id);
-      setShowConfirmModal(false);
-      setAppointmentToConfirm(null);
-    } catch (error) {
-      console.error('Error in confirmation modal:', error);
-    }
-  };
 
   const handleViewAppointment = async (appointment) => {
     try {
@@ -1044,58 +1724,6 @@ const BranchManagerAppointments = () => {
     }
   };
 
-  const handleConfirmAppointment = async (appointmentId) => {
-    try {
-      // Find the appointment to get its details for email
-      const appointment = appointmentsData.find(apt => apt.id === appointmentId);
-      if (!appointment) {
-        throw new Error('Appointment not found');
-      }
-
-      // Confirm the appointment (simple status update)
-      await appointmentApiService.confirmAppointment(appointmentId, 'Confirmed by branch manager');
-      
-      // Prepare client data for email using the actual appointment structure
-      const clientData = {
-        email: appointment.clientEmail || appointment.clientInfo?.email,
-        name: appointment.clientName || appointment.clientInfo?.name,
-        phone: appointment.clientPhone || appointment.clientInfo?.phone
-      };
-
-      // Send confirmation emails to stylists and client
-      console.log('Sending confirmation emails...');
-      const emailResult = await emailService.sendConfirmationEmails(appointment, stylistsData, clientData);
-      
-      if (emailResult.success) {
-        console.log('Emails sent successfully:', emailResult.results);
-      } else {
-        console.warn('Email sending failed:', emailResult.message);
-      }
-      
-      // Reload appointments
-      const result = await appointmentApiService.getAppointments({ branchId: userData.branchId });
-      setAppointmentsData(result.appointments);
-      
-      // Show success message with email confirmation
-      alert('Appointment confirmed successfully! Confirmation emails have been sent to the stylist(s) and client.');
-    } catch (error) {
-      console.error('Error confirming appointment:', error);
-      alert('Error confirming appointment: ' + error.message);
-    }
-  };
-
-  const handleCancelAppointment = async (appointmentId) => {
-    try {
-      await appointmentApiService.cancelAppointment(appointmentId, 'Cancelled by branch manager');
-      // Reload appointments
-      const result = await appointmentApiService.getAppointments({ branchId: userData.branchId });
-      setAppointmentsData(result.appointments);
-      alert('Appointment cancelled successfully');
-    } catch (error) {
-      console.error('Error cancelling appointment:', error);
-      alert('Error cancelling appointment');
-    }
-  };
 
   return (
     <DashboardLayout menuItems={menuItems} pageTitle="Appointments Overview">
@@ -1106,7 +1734,7 @@ const BranchManagerAppointments = () => {
             <div className="p-3 bg-blue-50 rounded-full"><Calendar className="h-6 w-6 text-blue-600"/></div>
             <div>
               <p className="text-xs text-gray-500">
-                {filteredAppointments.length !== appointmentsData.length ? 'Filtered Appointments' : 'Total Appointments'}
+                {filteredAppointments.length !== appointmentsData.length ? 'Filtered Appointments' : (query || statusFilter !== 'All' || stylistFilter !== 'All' || serviceFilter !== 'All' || dateFrom || dateTo ? 'All Appointments' : 'Today\'s Appointments')}
                 {filteredAppointments.length !== appointmentsData.length && (
                   <span className="text-blue-600 font-medium"> ({filteredAppointments.length} of {appointmentsData.length})</span>
                 )}
@@ -1115,14 +1743,14 @@ const BranchManagerAppointments = () => {
             </div>
           </Card>
           <Card className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-green-50 rounded-full"><CheckCircle className="h-6 w-6 text-green-600"/></div>
+            <div className="p-3 bg-green-50 rounded-full"><Calendar className="h-6 w-6 text-green-600"/></div>
             <div>
               <p className="text-xs text-gray-500">Completed</p>
               <p className="text-2xl font-semibold text-center">{completed}</p>
             </div>
           </Card>
           <Card className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-red-50 rounded-full"><XCircle className="h-6 w-6 text-red-600"/></div>
+            <div className="p-3 bg-red-50 rounded-full"><Calendar className="h-6 w-6 text-red-600"/></div>
             <div>
               <p className="text-xs text-gray-500">Cancelled / No-shows</p>
               <p className="text-2xl font-semibold text-center">{cancelled}</p>
@@ -1144,18 +1772,18 @@ const BranchManagerAppointments = () => {
           <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
             {/* Left Side: Filter Controls */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <Button
+          <Button
                 className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] transition-colors shadow-sm whitespace-nowrap"
-                onClick={() => setIsFilterOpen(true)}
-              >
-                <Filter className="h-4 w-4" /> Filter Appointments
+            onClick={() => setIsFilterOpen(true)}
+          >
+                <Filter className="h-4 w-4" /> Show All Appointments
                 {(filteredAppointments.length !== appointmentsData.length || 
-                  (dateFrom === new Date().toISOString().split('T')[0] && dateTo === new Date().toISOString().split('T')[0] && statusFilter === "All" && stylistFilter === "All" && serviceFilter === "All" && query === "")) && (
+                  (dateFrom !== "" || dateTo !== "" || statusFilter !== "All" || stylistFilter !== "All" || serviceFilter !== "All" || query !== "")) && (
                   <span className="bg-white text-[#160B53] text-xs rounded-full px-2 py-1 ml-1 font-medium">
-                    {dateFrom === new Date().toISOString().split('T')[0] && dateTo === new Date().toISOString().split('T')[0] && statusFilter === "All" && stylistFilter === "All" && serviceFilter === "All" && query === "" ? "Today" : "Active"}
+                    Active
                   </span>
                 )}
-              </Button>
+          </Button>
               
               {/* Status Filter Dropdown */}
               <select
@@ -1181,14 +1809,14 @@ const BranchManagerAppointments = () => {
                   <>Showing <span className="font-semibold text-gray-900">{filteredAppointments.length}</span> of <span className="font-semibold text-gray-900">{appointmentsData.length}</span> appointments</>
                 )}
               </div>
-              
-              <div className="flex gap-2">
+
+          <div className="flex gap-2">
                 <Button 
-                  onClick={() => exportCSV(filteredAppointments, "appointments_filtered.csv")} 
+                  onClick={() => exportToExcel(filteredAppointments, "appointments_filtered.xlsx")} 
                   className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] shadow-sm whitespace-nowrap"
                 >
-                  <FileText className="h-4 w-4"/> Export
-                </Button>
+                  <FileText className="h-4 w-4"/> Export Excel
+            </Button>
                 <Button 
                   type="button"
                   onClick={() => {
@@ -1197,10 +1825,10 @@ const BranchManagerAppointments = () => {
                   }} 
                   className="flex items-center gap-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm whitespace-nowrap"
                 >
-                  <Printer className="h-4 w-4"/> Print
-                </Button>
-              </div>
-            </div>
+              <Printer className="h-4 w-4"/> Print
+            </Button>
+          </div>
+        </div>
           </div>
         </Card>
 
@@ -1209,7 +1837,7 @@ const BranchManagerAppointments = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Filter Appointments</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Show All Appointments</h2>
                 <Button
                   onClick={() => setIsFilterOpen(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -1401,44 +2029,32 @@ const BranchManagerAppointments = () => {
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                       <div className="flex items-center space-x-1">
-                         <Users className="h-4 w-4" />
-                         <span>Client</span>
-                       </div>
+                       <span>Client</span>
                      </th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                       <div className="flex items-center space-x-1">
-                         <Calendar className="h-4 w-4" />
-                         <span>Date & Time</span>
-                       </div>
+                       <span>Date & Time</span>
                      </th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                       <div className="flex items-center space-x-1">
-                         <Package className="h-4 w-4" />
-                         <span>Services</span>
-                       </div>
+                       <span>Services</span>
                      </th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                       <div className="flex items-center space-x-1">
-                         <CheckCircle className="h-4 w-4" />
-                         <span>Status</span>
-                       </div>
+                       <span>Status</span>
                      </th>
                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                       <div className="flex items-center justify-end space-x-1">
-                         <DollarSign className="h-4 w-4" />
-                         <span>Revenue</span>
-                       </div>
+                       <span>Revenue</span>
                      </th>
                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                       <div className="flex items-center justify-center space-x-1">
-                         <Eye className="h-4 w-4" />
-                         <span>Actions</span>
-                       </div>
+                       <span>Actions</span>
                      </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
+                {(() => {
+                  console.log('🎯 RENDERING TABLE:');
+                  console.log('filteredAppointments length:', filteredAppointments.length);
+                  console.log('filteredAppointments:', filteredAppointments);
+                  return null;
+                })()}
                 {filteredAppointments.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
@@ -1447,7 +2063,7 @@ const BranchManagerAppointments = () => {
                   </tr>
                 ) : (
                      filteredAppointments.map((appointment, index) => {
-                       const clientName = appointment.getClientDisplayName ? appointment.getClientDisplayName() : (appointment.clientInfo?.name || appointment.clientName || 'Unknown');
+                       const clientName = appointment.clientName || appointment.clientInfo?.name || 'Unknown';
                        
                        // Calculate estimated revenue based on new serviceStylistPairs structure
                        let estimatedRevenue = 0;
@@ -1475,19 +2091,6 @@ const BranchManagerAppointments = () => {
                                <div className="flex-1 min-w-0">
                                  <div className="text-sm font-semibold text-gray-900 truncate">
                                    {clientName}
-                                 </div>
-                                 <div className="flex items-center space-x-2">
-                                   {appointment.isNewClient ? (
-                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                       <span className="w-2 h-2 bg-blue-400 rounded-full mr-1"></span>
-                                       New Client
-                                     </span>
-                                   ) : (
-                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                       <span className="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
-                                       Returning
-                                     </span>
-                                   )}
                                  </div>
                                </div>
                           </div>
@@ -1597,28 +2200,7 @@ const BranchManagerAppointments = () => {
                             <Eye className="h-4 w-4" />
                           </Button>
 
-                               {/* Status-specific actions */}
-                               {appointment.status === "scheduled" && (
-                            <Button
-                              size="sm"
-                                   className="flex items-center justify-center p-2 bg-green-500 text-white hover:bg-green-600 transition-colors"
-                                   onClick={() => handleShowConfirmModal(appointment)}
-                                   title="Confirm Appointment"
-                            >
-                                   <CheckCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-
-                               {appointment.status !== "cancelled" && appointment.status !== "completed" && (
-                            <Button
-                        size="sm"
-                                   className="flex items-center justify-center p-2 bg-red-500 text-white hover:bg-red-600 transition-colors"
-                                   onClick={() => handleCancelAppointment(appointment.id)}
-                                   title="Cancel Appointment"
-                      >
-                                   <XCircle className="h-4 w-4" />
-                      </Button>
-                          )}
+                                {/* View only - no actions for Branch Manager */}
                         </div>
                       </td>
                     </tr>
@@ -1635,17 +2217,11 @@ const BranchManagerAppointments = () => {
          {showDetailsModal && selectedAppointment && (
            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDetailsModal(false)}>
              <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-               {/* Debug Info - Remove this later */}
-               <div className="bg-yellow-100 p-2 text-xs">
-                 Debug: Modal is showing for appointment with {selectedAppointment.serviceStylistPairs?.length || 0} service-stylist pairs
-               </div>
                {/* Modal Header */}
                <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6 rounded-t-lg">
                  <div className="flex items-center justify-between">
                    <div>
-                     <h2 className="text-2xl font-bold">
-                       {selectedAppointment.clientInfo?.name || selectedAppointment.clientName || 'Unknown Client'}
-                     </h2>
+                     <h2 className="text-2xl font-bold">Appointment Details</h2>
                      <p className="text-white/80 mt-1">
                        {selectedAppointment.appointmentDate ? 
                          new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { 
@@ -1698,27 +2274,19 @@ const BranchManagerAppointments = () => {
                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
                            <span className="font-medium text-gray-700">Name:</span>
                            <span className="text-gray-900 font-medium">
-                             {selectedAppointment.clientInfo?.name || selectedAppointment.clientName || 'Unknown'}
+                             {selectedAppointment.clientName || selectedAppointment.clientInfo?.name || 'Unknown'}
                            </span>
                          </div>
-                         <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                           <span className="font-medium text-gray-700">Client Type:</span>
-                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                             selectedAppointment.isNewClient ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                           }`}>
-                             {selectedAppointment.isNewClient ? 'New Client' : 'Returning Client'}
-                           </span>
-                         </div>
-                         {selectedAppointment.clientInfo?.phone && (
+                         {(selectedAppointment.clientInfo?.phone || selectedAppointment.clientPhone) && (
                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
                              <span className="font-medium text-gray-700">Phone:</span>
-                             <span className="text-gray-600">{selectedAppointment.clientInfo.phone}</span>
+                             <span className="text-gray-600">{selectedAppointment.clientInfo?.phone || selectedAppointment.clientPhone}</span>
                            </div>
                          )}
-                         {selectedAppointment.clientInfo?.email && (
+                         {(selectedAppointment.clientInfo?.email || selectedAppointment.clientEmail) && (
                            <div className="flex justify-between items-center py-2">
                              <span className="font-medium text-gray-700">Email:</span>
-                             <span className="text-gray-600">{selectedAppointment.clientInfo.email}</span>
+                             <span className="text-gray-600">{selectedAppointment.clientInfo?.email || selectedAppointment.clientEmail}</span>
                            </div>
                          )}
                        </div>
@@ -1792,7 +2360,7 @@ const BranchManagerAppointments = () => {
                            {selectedAppointment.serviceStylistPairs.map((pair, index) => {
                              // Simplified and safer rendering
                              const stylistInfo = pair?.stylistId ? stylistsData[pair.stylistId] : null;
-                             const stylistName = stylistInfo?.name || `Stylist ${pair?.stylistId ? pair.stylistId.slice(-4) : 'N/A'}`;
+                             const stylistName = pair?.stylistId === 'any_available' ? 'No One Preferred' : (stylistInfo?.name || `Stylist ${pair?.stylistId ? pair.stylistId.slice(-4) : 'N/A'}`);
                              const serviceName = pair?.serviceId ? getServiceName(pair.serviceId) : 'Unknown Service';
                              
                              return (
@@ -1810,6 +2378,13 @@ const BranchManagerAppointments = () => {
                                  </div>
                                  
                                  <div className="space-y-2">
+                                   {pair?.stylistId === 'any_available' ? (
+                                     <div className="text-center py-4">
+                                       <div className="text-gray-500 text-sm">No specific stylist assigned</div>
+                                       <div className="text-gray-400 text-xs mt-1">Any available stylist will handle this service</div>
+                                     </div>
+                                   ) : (
+                                     <>
                                    <div className="flex justify-between items-center py-1">
                                      <span className="font-medium text-gray-700">Email:</span>
                                      <span className="text-gray-600">{stylistInfo?.email || 'N/A'}</span>
@@ -1824,6 +2399,8 @@ const BranchManagerAppointments = () => {
                                        {stylistInfo?.isActive !== false ? 'Active' : 'Inactive'}
                                      </span>
                                    </div>
+                                     </>
+                                   )}
                                  </div>
                                </div>
                              );
@@ -1891,30 +2468,9 @@ const BranchManagerAppointments = () => {
                                
                                <div className="flex items-center space-x-4 text-xs text-gray-600">
                                  <span><strong>By:</strong> {usersData[entry.by]?.name || `User ${entry.by ? entry.by.slice(-4) : 'Unknown'}`}</span>
-                                 {entry.isNewClient !== undefined && (
-                                   <span><strong>New Client:</strong> {entry.isNewClient ? 'Yes' : 'No'}</span>
-                                 )}
                                </div>
                                
-                               {/* Show additional fields if they exist */}
-                               {(entry.newClientName || entry.newClientEmail || entry.newClientPhone) && (
-                                 <div className="bg-blue-50 p-2 rounded border-l-2 border-blue-300">
-                                   <p className="text-xs text-blue-800 font-medium mb-1">New Client Details:</p>
-                                   <div className="space-y-1 text-xs text-blue-700">
-                                     {entry.newClientName && <p><strong>Name:</strong> {entry.newClientName}</p>}
-                                     {entry.newClientEmail && <p><strong>Email:</strong> {entry.newClientEmail}</p>}
-                                     {entry.newClientPhone && <p><strong>Phone:</strong> {entry.newClientPhone}</p>}
-                                   </div>
-                                 </div>
-                               )}
                                
-                               {/* Show raw entry data for debugging */}
-                               <details className="text-xs">
-                                 <summary className="cursor-pointer text-gray-500 hover:text-gray-700">View Raw Data</summary>
-                                 <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                                   {JSON.stringify(entry, null, 2)}
-                                 </pre>
-                               </details>
                              </div>
                            </div>
                          </div>
@@ -1940,114 +2496,12 @@ const BranchManagerAppointments = () => {
                    >
                      Close
                    </Button>
-                   {selectedAppointment.status === "scheduled" && (
-                     <Button
-                       onClick={() => {
-                         setShowDetailsModal(false);
-                         handleShowConfirmModal(selectedAppointment);
-                       }}
-                       className="bg-green-600 text-white hover:bg-green-700"
-                     >
-                       Confirm Appointment
-                     </Button>
-                   )}
-                   {selectedAppointment.status !== "cancelled" && selectedAppointment.status !== "completed" && (
-                     <Button
-                       onClick={() => {
-                         handleCancelAppointment(selectedAppointment.id);
-                         setShowDetailsModal(false);
-                       }}
-                       className="bg-red-600 text-white hover:bg-red-700"
-                     >
-                       Cancel Appointment
-                     </Button>
-                   )}
                  </div>
                </div>
              </div>
            </div>
          )}
 
-         {/* === Confirmation Modal === */}
-         {showConfirmModal && appointmentToConfirm && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowConfirmModal(false)}>
-             <div className="bg-white rounded-lg w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-               {/* Modal Header */}
-               <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6 rounded-t-lg">
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center space-x-3">
-                     <div className="p-2 bg-green-500 rounded-lg">
-                       <CheckCircle className="h-6 w-6" />
-                     </div>
-                     <h2 className="text-xl font-bold">Confirm Appointment</h2>
-                   </div>
-                   <Button
-                     onClick={() => setShowConfirmModal(false)}
-                     className="text-white hover:text-gray-200 p-2"
-                   >
-                     ✕
-                   </Button>
-                 </div>
-               </div>
-
-               {/* Modal Content */}
-               <div className="p-6">
-                 <div className="space-y-4">
-                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                     <p className="text-blue-800 font-medium">Are you sure you want to confirm this appointment?</p>
-                   </div>
-
-                   <div className="bg-gray-50 p-4 rounded-lg">
-                     <h3 className="font-semibold text-gray-900 mb-3">Appointment Details:</h3>
-                     <div className="space-y-2 text-sm">
-                       <div className="flex justify-between">
-                         <span className="text-gray-600">Client:</span>
-                         <span className="font-medium">{appointmentToConfirm.clientInfo?.name || appointmentToConfirm.clientName || 'Unknown'}</span>
-                       </div>
-                       <div className="flex justify-between">
-                         <span className="text-gray-600">Date:</span>
-                         <span className="font-medium">{new Date(appointmentToConfirm.appointmentDate).toLocaleDateString()}</span>
-                       </div>
-                       <div className="flex justify-between">
-                         <span className="text-gray-600">Time:</span>
-                         <span className="font-medium">{appointmentToConfirm.appointmentTime}</span>
-                       </div>
-                       <div className="flex justify-between">
-                         <span className="text-gray-600">Status:</span>
-                         <span className="font-medium text-green-600">Will be confirmed</span>
-                       </div>
-                     </div>
-                   </div>
-
-                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                     <p className="text-yellow-800 text-sm">
-                       <strong>Note:</strong> Confirmation emails will be sent to the stylist(s) and client automatically.
-                     </p>
-                   </div>
-                 </div>
-               </div>
-
-               {/* Modal Footer */}
-               <div className="border-t border-gray-200 p-6 bg-gray-50 rounded-b-lg">
-                 <div className="flex justify-end space-x-3">
-                   <Button
-                     onClick={() => setShowConfirmModal(false)}
-                     className="bg-gray-500 text-white hover:bg-gray-600"
-                   >
-                     Cancel
-                   </Button>
-                   <Button
-                     onClick={handleConfirmAppointmentModal}
-                     className="bg-green-600 text-white hover:bg-green-700 flex items-center space-x-2"
-                   >
-                     <CheckCircle className="h-4 w-4" />
-                     <span>Confirm Appointment</span>
-                   </Button>
-                 </div>
-               </div>
-             </div>
-           </div>
-         )}
       </div>
     </DashboardLayout>
   );

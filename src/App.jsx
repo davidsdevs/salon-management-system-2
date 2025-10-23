@@ -25,6 +25,7 @@ import ForgotPassword from "./pages/00_Auth/ForgotPassword";
 import DashboardRouter from "./pages/shared/DashboardRouter";
 import UserManagement from "./pages/01_SystemAdmin/UserManagement";
 import BranchManagement from "./pages/01_SystemAdmin/BranchManagement";
+import MasterProducts from "./pages/01_SystemAdmin/MasterProducts";
 import ProfilePage from "./pages/shared/ProfilePage";
 
 // ROUTE GUARDS
@@ -131,6 +132,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <BranchManagement />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/master-products"
+        element={
+          <AdminRoute>
+            <MasterProducts />
           </AdminRoute>
         }
       />
