@@ -17,6 +17,8 @@ export class AppointmentModel {
     this.isNewClient = data.isNewClient || false;
     this.newClientName = data.newClientName || '';
     this.clientName = data.clientName || '';
+    this.clientEmail = data.clientEmail || '';
+    this.clientPhone = data.clientPhone || '';
 
     // System fields
     this.id = data.id || '';
@@ -36,6 +38,9 @@ export class AppointmentModel {
       branchId: data.branchId,
       clientId: data.clientId,
       clientInfo: data.clientInfo,
+      clientName: data.clientName,
+      clientEmail: data.clientEmail,
+      clientPhone: data.clientPhone,
       isNewClient: data.isNewClient,
       newClientName: data.newClientName,
       notes: data.notes,
@@ -58,6 +63,9 @@ export class AppointmentModel {
       branchId: this.branchId,
       clientId: this.clientId,
       clientInfo: this.clientInfo,
+      clientName: this.clientName,
+      clientEmail: this.clientEmail,
+      clientPhone: this.clientPhone,
       isNewClient: this.isNewClient,
       newClientName: this.newClientName,
       notes: this.notes,

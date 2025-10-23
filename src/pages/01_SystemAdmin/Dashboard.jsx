@@ -14,6 +14,7 @@ const SystemAdminDashboard = () => {
     { path: '/user-management', label: 'User Management', icon: Users },
     { path: '/branch-management', label: 'Branch Management', icon: Building2 },
     { path: '/appointment-management', label: 'Appointment Management', icon: Calendar },
+    { path: '/master-products', label: 'Master Products', icon: Package },
     { path: '/system-settings', label: 'System Settings', icon: Settings },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
     { path: '/profile', label: 'Profile', icon: UserCog },
@@ -73,6 +74,20 @@ const SystemAdminDashboard = () => {
               <Button className="h-20 w-full flex flex-col items-center justify-center bg-[#160B53] hover:bg-[#160B53]/90">
                 <Users className="h-6 w-6 mb-2" />
                 Manage Users
+              </Button>
+            </Link>
+            
+            <Link to="/master-products">
+              <Button className="h-20 w-full flex flex-col items-center justify-center bg-[#160B53] hover:bg-[#160B53]/90">
+                <Package className="h-6 w-6 mb-2" />
+                Master Products
+              </Button>
+            </Link>
+            
+            <Link to="/branch-management">
+              <Button className="h-20 w-full flex flex-col items-center justify-center bg-[#160B53] hover:bg-[#160B53]/90">
+                <Building2 className="h-6 w-6 mb-2" />
+                Branch Management
               </Button>
             </Link>
             

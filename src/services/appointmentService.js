@@ -147,6 +147,8 @@ class AppointmentService {
       if (filters.branchId) {
         q = query(q, where('branchId', '==', filters.branchId));
         console.log('Added branchId filter:', filters.branchId);
+      } else {
+        console.log('✅ NO BRANCH ID FILTER - FETCHING ALL APPOINTMENTS');
       }
       if (filters.stylistId) {
         q = query(q, where('stylistId', '==', filters.stylistId));
@@ -175,29 +177,72 @@ class AppointmentService {
         q = query(q, limit(pageSize));
       }
 
-      console.log('Executing query...');
+      console.log('🔍 EXECUTING FIRESTORE QUERY...');
+      console.log('Query filters applied:', {
+        branchId: filters.branchId,
+        stylistId: filters.stylistId,
+        status: filters.status,
+        clientId: filters.clientId,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo
+      });
+      
       const snapshot = await getDocs(q);
-      console.log('Query executed, found', snapshot.docs.length, 'documents');
+      console.log('📊 QUERY RESULTS:');
+      console.log('Total documents found:', snapshot.docs.length);
+      console.log('Query executed successfully');
       
       const appointments = [];
       
-      snapshot.forEach((doc) => {
+      console.log('📋 PROCESSING EACH DOCUMENT:');
+      snapshot.forEach((doc, index) => {
         const appointmentData = doc.data();
-        console.log('Processing appointment:', doc.id, appointmentData);
+        console.log(`\n📄 Document ${index + 1}/${snapshot.docs.length}:`);
+        console.log('Document ID:', doc.id);
+        console.log('Raw appointment data:', appointmentData);
+        console.log('Key fields:', {
+          branchId: appointmentData.branchId,
+          status: appointmentData.status,
+          clientName: appointmentData.clientName || appointmentData.clientInfo?.name,
+          appointmentDate: appointmentData.appointmentDate,
+          appointmentTime: appointmentData.appointmentTime,
+          serviceStylistPairs: appointmentData.serviceStylistPairs
+        });
         
-        // Filter based on user permissions
-        if (this.canViewAppointment(currentUserRole, appointmentData, currentUserId)) {
-          console.log('Appointment approved for viewing');
+        // Check permission
+        const canView = this.canViewAppointment(currentUserRole, appointmentData, currentUserId);
+        console.log('Can view appointment?', canView);
+        console.log('Permission check details:', {
+          userRole: currentUserRole,
+          appointmentBranchId: appointmentData.branchId,
+          filterBranchId: filters.branchId,
+          branchIdMatch: appointmentData.branchId === filters.branchId
+        });
+        
+        if (canView) {
+          console.log('✅ Appointment APPROVED for viewing');
           appointments.push({
             id: doc.id,
             ...appointmentData
           });
         } else {
-          console.log('Appointment rejected due to permissions');
+          console.log('❌ Appointment REJECTED due to permissions');
         }
       });
 
+      console.log('Final appointments array length:', appointments.length);
       console.log('Final appointments array:', appointments);
+      console.log('📊 FINAL RESULT SUMMARY:');
+      console.log('Total documents found:', snapshot.docs.length);
+      console.log('Appointments approved for viewing:', appointments.length);
+      console.log('Appointments details:', appointments.map((apt, index) => ({
+        index,
+        id: apt.id,
+        clientName: apt.clientName || apt.clientInfo?.name,
+        branchId: apt.branchId,
+        status: apt.status
+      })));
+      
       return {
         appointments,
         lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
@@ -521,29 +566,35 @@ class AppointmentService {
     
     // System admin and operational manager can view all (read-only for reporting)
     if ([ROLES.SYSTEM_ADMIN, ROLES.OPERATIONAL_MANAGER].includes(userRole)) {
+      console.log('✅ System admin/operational manager - can view all');
       return true;
     }
 
-    // Branch admin and manager can view appointments in their branch
+    // Branch admin and manager can view ALL appointments (regardless of branch or who created them)
     if ([ROLES.BRANCH_ADMIN, ROLES.BRANCH_MANAGER].includes(userRole)) {
-      return true; // Will be filtered by branch in query
+      console.log('✅ Branch admin/manager - can view ALL appointments (no restrictions)');
+      return true; // No restrictions for branch managers
     }
 
-    // Receptionist can view appointments in their branch
+    // Receptionist can view ALL appointments in their branch
     if (userRole === ROLES.RECEPTIONIST) {
+      console.log('✅ Receptionist - can view all appointments in their branch');
       return true; // Will be filtered by branch in query
     }
 
     // Stylist can view their assigned appointments only
     if (userRole === ROLES.STYLIST && appointmentData.stylistId === currentUserId) {
+      console.log('✅ Stylist - can view their assigned appointments');
       return true;
     }
 
     // Client can view their own appointments only
     if (userRole === ROLES.CLIENT && appointmentData.clientId === currentUserId) {
+      console.log('✅ Client - can view their own appointments');
       return true;
     }
 
+    console.log('❌ No permission to view this appointment');
     return false;
   }
 
