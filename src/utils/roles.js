@@ -25,7 +25,9 @@ export const ROLE_PERMISSIONS = {
     'viewAllBranches',
     'viewAnalytics',
     'managePromotions',
-    'viewAppointments' // Read-only access for reporting
+    'viewAppointments', // Read-only access for reporting
+    'branchMonitoring', // Monitor all branches
+    'viewBranchStatus' // View branch operational status
   ],
   [ROLES.BRANCH_ADMIN]: [
     'manageStaff',
@@ -33,7 +35,12 @@ export const ROLE_PERMISSIONS = {
     'manageAppointments',
     'manageInventory',
     'manageClients',
-    'branchSettings'
+    'branchSettings',
+    'assignStaff', // Assign users to branch
+    'removeStaff', // Remove users from branch
+    'manageOperatingHours', // Set branch operating hours
+    'manageHolidays', // Manage branch holidays
+    'manageBranchServices' // Configure branch-specific services
   ],
   [ROLES.BRANCH_MANAGER]: [
     'viewReports',

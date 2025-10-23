@@ -39,7 +39,7 @@ The Appointment Management module will enable:
 | **Receptionist** | Create, modify, and confirm appointments. |
 | **Stylist** | View assigned appointments and mark as completed. |
 | **Branch Admin / Manager** | Monitor all branch appointments, manage staff schedules. |
-| **Franchise Owner / System Admin** | Read-only access to all branches for reporting. |
+| **Operational Manager / System Admin** | Read-only access to all branches for reporting. |
 
 ---
 

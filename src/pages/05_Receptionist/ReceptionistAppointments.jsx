@@ -6,6 +6,8 @@ import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
 import AppointmentForm from '../shared/AppointmentForm';
 import AppointmentDetails from '../shared/AppointmentDetails';
+import RescheduleModal from '../shared/RescheduleModal';
+import CancelModal from '../shared/CancelModal';
 import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
 import { 
   Calendar, 
@@ -17,7 +19,6 @@ import {
   Search, 
   Filter,
   Eye,
-  Edit,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -27,6 +28,7 @@ import {
 const ReceptionistAppointments = () => {
   const { userData } = useAuth();
   const [appointments, setAppointments] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,11 +37,48 @@ const ReceptionistAppointments = () => {
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
+  
+  // Modal states
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelAppointment, setCancelAppointment] = useState(null);
+  
+  // Notification states
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorMessage, setShowErrorMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Loading states for buttons
+  const [creatingAppointment, setCreatingAppointment] = useState(false);
+  const [confirmingAppointment, setConfirmingAppointment] = useState(null);
+  const [cancellingAppointment, setCancellingAppointment] = useState(null);
+  
+  // Loading modal state
+  const [showLoadingModal, setShowLoadingModal] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   useEffect(() => {
     loadAppointments();
+    loadClients();
   }, [statusFilter]);
+
+
+  // Helper functions for notifications
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 5000);
+  };
+
+  const showError = (message) => {
+    setErrorMessage(message);
+    setShowErrorMessage(true);
+    setTimeout(() => setShowErrorMessage(false), 5000);
+  };
+
+
 
   const loadAppointments = async () => {
     try {
@@ -48,7 +87,7 @@ const ReceptionistAppointments = () => {
       
       // Get user's branch ID for filtering
       const branchId = userData.branchId;
-      const userRole = userData.currentRole || userData.roles?.[0];
+      const userRole = userData.roles?.[0];
       
       console.log('Loading appointments for receptionist:', {
         branchId,
@@ -78,64 +117,135 @@ const ReceptionistAppointments = () => {
     }
   };
 
-  const handleCreateAppointment = async (appointmentData) => {
+  const loadClients = async () => {
     try {
-      await appointmentService.createAppointment(appointmentData, userData.currentRole || userData.roles?.[0], userData.uid);
-      setShowAppointmentForm(false);
+      const clientsData = await appointmentService.getClients();
+      setClients(clientsData);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+    }
+  };
+
+  const handleCreateAppointment = async (appointmentData) => {
+    if (creatingAppointment) return; // Prevent duplicate submissions
+    
+    try {
+      setCreatingAppointment(true);
+      setShowLoadingModal(true);
+      setLoadingMessage('Creating appointment...');
+      
+      await appointmentService.createAppointment(appointmentData, userData.roles?.[0], userData.uid);
+      
+      setLoadingMessage('Loading appointments...');
       await loadAppointments();
+      
+      setShowAppointmentForm(false);
+      setShowLoadingModal(false);
+      showSuccess('Appointment created successfully!');
     } catch (error) {
       console.error('Error creating appointment:', error);
-      setError('Failed to create appointment');
+      setShowLoadingModal(false);
+      showError('Failed to create appointment: ' + error.message);
+    } finally {
+      setCreatingAppointment(false);
     }
   };
 
-  const handleUpdateAppointment = async (appointmentId, updateData) => {
-    try {
-      await appointmentService.updateAppointment(appointmentId, updateData, userData.currentRole || userData.roles?.[0], userData.uid);
-      setShowAppointmentForm(false);
-      setSelectedAppointment(null);
-      setIsEditing(false);
-      await loadAppointments();
-    } catch (error) {
-      console.error('Error updating appointment:', error);
-      setError('Failed to update appointment');
-    }
-  };
 
   const handleConfirmAppointment = async (appointmentId) => {
+    if (confirmingAppointment === appointmentId) return; // Prevent duplicate submissions
+    
     try {
+      setConfirmingAppointment(appointmentId);
+      setShowLoadingModal(true);
+      setLoadingMessage('Confirming appointment...');
+      
       await appointmentService.updateAppointment(appointmentId, { 
         status: APPOINTMENT_STATUS.CONFIRMED 
-      }, userData.currentRole || userData.roles?.[0], userData.uid);
+      }, userData.roles?.[0], userData.uid);
+      
+      setLoadingMessage('Loading appointments...');
       await loadAppointments();
+      
+      setShowLoadingModal(false);
+      showSuccess('Appointment confirmed successfully!');
     } catch (error) {
       console.error('Error confirming appointment:', error);
-      setError('Failed to confirm appointment');
+      setShowLoadingModal(false);
+      showError('Failed to confirm appointment: ' + error.message);
+    } finally {
+      setConfirmingAppointment(null);
     }
   };
 
-  const handleCancelAppointment = async (appointmentId) => {
-    try {
-      await appointmentService.updateAppointment(appointmentId, { 
-        status: APPOINTMENT_STATUS.CANCELLED 
-      }, userData.currentRole || userData.roles?.[0], userData.uid);
-      await loadAppointments();
-    } catch (error) {
-      console.error('Error cancelling appointment:', error);
-      setError('Failed to cancel appointment');
-    }
-  };
 
   const handleViewAppointment = (appointment) => {
     setSelectedAppointment(appointment);
     setShowAppointmentDetails(true);
   };
 
-  const handleEditAppointment = (appointment) => {
-    setSelectedAppointment(appointment);
-    setIsEditing(true);
-    setShowAppointmentForm(true);
+  // Reschedule and Cancel handlers
+  const handleRescheduleAppointment = async (appointmentId, newDate, newTime, reason) => {
+    try {
+      setShowLoadingModal(true);
+      setLoadingMessage('Rescheduling appointment...');
+      
+      await appointmentService.rescheduleAppointment(
+        appointmentId, 
+        newDate, 
+        newTime, 
+        userData.roles?.[0], 
+        userData.uid, 
+        reason
+      );
+      
+      setShowRescheduleModal(false);
+      setRescheduleAppointment(null);
+      setShowLoadingModal(false);
+      showSuccess('Appointment rescheduled successfully!');
+      await loadAppointments();
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
+      setShowLoadingModal(false);
+      showError('Failed to reschedule appointment: ' + error.message);
+    }
   };
+
+  const handleOpenReschedule = (appointment) => {
+    setRescheduleAppointment(appointment);
+    setShowRescheduleModal(true);
+  };
+
+  const handleCancelAppointment = async (appointmentId, reason) => {
+    try {
+      setShowLoadingModal(true);
+      setLoadingMessage('Cancelling appointment...');
+      
+      await appointmentService.cancelAppointment(
+        appointmentId, 
+        reason, 
+        userData.roles?.[0], 
+        userData.uid
+      );
+      
+      setShowCancelModal(false);
+      setCancelAppointment(null);
+      setShowLoadingModal(false);
+      showSuccess('Appointment cancelled successfully!');
+      await loadAppointments();
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      setShowLoadingModal(false);
+      showError('Failed to cancel appointment: ' + error.message);
+    }
+  };
+
+  const handleOpenCancel = (appointment) => {
+    setCancelAppointment(appointment);
+    setShowCancelModal(true);
+  };
+
+
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -165,12 +275,22 @@ const ReceptionistAppointments = () => {
     });
   };
 
-  const formatTime = (date) => {
-    if (!date) return 'N/A';
-    const d = date.toDate ? date.toDate() : new Date(date);
+  const formatTime = (time) => {
+    if (!time) return 'N/A';
+    // If time is already in HH:MM format, convert to 12-hour format
+    if (typeof time === 'string' && time.match(/^\d{2}:\d{2}$/)) {
+      const [hours, minutes] = time.split(':');
+      const hour = parseInt(hours, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+      return `${displayHour}:${minutes} ${ampm}`;
+    }
+    // If time is a timestamp, format it
+    const d = time.toDate ? time.toDate() : new Date(time);
     return d.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
@@ -199,17 +319,23 @@ const ReceptionistAppointments = () => {
     <DashboardLayout menuItems={menuItems} pageTitle="Appointment Management">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Appointment Management</h1>
-            <p className="text-gray-600">Create, modify, and confirm appointments</p>
-          </div>
+        <div className="flex justify-end items-center mb-6">
           <Button 
             onClick={() => setShowAppointmentForm(true)}
-            className="bg-[#160B53] hover:bg-[#160B53]/90"
+            disabled={creatingAppointment}
+            className="bg-[#160B53] hover:bg-[#160B53]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {creatingAppointment ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Creating...
+              </>
+            ) : (
+              <>
             <Plus className="h-4 w-4 mr-2" />
             Create Appointment
+              </>
+            )}
           </Button>
         </div>
 
@@ -317,7 +443,7 @@ const ReceptionistAppointments = () => {
             <p className="text-gray-600 mb-4">No appointments match your current filters.</p>
             <Button 
               onClick={() => setShowAppointmentForm(true)}
-              className="bg-[#160B53] hover:bg-[#160B53]/90"
+              className="bg-[#160B53] hover:bg-[#160B53]/90 text-white"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create First Appointment
@@ -339,7 +465,7 @@ const ReceptionistAppointments = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <Clock className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">{formatTime(appointment.appointmentDate)}</span>
+                              <span className="text-sm text-gray-600">{formatTime(appointment.appointmentTime)}</span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-gray-400" />
@@ -371,23 +497,20 @@ const ReceptionistAppointments = () => {
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleEditAppointment(appointment)}
-                                  title="Edit Appointment"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
                                 {appointment.status === APPOINTMENT_STATUS.SCHEDULED && (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => handleConfirmAppointment(appointment.id)}
+                                    disabled={confirmingAppointment === appointment.id}
                                     title="Confirm Appointment"
-                                    className="text-green-600 hover:text-green-700"
+                                    className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
+                                    {confirmingAppointment === appointment.id ? (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                    ) : (
                                     <CheckCircle className="h-4 w-4" />
+                                    )}
                                   </Button>
                                 )}
                                 {appointment.status !== APPOINTMENT_STATUS.COMPLETED && 
@@ -395,7 +518,19 @@ const ReceptionistAppointments = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => handleCancelAppointment(appointment.id)}
+                                    onClick={() => handleOpenReschedule(appointment)}
+                                    title="Reschedule Appointment"
+                                    className="text-blue-600 hover:text-blue-700"
+                                  >
+                                    <Calendar className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {appointment.status !== APPOINTMENT_STATUS.COMPLETED && 
+                                 appointment.status !== APPOINTMENT_STATUS.CANCELLED && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenCancel(appointment)}
                                     title="Cancel Appointment"
                                     className="text-red-600 hover:text-red-700"
                                   >
@@ -422,12 +557,13 @@ const ReceptionistAppointments = () => {
             onClose={() => {
               setShowAppointmentForm(false);
               setSelectedAppointment(null);
-              setIsEditing(false);
             }}
-            onSubmit={isEditing ? handleUpdateAppointment : handleCreateAppointment}
-            initialData={isEditing ? selectedAppointment : null}
-            isEditing={isEditing}
-            loading={false}
+            onSubmit={handleCreateAppointment}
+            initialData={null}
+            isEditing={false}
+            loading={creatingAppointment}
+            clients={clients}
+            userData={userData}
           />
         )}
 
@@ -440,14 +576,68 @@ const ReceptionistAppointments = () => {
               setSelectedAppointment(null);
             }}
             appointment={selectedAppointment}
-            onEdit={() => {
-              setShowAppointmentDetails(false);
-              handleEditAppointment(selectedAppointment);
-            }}
             onCancel={() => {
               setShowAppointmentDetails(false);
-              handleCancelAppointment(selectedAppointment.id);
+              handleCancelAppointmentWithConfirmation(selectedAppointment.id);
             }}
+            loading={false}
+          />
+        )}
+
+
+        {/* Success Message */}
+        {showSuccessMessage && (
+          <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center">
+            <CheckCircle className="h-5 w-5 mr-2" />
+            {successMessage}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {showErrorMessage && (
+          <div className="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center">
+            <XCircle className="h-5 w-5 mr-2" />
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Loading Modal */}
+        {showLoadingModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-8">
+              <div className="flex flex-col items-center text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#160B53] mb-4"></div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing...</h3>
+                <p className="text-gray-600">{loadingMessage}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reschedule Modal */}
+        {showRescheduleModal && rescheduleAppointment && (
+          <RescheduleModal
+            isOpen={showRescheduleModal}
+            onClose={() => {
+              setShowRescheduleModal(false);
+              setRescheduleAppointment(null);
+            }}
+            appointment={rescheduleAppointment}
+            onReschedule={handleRescheduleAppointment}
+            loading={false}
+          />
+        )}
+
+        {/* Cancel Modal */}
+        {showCancelModal && cancelAppointment && (
+          <CancelModal
+            isOpen={showCancelModal}
+            onClose={() => {
+              setShowCancelModal(false);
+              setCancelAppointment(null);
+            }}
+            appointment={cancelAppointment}
+            onCancel={handleCancelAppointment}
             loading={false}
           />
         )}

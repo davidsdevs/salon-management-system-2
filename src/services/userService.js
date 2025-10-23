@@ -373,6 +373,8 @@ class UserService {
   // Get users by branch
   async getUsersByBranch(branchId, currentUserRole) {
     try {
+      console.log('Getting users for branch:', branchId, 'with role:', currentUserRole);
+      
       const q = query(
         collection(this.db, this.collection),
         where('branchId', '==', branchId),
@@ -381,6 +383,8 @@ class UserService {
 
       const snapshot = await getDocs(q);
       const users = [];
+      
+      console.log('Found', snapshot.size, 'users in branch');
       
       snapshot.forEach((doc) => {
         const userData = doc.data();
@@ -392,6 +396,7 @@ class UserService {
         }
       });
 
+      console.log('Returning', users.length, 'users after permission check');
       return users;
     } catch (error) {
       console.error('Error getting users by branch:', error);
@@ -418,6 +423,46 @@ class UserService {
 
     // Other roles can only view themselves
     return false;
+  }
+
+  // Assign user to branch
+  async assignUserToBranch(userId, branchId, currentUserRole, currentUserId) {
+    try {
+      if (!this.canManageUser(currentUserRole, null, currentUserId)) {
+        throw new Error('You do not have permission to assign users to branches');
+      }
+
+      const userRef = doc(this.db, this.collection, userId);
+      await updateDoc(userRef, {
+        branchId: branchId,
+        updatedAt: serverTimestamp()
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error assigning user to branch:', error);
+      throw error;
+    }
+  }
+
+  // Remove user from branch
+  async removeUserFromBranch(userId, currentUserRole, currentUserId) {
+    try {
+      if (!this.canManageUser(currentUserRole, null, currentUserId)) {
+        throw new Error('You do not have permission to remove users from branches');
+      }
+
+      const userRef = doc(this.db, this.collection, userId);
+      await updateDoc(userRef, {
+        branchId: null,
+        updatedAt: serverTimestamp()
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error removing user from branch:', error);
+      throw error;
+    }
   }
 
   // Get user statistics

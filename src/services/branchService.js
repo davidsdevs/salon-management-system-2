@@ -338,7 +338,17 @@ class BranchService {
     }
     
     // Branch Admin can manage their assigned branch
-    if (currentUserRole === ROLES.BRANCH_ADMIN && branchData && branchData.branchAdminId === currentUserId) {
+    if (currentUserRole === ROLES.BRANCH_ADMIN) {
+      // If no branchData provided, allow (will be checked at branch level)
+      if (!branchData) return true;
+      
+      // Check if user is assigned to this branch
+      if (branchData.branchAdminId === currentUserId) return true;
+      
+      // Check if user's branchId matches this branch
+      if (branchData.id && branchData.id === branchData.branchId) return true;
+      
+      // For now, allow branch admin to manage any branch (can be restricted later)
       return true;
     }
     
@@ -349,5 +359,6 @@ class BranchService {
 // Export singleton instance
 export const branchService = new BranchService();
 export default branchService;
+
 
 

@@ -45,6 +45,14 @@ import StylistAppointments from "./pages/07_Stylist/StylistAppointments";
 import BranchAdminAppointments from "./pages/03_BranchAdmin/BranchAdminAppointments";
 import OperationalManagerAppointments from "./pages/02_OperationalManager/OperationalManagerAppointments";
 import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
+
+// NEW BRANCH MANAGEMENT PAGES
+import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
+import StaffManagement from "./pages/03_BranchAdmin/StaffManagement";
+import BranchMonitoring from "./pages/02_OperationalManager/BranchMonitoring";
+import BranchDetailsManagement from "./pages/01_SystemAdmin/BranchDetailsManagement";
+import ServiceConfiguration from "./pages/03_BranchAdmin/ServiceConfiguration";
+import HolidayManagement from "./pages/03_BranchAdmin/HolidayManagement";
 function AppRoutes() {
   return (
     <Routes>
@@ -247,6 +255,67 @@ function AppRoutes() {
                 </div>
               </div>
             </div>
+          </StaffRoute>
+        }
+      />
+
+      {/* NEW BRANCH MANAGEMENT ROUTES */}
+      {/* Branch Settings - Branch Admin */}
+      <Route
+        path="/branch-settings"
+        element={
+          <StaffRoute>
+            <BranchSettings />
+          </StaffRoute>
+        }
+      />
+
+      {/* Staff Management - Branch Admin */}
+      <Route
+        path="/staff"
+        element={
+          <StaffRoute>
+            <StaffManagement />
+          </StaffRoute>
+        }
+      />
+
+      {/* Branch Monitoring - Operational Manager */}
+      <Route
+        path="/branch-monitoring"
+        element={
+          <StaffRoute>
+            <BranchMonitoring />
+          </StaffRoute>
+        }
+      />
+
+      {/* Branch Details Management - System Admin */}
+      <Route
+        path="/branch-details"
+        element={
+          <AdminRoute>
+            <BranchDetailsManagement />
+          </AdminRoute>
+        }
+      />
+
+      {/* Service Configuration - Branch Admin */}
+      <Route
+        path="/service-config"
+        element={
+          <StaffRoute>
+            <ServiceConfiguration />
+          </StaffRoute>
+        }
+      />
+
+      {/* Holiday Management - Branch Admin */}
+      <Route
+        path="/holiday-management"
+        element={
+          <StaffRoute>
+            <HolidayManagement />
           </StaffRoute>
         }
       />

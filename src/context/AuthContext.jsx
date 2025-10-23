@@ -30,8 +30,22 @@ export const AuthProvider = ({ children }) => {
           const userData = await authService.getUserData(firebaseUser.uid);
           
           if (userData && userData.isActive) {
+            // Check for stored role preference
+            const storedRole = localStorage.getItem('selectedRole');
+            let processedUserData = userData;
+            
+            // If user has multiple roles and a stored role preference
+            if (userData.roles && userData.roles.length > 1 && storedRole && userData.roles.includes(storedRole)) {
+              // Reorder roles to put stored role first
+              const reorderedRoles = [storedRole, ...userData.roles.filter(role => role !== storedRole)];
+              processedUserData = {
+                ...userData,
+                roles: reorderedRoles
+              };
+            }
+            
             setUser(firebaseUser);
-            setUserData(userData);
+            setUserData(processedUserData);
           } else {
             // User is inactive or not found
             setUser(null);
@@ -93,6 +107,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
+      // Clear stored role preference
+      localStorage.removeItem('selectedRole');
+      
       await authService.signOut();
     } catch (error) {
       setError(error.message);
@@ -146,8 +163,23 @@ export const AuthProvider = ({ children }) => {
     try {
       if (user) {
         const userData = await authService.getUserData(user.uid);
-        setUserData(userData);
-        return userData;
+        
+        // Check for stored role preference
+        const storedRole = localStorage.getItem('selectedRole');
+        let processedUserData = userData;
+        
+        // If user has multiple roles and a stored role preference
+        if (userData.roles && userData.roles.length > 1 && storedRole && userData.roles.includes(storedRole)) {
+          // Reorder roles to put stored role first
+          const reorderedRoles = [storedRole, ...userData.roles.filter(role => role !== storedRole)];
+          processedUserData = {
+            ...userData,
+            roles: reorderedRoles
+          };
+        }
+        
+        setUserData(processedUserData);
+        return processedUserData;
       }
     } catch (error) {
       console.error('Error refreshing user data:', error);
@@ -158,7 +190,7 @@ export const AuthProvider = ({ children }) => {
   // Check if user has permission
   const hasPermission = (permission) => {
     if (!userData) return false;
-    return authService.hasPermission(userData.currentRole || userData.roles?.[0], permission);
+    return authService.hasPermission(userData.roles?.[0], permission);
   };
 
   // Check if user has role
@@ -207,12 +239,16 @@ export const AuthProvider = ({ children }) => {
         throw new Error('You do not have this role assigned');
       }
       
-      await authService.switchRole(user.uid, newRole);
+      // Store the selected role in localStorage for persistence
+      localStorage.setItem('selectedRole', newRole);
       
-      // Update local userData
+      // Move the selected role to the front of the roles array
+      const updatedRoles = [newRole, ...userRoles.filter(role => role !== newRole)];
+      
+      // Update local userData with reordered roles
       setUserData(prev => ({
         ...prev,
-        currentRole: newRole
+        roles: updatedRoles
       }));
       
       return true;

@@ -23,6 +23,7 @@ import {
   BarChart3,
   UserCog,
   MapPin,
+  Calendar,
   Phone,
   Users
 } from 'lucide-react';
@@ -48,10 +49,9 @@ const BranchManagement = () => {
   // Menu items for System Admin
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/user-management', label: 'User Management', icon: Users },
-    { path: '/branch-management', label: 'Branch Management', icon: Building2 },
-    { path: '/system-settings', label: 'System Settings', icon: Settings },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/appointment-management', label: 'Appointments', icon: Calendar },
+    { path: '/user-management', label: 'Users', icon: UserCog },
+    { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 
@@ -72,7 +72,7 @@ const BranchManagement = () => {
       // Always use search method to apply filters, even without search term
       const searchResults = await branchService.searchBranches(
         searchTerm || '', 
-        userData.currentRole || userData.roles?.[0], 
+        userData.roles?.[0], 
         userData.uid,
         filters
       );
@@ -88,7 +88,7 @@ const BranchManagement = () => {
     try {
       setLoading(true);
       const moreBranches = await branchService.getBranches(
-        userData.currentRole || userData.roles?.[0], 
+        userData.roles?.[0], 
         userData.uid, 
         20, 
         lastDoc
@@ -111,9 +111,9 @@ const BranchManagement = () => {
   const handleToggleBranchStatus = async (branchId, isActive) => {
     try {
       if (isActive) {
-        await branchService.deactivateBranch(branchId, userData.currentRole || userData.role, userData.uid);
+        await branchService.deactivateBranch(branchId, userData.roles?.[0] || userData.role, userData.uid);
       } else {
-        await branchService.activateBranch(branchId, userData.currentRole || userData.role, userData.uid);
+        await branchService.activateBranch(branchId, userData.roles?.[0] || userData.role, userData.uid);
       }
       
       // Reload branches
@@ -187,10 +187,10 @@ const BranchManagement = () => {
 
       if (isEditing && selectedBranch) {
         // Update existing branch
-        await branchService.updateBranch(selectedBranch.id, formData, userData.currentRole || userData.role);
+        await branchService.updateBranch(selectedBranch.id, formData, userData.roles?.[0] || userData.role);
       } else {
         // Create new branch
-        await branchService.createBranch(formData, userData.currentRole || userData.role);
+        await branchService.createBranch(formData, userData.roles?.[0] || userData.role);
       }
 
       // Reload branches

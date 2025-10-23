@@ -20,7 +20,9 @@ import {
   Building2,
   Settings,
   BarChart3,
-  UserCog
+  UserCog,
+  Eye,
+  Calendar
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -51,31 +53,14 @@ const UserManagement = () => {
         isActive: showInactive ? undefined : true
       };
 
-      if (searchTerm) {
-        const searchResults = await userService.searchUsers(
-          searchTerm, 
-          userData.role, 
-          filters
-        );
-        setUsers(searchResults);
-        setHasMore(false);
-      } else {
-        const result = await userService.getUsers(
-          userData.role, 
-          userData.uid, 
-          pageSize, 
-          currentPage === 1 ? null : lastDoc
-        );
-        
-        if (currentPage === 1) {
-          setUsers(result.users);
-        } else {
-          setUsers(prev => [...prev, ...result.users]);
-        }
-        
-        setLastDoc(result.lastDoc);
-        setHasMore(result.hasMore);
-      }
+      // Always use search method to apply filters, even without search term
+      const searchResults = await userService.searchUsers(
+        searchTerm || '', 
+        userData.roles?.[0], 
+        filters
+      );
+      setUsers(searchResults);
+      setHasMore(false);
     } catch (error) {
       setError(error.message);
     } finally {
@@ -99,9 +84,9 @@ const UserManagement = () => {
   const handleToggleUserStatus = async (userId, isActive) => {
     try {
       if (isActive) {
-        await userService.deleteUser(userId, userData.role);
+        await userService.deleteUser(userId, userData.roles?.[0]);
       } else {
-        await userService.reactivateUser(userId, userData.role);
+        await userService.reactivateUser(userId, userData.roles?.[0]);
       }
       
       // Reload users
@@ -117,6 +102,75 @@ const UserManagement = () => {
     setCurrentPage(prev => prev + 1);
   };
 
+  // Modal handlers
+  const handleAddUser = () => {
+    setSelectedUser(null);
+    setIsEditing(false);
+    setShowUserForm(true);
+  };
+
+  const handleEditUser = (user) => {
+    setSelectedUser(user);
+    setIsEditing(true);
+    setShowUserForm(true);
+  };
+
+  const handleViewUser = (user) => {
+    setSelectedUser(user);
+    setShowUserDetails(true);
+  };
+
+  const handleCloseModals = () => {
+    setShowUserForm(false);
+    setShowUserDetails(false);
+    setSelectedUser(null);
+    setIsEditing(false);
+    setFormLoading(false);
+    setError('');
+    setSuccess('');
+  };
+
+  // Form submission
+  const handleUserSubmit = async (formData) => {
+    try {
+      setFormLoading(true);
+      setError('');
+      setSuccess('');
+
+      if (isEditing && selectedUser) {
+        // Update existing user
+        await userService.updateUser(selectedUser.id, formData, userData.roles?.[0]);
+        setSuccess('User updated successfully!');
+      } else {
+        // Create new user with Firebase Auth (tries Firebase Functions first, fallback to client-side)
+        const result = await userService.createUserWithAuth(formData, userData.roles?.[0]);
+        
+        if (result.requiresReauth) {
+          setSuccess(`User created successfully! The user ${formData.email} has been added to the system with Firebase Auth credentials. A password reset email has been sent to them. You will need to sign in again to continue.`);
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 3000);
+        } else {
+          setSuccess(`User created successfully! The user ${formData.email} has been added to the system with Firebase Auth credentials. A password reset email has been sent to them.`);
+        }
+      }
+
+      // Reload users
+      setCurrentPage(1);
+      setLastDoc(null);
+      await loadUsers();
+      
+      // Close modal after a short delay to show success message
+      setTimeout(() => {
+        handleCloseModals();
+      }, 2000);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -158,10 +212,9 @@ const UserManagement = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/user-management', label: 'User Management', icon: Users },
-    { path: '/branch-management', label: 'Branch Management', icon: Building2 },
-    { path: '/system-settings', label: 'System Settings', icon: Settings },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/appointment-management', label: 'Appointments', icon: Calendar },
+    { path: '/user-management', label: 'Users', icon: UserCog },
+    { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

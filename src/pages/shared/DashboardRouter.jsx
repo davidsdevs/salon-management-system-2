@@ -15,15 +15,15 @@ import ClientDashboard from '../08_Client/Dashboard';
 const DashboardRouter = () => {
   const { userData } = useAuth();
 
-  // Get current role (support both old and new structure)
-  let currentRole = userData?.currentRole || userData?.roles?.[0];
+  // Get primary role (first role in the array)
+  let primaryRole = userData?.roles?.[0];
   
   // Debug logging
   console.log('DashboardRouter - userData:', userData);
-  console.log('DashboardRouter - currentRole:', currentRole);
+  console.log('DashboardRouter - primaryRole:', primaryRole);
 
-  // Route to the appropriate dashboard based on user's current role
-  switch (currentRole) {
+  // Route to the appropriate dashboard based on user's primary role
+  switch (primaryRole) {
     case ROLES.SYSTEM_ADMIN:
       return <SystemAdminDashboard />;
     
@@ -54,7 +54,7 @@ const DashboardRouter = () => {
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">Welcome to David's Salon</h1>
             <p className="text-gray-600">Your role is not recognized. Please contact support.</p>
-            <p className="text-sm text-gray-500 mt-2">Detected role: {currentRole}</p>
+            <p className="text-sm text-gray-500 mt-2">Detected role: {primaryRole}</p>
             <p className="text-sm text-gray-500">Available roles: {Object.values(ROLES).join(', ')}</p>
           </div>
         </div>

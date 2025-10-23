@@ -74,7 +74,7 @@ const AppointmentManagement = () => {
 
       const result = await appointmentService.getAppointments(
         filters,
-        userData.currentRole || userData.roles?.[0],
+        userData.roles?.[0],
         userData.uid,
         pageSize,
         lastDoc
@@ -93,14 +93,14 @@ const AppointmentManagement = () => {
     try {
       // Load branches
       const branchesResult = await branchService.getBranches(
-        userData.currentRole || userData.roles?.[0],
+        userData.roles?.[0],
         userData.uid
       );
       setBranches(branchesResult.branches || []);
 
       // Load stylists
       const stylistsResult = await userService.getUsers(
-        userData.currentRole || userData.roles?.[0],
+        userData.roles?.[0],
         userData.uid
       );
       const stylistUsers = stylistsResult.users.filter(user => 
@@ -110,7 +110,7 @@ const AppointmentManagement = () => {
 
       // Load clients
       const clientsResult = await userService.getUsers(
-        userData.currentRole || userData.roles?.[0],
+        userData.roles?.[0],
         userData.uid
       );
       const clientUsers = clientsResult.users.filter(user => 
@@ -191,7 +191,7 @@ const AppointmentManagement = () => {
         await appointmentService.updateAppointment(
           selectedAppointment.id, 
           formData, 
-          userData.currentRole || userData.roles?.[0],
+          userData.roles?.[0],
           userData.uid
         );
         setSuccess('Appointment updated successfully!');
@@ -199,7 +199,7 @@ const AppointmentManagement = () => {
         // Create new appointment
         await appointmentService.createAppointment(
           formData, 
-          userData.currentRole || userData.roles?.[0],
+          userData.roles?.[0],
           userData.uid
         );
         setSuccess('Appointment created successfully!');
@@ -226,7 +226,7 @@ const AppointmentManagement = () => {
       await appointmentService.updateAppointment(
         appointmentId,
         { status: newStatus, notes },
-        userData.currentRole || userData.roles?.[0],
+        userData.roles?.[0],
         userData.uid
       );
       setSuccess(`Appointment ${newStatus} successfully!`);
@@ -347,11 +347,7 @@ const AppointmentManagement = () => {
     <DashboardLayout menuItems={menuItems} pageTitle="Appointment Management">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Appointment Management</h1>
-            <p className="text-gray-600">Manage appointments across all branches</p>
-          </div>
+        <div className="flex justify-end items-center">
           <Button onClick={handleAddAppointment} className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Add Appointment
@@ -518,14 +514,16 @@ const AppointmentManagement = () => {
       {/* Modals */}
       {showAppointmentForm && (
         <AppointmentForm
-          appointment={selectedAppointment}
-          isEditing={isEditing}
-          onSubmit={handleAppointmentSubmit}
+          isOpen={showAppointmentForm}
           onClose={handleCloseModals}
+          onSubmit={handleAppointmentSubmit}
+          initialData={selectedAppointment}
+          isEditing={isEditing}
           loading={formLoading}
           branches={branches}
           stylists={stylists}
           clients={clients}
+          userData={userData}
         />
       )}
 
