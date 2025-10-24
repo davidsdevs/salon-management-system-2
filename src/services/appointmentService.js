@@ -22,7 +22,7 @@ import { notificationService, NOTIFICATION_TYPES } from './notificationService';
 export const APPOINTMENT_STATUS = {
   SCHEDULED: 'scheduled',
   CONFIRMED: 'confirmed',
-  IN_PROGRESS: 'in_progress',
+  IN_SERVICE: 'in_service',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled'
 };
@@ -30,8 +30,8 @@ export const APPOINTMENT_STATUS = {
 // Appointment status flow
 export const STATUS_FLOW = {
   [APPOINTMENT_STATUS.SCHEDULED]: [APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CANCELLED],
-  [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.CANCELLED],
-  [APPOINTMENT_STATUS.IN_PROGRESS]: [APPOINTMENT_STATUS.COMPLETED, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.IN_SERVICE, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.IN_SERVICE]: [APPOINTMENT_STATUS.COMPLETED, APPOINTMENT_STATUS.CANCELLED],
   [APPOINTMENT_STATUS.COMPLETED]: [], // Terminal state
   [APPOINTMENT_STATUS.CANCELLED]: [] // Terminal state
 };
@@ -97,19 +97,10 @@ class AppointmentService {
       let clientPhone = '';
       let clientEmail = '';
       
-      // If it's a new client, create a client record first
+      // Handle client information based on type
       if (isNewClient) {
-        const clientData = {
-          name: appointmentData.clientInfo.name,
-          phone: appointmentData.clientInfo.phone,
-          email: appointmentData.clientInfo.email || '',
-          isRegistered: false, // Non-registered client
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-        
-        const clientRef = await addDoc(collection(this.db, 'clients'), clientData);
-        clientId = clientRef.id;
+        // For new clients, use the provided client info directly (no client creation)
+        clientId = null; // No client ID for new clients
         clientName = appointmentData.clientInfo.name;
         clientPhone = appointmentData.clientInfo.phone;
         clientEmail = appointmentData.clientInfo.email || '';
@@ -932,14 +923,18 @@ class AppointmentService {
     }
   }
 
-  // Get all clients (for dropdowns, etc.) - includes both registered and non-registered
+  // Get all clients (for dropdowns, etc.) - fetches from users collection with client role
   async getClients() {
     try {
-      const clientsRef = collection(this.db, 'clients');
-      const snapshot = await getDocs(clientsRef);
+      const usersRef = collection(this.db, 'users');
+      const q = query(usersRef, where('roles', 'array-contains', ROLES.CLIENT));
+      const snapshot = await getDocs(q);
       
       return snapshot.docs.map(doc => ({
         id: doc.id,
+        name: `${doc.data().firstName || ''} ${doc.data().lastName || ''}`.trim() || doc.data().name || 'Unknown',
+        phone: doc.data().phone || '',
+        email: doc.data().email || '',
         ...doc.data()
       }));
     } catch (error) {
@@ -948,36 +943,142 @@ class AppointmentService {
     }
   }
 
-  // Get registered clients only (users with accounts)
+  // Get registered clients only (users with accounts) - same as getClients since all users are registered
   async getRegisteredClients() {
     try {
-      const clientsRef = collection(this.db, 'clients');
-      const q = query(clientsRef, where('isRegistered', '==', true));
-      const snapshot = await getDocs(q);
-      
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Since we only store registered users in the users collection, this is the same as getClients
+      return await this.getClients();
     } catch (error) {
       console.error('Error fetching registered clients:', error);
       throw error;
     }
   }
 
-  // Get non-registered clients only (walk-in clients)
+  // Get non-registered clients only (walk-in clients) - returns empty array since we don't store non-registered clients
   async getNonRegisteredClients() {
     try {
-      const clientsRef = collection(this.db, 'clients');
-      const q = query(clientsRef, where('isRegistered', '==', false));
-      const snapshot = await getDocs(q);
-      
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Since we don't create separate records for non-registered clients, return empty array
+      // Client info is stored directly in the appointment
+      return [];
     } catch (error) {
       console.error('Error fetching non-registered clients:', error);
+      throw error;
+    }
+  }
+
+  // Mark appointment as in service and create service transaction invoice
+  async markAsInService(appointmentId, currentUserId) {
+    try {
+      const appointmentRef = doc(this.db, this.collection, appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (!appointmentDoc.exists()) {
+        throw new Error('Appointment not found');
+      }
+      
+      const appointmentData = appointmentDoc.data();
+      
+      // Check if appointment is in confirmed status
+      if (appointmentData.status !== APPOINTMENT_STATUS.CONFIRMED) {
+        throw new Error('Only confirmed appointments can be marked as in service');
+      }
+      
+      // Update appointment status to in service
+      await updateDoc(appointmentRef, {
+        status: APPOINTMENT_STATUS.IN_SERVICE,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUserId
+      });
+      
+      // Create service transaction invoice
+      const { transactionService } = await import('./transactionService');
+      const { serviceService } = await import('./serviceService');
+      
+      console.log('Service service imported:', serviceService);
+      
+      // Debug: Log appointment data to see available fields
+      console.log('Appointment data:', appointmentData);
+      console.log('Client info from appointment:', {
+        clientId: appointmentData.clientId,
+        clientName: appointmentData.clientName,
+        clientPhone: appointmentData.clientPhone,
+        clientEmail: appointmentData.clientEmail
+      });
+      
+      // Extract service ID from serviceStylistPairs array
+      let serviceId = null;
+      if (appointmentData.serviceStylistPairs && appointmentData.serviceStylistPairs.length > 0) {
+        serviceId = appointmentData.serviceStylistPairs[0].serviceId;
+      } else if (appointmentData.serviceId) {
+        serviceId = appointmentData.serviceId;
+      } else if (appointmentData.service?.id) {
+        serviceId = appointmentData.service.id;
+      }
+      
+      if (!serviceId) {
+        console.error('Available appointment fields:', Object.keys(appointmentData));
+        throw new Error('Service ID not found in appointment data. Available fields: ' + Object.keys(appointmentData).join(', '));
+      }
+      
+      // Get service details
+      const serviceDetails = await serviceService.getServiceById(serviceId);
+      if (!serviceDetails) {
+        throw new Error('Service not found');
+      }
+      
+      // Get service information from serviceStylistPairs or service details
+      const firstServicePair = appointmentData.serviceStylistPairs?.[0];
+      const serviceName = firstServicePair?.serviceName || serviceDetails.name;
+      const servicePrice = firstServicePair?.servicePrice || 
+                         (serviceDetails.branchPricing?.find(bp => bp.branchId === appointmentData.branchId)?.price) || 
+                         serviceDetails.price || 0;
+      const stylistId = firstServicePair?.stylistId || appointmentData.stylistId;
+      const stylistName = firstServicePair?.stylistName || appointmentData.stylistName;
+      
+      // Prepare service transaction data with fallback for client info
+      const serviceTransactionData = {
+        branchId: appointmentData.branchId,
+        clientId: appointmentData.clientId || null,
+        clientInfo: {
+          name: appointmentData.clientName || 'Unknown Client',
+          phone: appointmentData.clientPhone || '',
+          email: appointmentData.clientEmail || ''
+        },
+        services: [{
+          serviceId: serviceId,
+          serviceName: serviceName,
+          price: servicePrice,
+          stylistId: stylistId,
+          stylistName: stylistName
+        }],
+        subtotal: servicePrice,
+        discount: 0,
+        tax: 0,
+        total: servicePrice,
+        paymentMethod: null, // No payment method until service is completed
+        status: 'pending', // Invoice status
+        loyaltyEarned: 0, // No loyalty points until payment is processed
+        createdBy: currentUserId,
+        notes: `Service Invoice from Appointment - ${appointmentData.appointmentDate} at ${appointmentData.appointmentTime}`,
+        transactionType: 'service',
+        appointmentId: appointmentId // Link to original appointment
+      };
+      
+      console.log('Service transaction data being created:', serviceTransactionData);
+      
+      // Create the service transaction
+      const transactionId = await transactionService.createTransaction(serviceTransactionData, 'service');
+      
+      console.log(`Appointment ${appointmentId} marked as in service and invoice ${transactionId} created`);
+      
+      return {
+        appointmentId,
+        transactionId,
+        status: APPOINTMENT_STATUS.IN_SERVICE
+      };
+      
+    } catch (error) {
+      console.error('Error marking appointment as in service:', error);
       throw error;
     }
   }

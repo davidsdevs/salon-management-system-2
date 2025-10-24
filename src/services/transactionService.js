@@ -19,16 +19,28 @@ class TransactionService {
   /**
    * Create a new transaction
    * @param {Object} transactionData - Transaction data
+   * @param {string} transactionType - Type of transaction ('service' or 'product')
    * @returns {Promise<string>} - Transaction ID
    */
-  async createTransaction(transactionData) {
+  async createTransaction(transactionData, transactionType = 'service') {
     try {
-      const transactionRef = await addDoc(collection(db, 'transactions'), {
+      // Determine collection name based on transaction type
+      const collectionName = transactionType === 'service' ? 'service_transactions' : 'product_transactions';
+      
+      console.log('Creating transaction with data:', transactionData);
+      console.log('Client info in transaction data:', {
+        clientId: transactionData.clientId,
+        clientInfo: transactionData.clientInfo
+      });
+      
+      const transactionRef = await addDoc(collection(db, collectionName), {
         ...transactionData,
+        transactionType: transactionType,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       
+      console.log('Transaction created with ID:', transactionRef.id);
       return transactionRef.id;
     } catch (error) {
       console.error('Error creating transaction:', error);
@@ -40,47 +52,90 @@ class TransactionService {
    * Get transactions by branch
    * @param {string} branchId - Branch ID
    * @param {Object} filters - Filter options
+   * @param {string} transactionType - Type of transactions to fetch ('service', 'product', or 'all')
    * @returns {Promise<Array>} - Array of transactions
    */
-  async getTransactionsByBranch(branchId, filters = {}) {
+  async getTransactionsByBranch(branchId, filters = {}, transactionType = 'all') {
     try {
-      let q = query(
-        collection(db, 'transactions'),
-        where('branchId', '==', branchId)
-      );
-
-      // Apply date filter
-      if (filters.startDate && filters.endDate) {
-        q = query(
-          collection(db, 'transactions'),
-          where('branchId', '==', branchId),
-          where('createdAt', '>=', filters.startDate),
-          where('createdAt', '<=', filters.endDate)
+      let allTransactions = [];
+      
+      // Fetch from service_transactions if needed
+      if (transactionType === 'all' || transactionType === 'service') {
+        let serviceQuery = query(
+          collection(db, 'service_transactions'),
+          where('branchId', '==', branchId)
         );
+
+        // Apply date filter for service transactions (temporarily removed orderBy for index building)
+        if (filters.startDate && filters.endDate) {
+          serviceQuery = query(
+            collection(db, 'service_transactions'),
+            where('branchId', '==', branchId),
+            where('createdAt', '>=', filters.startDate),
+            where('createdAt', '<=', filters.endDate)
+          );
+        }
+
+        // Apply status filter for service transactions (temporarily removed orderBy for index building)
+        if (filters.status && filters.status !== 'all') {
+          serviceQuery = query(
+            collection(db, 'service_transactions'),
+            where('branchId', '==', branchId),
+            where('status', '==', filters.status)
+          );
+        }
+
+        const serviceSnapshot = await getDocs(serviceQuery);
+        const serviceTransactions = serviceSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        allTransactions = [...allTransactions, ...serviceTransactions];
       }
 
-      // Apply status filter
-      if (filters.status && filters.status !== 'all') {
-        q = query(
-          collection(db, 'transactions'),
-          where('branchId', '==', branchId),
-          where('status', '==', filters.status)
+      // Fetch from product_transactions if needed
+      if (transactionType === 'all' || transactionType === 'product') {
+        let productQuery = query(
+          collection(db, 'product_transactions'),
+          where('branchId', '==', branchId)
         );
+
+        // Apply date filter for product transactions (temporarily removed orderBy for index building)
+        if (filters.startDate && filters.endDate) {
+          productQuery = query(
+            collection(db, 'product_transactions'),
+            where('branchId', '==', branchId),
+            where('createdAt', '>=', filters.startDate),
+            where('createdAt', '<=', filters.endDate)
+          );
+        }
+
+        // Apply status filter for product transactions (temporarily removed orderBy for index building)
+        if (filters.status && filters.status !== 'all') {
+          productQuery = query(
+            collection(db, 'product_transactions'),
+            where('branchId', '==', branchId),
+            where('status', '==', filters.status)
+          );
+        }
+
+        const productSnapshot = await getDocs(productQuery);
+        const productTransactions = productSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        allTransactions = [...allTransactions, ...productTransactions];
       }
 
-      // Apply limit
-      if (filters.limit) {
-        q = query(q, limit(filters.limit));
+      // Apply limit if specified
+      if (filters.limit && filters.limit > 0) {
+        allTransactions = allTransactions.slice(0, filters.limit);
       }
-
-      const snapshot = await getDocs(q);
-      const transactions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
       
       // Sort by createdAt descending (newest first)
-      return transactions.sort((a, b) => {
+      return allTransactions.sort((a, b) => {
         const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
         const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
         return dateB - dateA;
@@ -119,11 +174,15 @@ class TransactionService {
    * Update transaction
    * @param {string} transactionId - Transaction ID
    * @param {Object} updateData - Update data
+   * @param {string} transactionType - Type of transaction ('service' or 'product')
    * @returns {Promise<void>}
    */
-  async updateTransaction(transactionId, updateData) {
+  async updateTransaction(transactionId, updateData, transactionType = 'service') {
     try {
-      const transactionRef = doc(db, 'transactions', transactionId);
+      // Determine collection name based on transaction type
+      const collectionName = transactionType === 'service' ? 'service_transactions' : 'product_transactions';
+      
+      const transactionRef = doc(db, collectionName, transactionId);
       await updateDoc(transactionRef, {
         ...updateData,
         updatedAt: serverTimestamp()
@@ -195,25 +254,42 @@ class TransactionService {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const q = query(
-        collection(db, 'transactions'),
+      let allTransactions = [];
+
+      // Fetch from service_transactions (temporarily simplified query for index building)
+      const serviceQuery = query(
+        collection(db, 'service_transactions'),
         where('branchId', '==', branchId),
         where('createdAt', '>=', startOfDay),
         where('createdAt', '<=', endOfDay),
         where('status', '==', 'completed')
       );
 
-      const snapshot = await getDocs(q);
-      const transactions = snapshot.docs.map(doc => doc.data());
+      const serviceSnapshot = await getDocs(serviceQuery);
+      const serviceTransactions = serviceSnapshot.docs.map(doc => doc.data());
+
+      // Fetch from product_transactions (temporarily simplified query for index building)
+      const productQuery = query(
+        collection(db, 'product_transactions'),
+        where('branchId', '==', branchId),
+        where('createdAt', '>=', startOfDay),
+        where('createdAt', '<=', endOfDay),
+        where('status', '==', 'completed')
+      );
+
+      const productSnapshot = await getDocs(productQuery);
+      const productTransactions = productSnapshot.docs.map(doc => doc.data());
+
+      allTransactions = [...serviceTransactions, ...productTransactions];
 
       const summary = {
-        totalTransactions: transactions.length,
-        totalRevenue: transactions.reduce((sum, t) => sum + (t.total || 0), 0),
-        totalDiscounts: transactions.reduce((sum, t) => sum + (t.discount || 0), 0),
-        totalTax: transactions.reduce((sum, t) => sum + (t.tax || 0), 0),
-        averageTransaction: transactions.length > 0 ? 
-          transactions.reduce((sum, t) => sum + (t.total || 0), 0) / transactions.length : 0,
-        paymentMethods: this.getPaymentMethodSummary(transactions)
+        totalTransactions: allTransactions.length,
+        totalRevenue: allTransactions.reduce((sum, t) => sum + (t.total || 0), 0),
+        totalDiscounts: allTransactions.reduce((sum, t) => sum + (t.discount || 0), 0),
+        totalTax: allTransactions.reduce((sum, t) => sum + (t.tax || 0), 0),
+        averageTransaction: allTransactions.length > 0 ? 
+          allTransactions.reduce((sum, t) => sum + (t.total || 0), 0) / allTransactions.length : 0,
+        paymentMethods: this.getPaymentMethodSummary(allTransactions)
       };
 
       return summary;

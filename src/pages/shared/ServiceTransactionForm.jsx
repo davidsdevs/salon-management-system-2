@@ -32,7 +32,7 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
     isExistingClient: false,
     appointmentId: '',
     services: [], // { id, name, price, stylistId, stylistName }
-    paymentMethod: 'cash',
+    paymentMethod: null,
     subtotal: 0,
     total: 0
   });
@@ -59,7 +59,7 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
         isExistingClient: false,
         appointmentId: '',
         services: [],
-        paymentMethod: 'cash',
+        paymentMethod: null,
         subtotal: 0,
         total: 0
       });
@@ -296,6 +296,12 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
 
     if (formData.services.length === 0) {
       newErrors.services = 'Please select at least one service';
+    } else {
+      // Validate that each service has a specific stylist assigned
+      const servicesWithoutStylist = formData.services.filter(service => !service.stylistId || service.stylistId === '');
+      if (servicesWithoutStylist.length > 0) {
+        newErrors.services = 'Please assign a specific stylist to each service';
+      }
     }
 
     setErrors(newErrors);
@@ -515,7 +521,6 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                               >
                                 <option value="">Select Stylist</option>
-                                <option value="any_available">Any Available Stylist</option>
                                 {stylists.map((stylist) => (
                                   <option key={stylist.id} value={stylist.id}>
                                     {stylist.name} - {stylist.specialization}
@@ -532,29 +537,9 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
                 </Card>
               </div>
 
-              {/* Right Column - Payment & Summary */}
+              {/* Right Column - Summary */}
               <div className="space-y-6">
-                {/* Payment Method */}
-                <Card className="p-4">
-                  <h3 className="text-lg font-semibold mb-4">Payment Method</h3>
-                  <div className="space-y-2">
-                    {['cash', 'card', 'gift'].map((method) => (
-                      <Button
-                        key={method}
-                        onClick={() => setFormData(prev => ({ ...prev, paymentMethod: method }))}
-                        variant={formData.paymentMethod === method ? 'default' : 'outline'}
-                        className="w-full justify-start"
-                      >
-                        {method === 'cash' && <Banknote className="h-4 w-4 mr-2" />}
-                        {method === 'card' && <CreditCard className="h-4 w-4 mr-2" />}
-                        {method === 'gift' && <Gift className="h-4 w-4 mr-2" />}
-                        {method.charAt(0).toUpperCase() + method.slice(1)}
-                      </Button>
-                    ))}
-                  </div>
-                </Card>
-
-                {/* Order Summary */}
+                {/* Service Summary */}
                 <Card className="p-4">
                   <h3 className="text-lg font-semibold mb-4">Service Summary</h3>
                   <div className="space-y-2">
@@ -605,10 +590,10 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
                 </Card>
 
                 <Card className="p-6">
-                  <h4 className="text-lg font-semibold mb-4">Payment Details</h4>
+                  <h4 className="text-lg font-semibold mb-4">Transaction Details</h4>
                   <div className="space-y-2">
-                    <p><span className="font-medium">Payment Method:</span> {formData.paymentMethod.charAt(0).toUpperCase() + formData.paymentMethod.slice(1)}</p>
-                    <p><span className="font-medium">Transaction Type:</span> Service</p>
+                    <p><span className="font-medium">Transaction Type:</span> Service Invoice</p>
+                    <p className="text-sm text-gray-600">Payment will be processed after service completion</p>
                   </div>
                 </Card>
               </div>
@@ -625,11 +610,7 @@ const ServiceTransactionForm = ({ isOpen, onClose, onSubmit, loading, userData }
                           <p className="text-sm text-gray-600">₱{service.price.toFixed(2)}</p>
                           {service.stylistId && (
                             <p className="text-sm text-blue-600 mt-1">
-                              <span className="font-medium">Assigned Stylist:</span> {
-                                service.stylistId === 'any_available' 
-                                  ? 'Any Available Stylist' 
-                                  : service.stylistName || 'Unknown Stylist'
-                              }
+                              <span className="font-medium">Assigned Stylist:</span> {service.stylistName || 'Unknown Stylist'}
                             </p>
                           )}
                         </div>

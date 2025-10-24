@@ -50,8 +50,9 @@ import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
 import Transactions from "./pages/01_SystemAdmin/Transactions";
 
 // POS PAGES
-import POSDashboard from "./pages/05_Receptionist/POSDashboard";
-
+import ServiceTransactions from "./pages/05_Receptionist/ServiceTransactions";
+import ProductTransactions from "./pages/05_Receptionist/ProductTransactions";
+  
 // NEW BRANCH MANAGEMENT PAGES
 import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
 import StaffManagement from "./pages/03_BranchAdmin/StaffManagement";
@@ -193,10 +194,18 @@ function AppRoutes() {
       
       {/* POS Routes */}
       <Route
-        path="/pos-dashboard"
+        path="/service-transactions"
         element={
           <StaffRoute>
-            <POSDashboard />
+            <ServiceTransactions />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/product-transactions"
+        element={
+          <StaffRoute>
+            <ProductTransactions />
           </StaffRoute>
         }
       />

@@ -723,7 +723,7 @@ const MasterProducts = () => {
                 <Plus className="h-4 w-4" /> Add Product
               </Button>
             </div>
-            
+              
             {/* Center: Search and Filters */}
             <div className="flex-1 flex flex-col sm:flex-row gap-3">
               {/* Search Input */}
@@ -741,65 +741,65 @@ const MasterProducts = () => {
               
               {/* Filters Row */}
               <div className="flex gap-2 flex-wrap">
-                {/* Category Filter */}
+              {/* Category Filter */}
                 <div className="min-w-[100px]">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-                  <select
+              <select
                     className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                  >
-                    {categories.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                {categories.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
                 </div>
-                
-                {/* Brand Filter */}
+              
+              {/* Brand Filter */}
                 <div className="min-w-[100px]">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Brand</label>
-                  <select
+              <select
                     className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
-                    value={brandFilter}
-                    onChange={(e) => setBrandFilter(e.target.value)}
-                  >
-                    {brands.map(brand => (
-                      <option key={brand} value={brand}>{brand}</option>
-                    ))}
-                  </select>
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+              >
+                {brands.map(brand => (
+                  <option key={brand} value={brand}>{brand}</option>
+                ))}
+              </select>
                 </div>
-                
-                {/* Supplier Filter */}
+              
+              {/* Supplier Filter */}
                 <div className="min-w-[100px]">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
-                  <select
+              <select
                     className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
-                    value={supplierFilter}
-                    onChange={(e) => setSupplierFilter(e.target.value)}
-                  >
-                    {suppliers.map(supplier => (
-                      <option key={supplier} value={supplier}>{supplier}</option>
-                    ))}
-                  </select>
+                value={supplierFilter}
+                onChange={(e) => setSupplierFilter(e.target.value)}
+              >
+                {suppliers.map(supplier => (
+                  <option key={supplier} value={supplier}>{supplier}</option>
+                ))}
+              </select>
                 </div>
-                
-                {/* Status Filter */}
+              
+              {/* Status Filter */}
                 <div className="min-w-[100px]">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                  <select
+              <select
                     className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                    <option value="All">All Status</option>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="Discontinued">Discontinued</option>
-                  </select>
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Discontinued">Discontinued</option>
+              </select>
                 </div>
               </div>
             </div>
-            
+
             {/* Right Side: Status Info */}
             <div className="flex-shrink-0">
               <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg whitespace-nowrap">
@@ -1090,10 +1090,10 @@ const MasterProducts = () => {
                     {modalMode === 'edit' && <Edit className="h-5 w-5 text-white" />}
                     {modalMode === 'view' && <Eye className="h-5 w-5 text-white" />}
                     <h2 className="text-xl font-semibold text-white">
-                      {modalMode === 'create' && 'Add New Product'}
-                      {modalMode === 'edit' && 'Edit Product'}
-                      {modalMode === 'view' && 'Product Details'}
-                    </h2>
+                        {modalMode === 'create' && 'Add New Product'}
+                        {modalMode === 'edit' && 'Edit Product'}
+                        {modalMode === 'view' && 'Product Details'}
+                      </h2>
                   </div>
                   <Button 
                     variant="outline" 
@@ -1153,7 +1153,7 @@ const MasterProducts = () => {
                             ₱{formData.unitCost?.toLocaleString()}
                           </div>
                           <div className="text-xs text-gray-500">Unit Cost</div>
-                        </div>
+                            </div>
                       </div>
                     </div>
 
@@ -1163,31 +1163,31 @@ const MasterProducts = () => {
                       <div className="border border-gray-200 rounded-lg p-4">
                         <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
                           <Package className="h-5 w-5 text-blue-600 mr-2" />
-                          Product Information
-                        </h4>
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span className="text-sm font-medium text-gray-600">Category</span>
+                            Product Information
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">Category</span>
                             <span className="text-sm text-gray-900">{formData.category}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span className="text-sm font-medium text-gray-600">Brand</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">Brand</span>
                             <span className="text-sm text-gray-900">{formData.brand}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span className="text-sm font-medium text-gray-600">Supplier</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">Supplier</span>
                             <span className="text-sm text-gray-900">{formData.supplier}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span className="text-sm font-medium text-gray-600">Shelf Life</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-sm font-medium text-gray-600">Shelf Life</span>
                             <span className="text-sm text-gray-900">{formData.shelfLife || 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-2">
-                            <span className="text-sm font-medium text-gray-600">Variants</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2">
+                              <span className="text-sm font-medium text-gray-600">Variants</span>
                             <span className="text-sm text-gray-900">{formData.variants || 'N/A'}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
                         {/* Pricing Information */}
                         <div className="border border-gray-200 rounded-lg p-4">
@@ -1199,11 +1199,11 @@ const MasterProducts = () => {
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="text-sm font-medium text-gray-600">Unit Cost</span>
                               <span className="text-sm text-gray-900 font-semibold">₱{formData.unitCost?.toLocaleString()}</span>
-                            </div>
+                                    </div>
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="text-sm font-medium text-gray-600">Salon Use Price</span>
                               <span className="text-sm text-blue-600 font-semibold">₱{formData.salonUsePrice?.toLocaleString()}</span>
-                            </div>
+                                    </div>
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="text-sm font-medium text-gray-600">OTC Price</span>
                               <span className="text-sm text-green-600 font-semibold">₱{formData.otcPrice?.toLocaleString()}</span>
@@ -1211,9 +1211,9 @@ const MasterProducts = () => {
                             <div className="flex justify-between items-center py-2">
                               <span className="text-sm font-medium text-gray-600">Commission</span>
                               <span className="text-sm text-purple-600 font-semibold">{formData.commissionPercentage || 0}%</span>
-                            </div>
-                          </div>
-                        </div>
+                                    </div>
+                                    </div>
+                      </div>
                     </div>
                   </div>
                   ) : (
@@ -1564,11 +1564,11 @@ const MasterProducts = () => {
                                 Upload Image File
                               </label>
                               <div className="relative">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handleImageChange}
-                                  disabled={modalMode === 'view' || uploadingImage}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageChange}
+                                disabled={modalMode === 'view' || uploadingImage}
                                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                                   id="image-upload"
                                 />
