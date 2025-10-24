@@ -27,8 +27,12 @@ import {
   Package,
   Eye,
   Package2,
-  Building2
+  Building2,
+  Upload,
+  Image as ImageIcon,
+  XCircle
 } from 'lucide-react';
+import { cloudinaryService } from '../../services/cloudinaryService';
 
 const ServiceManagement = () => {
   const { userData } = useAuth();
@@ -40,6 +44,8 @@ const ServiceManagement = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
@@ -107,6 +113,42 @@ const ServiceManagement = () => {
     }));
   };
 
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    setUploadError('');
+
+    try {
+      const result = await cloudinaryService.uploadImage(file, 'salon-services');
+      
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          imageURL: result.url
+        }));
+        console.log('✅ Service image uploaded successfully:', result.url);
+      } else {
+        setUploadError(result.error || 'Failed to upload image');
+        console.error('❌ Image upload failed:', result.error);
+      }
+    } catch (error) {
+      setUploadError('Failed to upload image');
+      console.error('❌ Image upload error:', error);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      imageURL: ''
+    }));
+    setUploadError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -164,6 +206,7 @@ const ServiceManagement = () => {
       isActive: true,
       isChemical: false
     });
+    setUploadError('');
   };
 
   const handleEdit = (service) => {
@@ -506,13 +549,63 @@ const ServiceManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                      <Input
-                        name="imageURL"
-                        value={formData.imageURL}
-                        onChange={handleInputChange}
-                        placeholder="https://example.com/image.jpg"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Service Image</label>
+                      <div className="space-y-3">
+                        {/* Current Image Display */}
+                        {formData.imageURL && (
+                          <div className="relative inline-block">
+                            <img
+                              src={formData.imageURL}
+                              alt="Service preview"
+                              className="w-24 h-24 object-cover rounded-lg border border-gray-300"
+                            />
+                            <button
+                              type="button"
+                              onClick={removeImage}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <XCircle className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Upload Section */}
+                        <div className="relative">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            disabled={uploadingImage}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                            id="service-image-upload"
+                          />
+                          <label
+                            htmlFor="service-image-upload"
+                            className="flex items-center justify-center w-full px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <div className="flex items-center space-x-2">
+                              {uploadingImage ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                              ) : (
+                                <ImageIcon className="h-4 w-4 text-gray-400" />
+                              )}
+                              <span className="text-sm font-medium text-gray-700">
+                                {uploadingImage ? 'Uploading...' : 'Choose Service Image'}
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+                        
+                        {/* Upload Error */}
+                        {uploadError && (
+                          <p className="text-red-500 text-xs">{uploadError}</p>
+                        )}
+                        
+                        {/* Upload Tips */}
+                        <p className="text-xs text-gray-500">
+                          Recommended: JPG, PNG format. Max size: 5MB. Optimal dimensions: 400x400px
+                        </p>
+                      </div>
                     </div>
                   </div>
                   

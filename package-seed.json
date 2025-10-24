@@ -1,0 +1,13 @@
+{
+  "name": "seed-products",
+  "version": "1.0.0",
+  "description": "Seed script for salon products",
+  "main": "seedProducts.js",
+  "type": "module",
+  "scripts": {
+    "seed": "node seedProducts.js"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1"
+  }
+}

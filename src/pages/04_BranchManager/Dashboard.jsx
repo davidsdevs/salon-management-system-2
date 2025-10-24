@@ -1,21 +1,21 @@
-  import React from "react";
-  import { Link } from "react-router-dom";
-  import { useAuth } from "../../context/AuthContext";
-  import { Card } from "../ui/card";
-  import { Button } from "../ui/button";
-  import DashboardLayout from "../shared/DashboardLayout";
-  import {
-    Users,
-    Calendar,
-    Package,
-    DollarSign,
-    Smile,
-    Scissors,
-    BarChart3,
-    UserCog,
-    Home,
-    Receipt,
-  } from "lucide-react";
+import React from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { Card } from "../ui/card";
+import { Button } from "../ui/button";
+import DashboardLayout from "../shared/DashboardLayout";
+import {
+  Users,
+  Calendar,
+  Package,
+  DollarSign,
+  Smile,
+  Scissors,
+  BarChart3,
+  UserCog,
+  Home,
+  Receipt,
+} from "lucide-react";
   import {
     LineChart,
     Line,
@@ -55,6 +55,7 @@
       { path: "/staff", label: "Staff", icon: Users },
       { path: "/schedule", label: "Schedule", icon: Calendar },
       { path: "/inventory", label: "Inventory", icon: Package },
+      { path: "/transactions", label: "Transactions", icon: Receipt },
       { path: "/reports", label: "Reports", icon: BarChart3 },
       { path: "/profile", label: "Profile", icon: UserCog },
     ];

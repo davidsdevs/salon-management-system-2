@@ -46,6 +46,7 @@ const BranchAdminDashboard = () => {
     { path: '/staff', label: 'Staff Management', icon: Users },
     { path: '/branch-settings', label: 'Branch Settings', icon: Settings },
     { path: '/service-config', label: 'Service Configuration', icon: Scissors },
+    { path: '/branch-products', label: 'Branch Products', icon: Package },
     { path: '/holiday-management', label: 'Holiday Management', icon: Calendar },
     { path: '/inventory', label: 'Inventory', icon: Package },
     { path: '/reports', label: 'Reports', icon: BarChart3 },
