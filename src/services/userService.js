@@ -370,6 +370,38 @@ class UserService {
     }
   }
 
+  // Get users by role
+  async getUsersByRole(role) {
+    try {
+      console.log('Getting users with role:', role);
+      
+      const q = query(
+        collection(this.db, this.collection),
+        where('role', '==', role),
+        where('isActive', '==', true)
+      );
+
+      const snapshot = await getDocs(q);
+      const users = [];
+      
+      console.log('Found', snapshot.size, 'users with role', role);
+      
+      snapshot.forEach((doc) => {
+        const userData = doc.data();
+        users.push({
+          id: doc.id,
+          ...userData
+        });
+      });
+
+      console.log('Returning', users.length, 'users');
+      return users;
+    } catch (error) {
+      console.error('Error getting users by role:', error);
+      throw error;
+    }
+  }
+
   // Get users by branch
   async getUsersByBranch(branchId, currentUserRole) {
     try {

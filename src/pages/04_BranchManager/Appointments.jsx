@@ -2244,12 +2244,12 @@ const BranchManagerAppointments = () => {
                      }`}>
                        {selectedAppointment.status ? selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1) : 'Unknown'}
                      </span>
-                     <Button
+                            <Button
                        onClick={() => setShowDetailsModal(false)}
                        className="text-white hover:text-gray-200 p-2"
-                     >
+                      >
                        ✕
-                     </Button>
+                      </Button>
                    </div>
                  </div>
                </div>
@@ -2287,7 +2287,7 @@ const BranchManagerAppointments = () => {
                            <div className="flex justify-between items-center py-2">
                              <span className="font-medium text-gray-700">Email:</span>
                              <span className="text-gray-600">{selectedAppointment.clientInfo?.email || selectedAppointment.clientEmail}</span>
-                           </div>
+                        </div>
                          )}
                        </div>
                      </div>
@@ -2482,7 +2482,7 @@ const BranchManagerAppointments = () => {
                          <p className="text-xs">This appointment has no recorded changes</p>
                        </div>
                      )}
-                   </div>
+          </div>
                  </div>
                  </div>
                </div>

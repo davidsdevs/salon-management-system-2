@@ -1,10 +1,10 @@
-                                              import React from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import DashboardLayout from '../shared/DashboardLayout';
-import { Users, Calendar, Bell, User, Home, UserCog } from 'lucide-react';
+import { Users, Calendar, Bell, User, Home, UserCog, Receipt } from 'lucide-react';
 
 const ReceptionistDashboard = () => {
   const { userData } = useAuth();
@@ -12,6 +12,7 @@ const ReceptionistDashboard = () => {
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/receptionist-appointments', label: 'Appointments', icon: Calendar },
+    { path: '/pos-dashboard', label: 'POS System', icon: Receipt },
     { path: '/clients', label: 'Clients', icon: Users },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];

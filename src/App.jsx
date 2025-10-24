@@ -47,6 +47,9 @@ import OperationalManagerAppointments from "./pages/02_OperationalManager/Operat
 import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
 import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
 
+// POS PAGES
+import POSDashboard from "./pages/05_Receptionist/POSDashboard";
+
 // NEW BRANCH MANAGEMENT PAGES
 import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
 import StaffManagement from "./pages/03_BranchAdmin/StaffManagement";
@@ -170,6 +173,17 @@ function AppRoutes() {
           </StaffRoute>
         }
       />
+      
+      {/* POS Routes */}
+      <Route
+        path="/pos-dashboard"
+        element={
+          <StaffRoute>
+            <POSDashboard />
+          </StaffRoute>
+        }
+      />
+      
       
       <Route
         path="/my-schedule"

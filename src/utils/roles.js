@@ -40,20 +40,30 @@ export const ROLE_PERMISSIONS = {
     'removeStaff', // Remove users from branch
     'manageOperatingHours', // Set branch operating hours
     'manageHolidays', // Manage branch holidays
-    'manageBranchServices' // Configure branch-specific services
+    'manageBranchServices', // Configure branch-specific services
+    'posTransactions',
+    'voidTransactions',
+    'viewPOSReports'
   ],
   [ROLES.BRANCH_MANAGER]: [
     'viewReports',
     'manageAppointments',
     'manageStaff',
     'viewInventory',
-    'manageClients'
+    'manageClients',
+    'posTransactions',
+    'voidTransactions',
+    'viewPOSReports'
   ],
   [ROLES.RECEPTIONIST]: [
     'manageAppointments',
     'createBilling',
     'manageClients',
-    'viewSchedule'
+    'viewSchedule',
+    'posTransactions',
+    'processPayments',
+    'applyDiscounts',
+    'manageLoyaltyPoints'
   ],
   [ROLES.INVENTORY_CONTROLLER]: [
     'manageInventory',

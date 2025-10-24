@@ -214,16 +214,11 @@ class AppointmentService {
         ...newAppointment
       };
 
-      // Send notification to client
+      // Store notifications for client and stylists
       try {
-        await notificationService.sendAppointmentNotification(
-          NOTIFICATION_TYPES.APPOINTMENT_CREATED,
-          createdAppointment,
-          appointmentData.clientId,
-          'client'
-        );
+        await notificationService.storeAppointmentCreatedForAll(createdAppointment);
       } catch (notificationError) {
-        console.warn('Failed to send appointment notification:', notificationError);
+        console.warn('Failed to store appointment notifications:', notificationError);
       }
 
       return createdAppointment;
@@ -283,7 +278,7 @@ class AppointmentService {
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo
       });
-      
+
       const snapshot = await getDocs(q);
       console.log('📊 QUERY RESULTS:');
       console.log('Total documents found:', snapshot.docs.length);
@@ -388,7 +383,7 @@ class AppointmentService {
         branchId: apt.branchId,
         status: apt.status
       })));
-      
+
       return {
         appointments: filteredAppointments,
         lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
@@ -565,12 +560,12 @@ class AppointmentService {
               return updatedAppointment;
           }
 
-          await notificationService.sendAppointmentNotification(
-            notificationType,
-            updatedAppointment,
-            currentAppointment.clientId,
-            'client'
-          );
+          // Store notifications for client and stylists
+          if (notificationType === NOTIFICATION_TYPES.APPOINTMENT_CONFIRMED) {
+            await notificationService.storeAppointmentConfirmedForAll(updatedAppointment);
+          } else if (notificationType === NOTIFICATION_TYPES.APPOINTMENT_CANCELLED) {
+            await notificationService.storeAppointmentCancelledForAll(updatedAppointment);
+          }
         } catch (notificationError) {
           console.warn('Failed to send status change notification:', notificationError);
         }
@@ -654,16 +649,11 @@ class AppointmentService {
         ...updatedData
       };
 
-      // Send reschedule notification
+      // Store reschedule notifications for client and stylists
       try {
-        await notificationService.sendAppointmentNotification(
-          NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED,
-          rescheduledAppointment,
-          currentAppointment.clientId,
-          'client'
-        );
+        await notificationService.storeAppointmentRescheduledForAll(rescheduledAppointment);
       } catch (notificationError) {
-        console.warn('Failed to send reschedule notification:', notificationError);
+        console.warn('Failed to store reschedule notifications:', notificationError);
       }
       
       return rescheduledAppointment;

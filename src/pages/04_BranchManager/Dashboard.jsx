@@ -14,6 +14,7 @@
     BarChart3,
     UserCog,
     Home,
+    Receipt,
   } from "lucide-react";
   import {
     LineChart,
@@ -50,6 +51,7 @@
     const menuItems = [
       { path: "/dashboard", label: "Dashboard", icon: Home },
       { path: "/appointments", label: "Appointments", icon: Calendar },
+      { path: "/pos-dashboard", label: "POS System", icon: Receipt },
       { path: "/staff", label: "Staff", icon: Users },
       { path: "/schedule", label: "Schedule", icon: Calendar },
       { path: "/inventory", label: "Inventory", icon: Package },

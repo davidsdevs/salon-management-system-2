@@ -24,7 +24,8 @@ import {
   Activity,
   Settings,
   Bell,
-  Eye
+  Eye,
+  Receipt
 } from 'lucide-react';
 
 const BranchAdminDashboard = () => {
@@ -41,6 +42,7 @@ const BranchAdminDashboard = () => {
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/branch-appointments', label: 'Appointments', icon: Calendar },
+    { path: '/pos-dashboard', label: 'POS System', icon: Receipt },
     { path: '/staff', label: 'Staff Management', icon: Users },
     { path: '/branch-settings', label: 'Branch Settings', icon: Settings },
     { path: '/service-config', label: 'Service Configuration', icon: Scissors },

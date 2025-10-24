@@ -22,7 +22,10 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Users
+  Users,
+  Home,
+  Receipt,
+  UserCog
 } from 'lucide-react';
 
 const ReceptionistAppointments = () => {
@@ -309,10 +312,11 @@ const ReceptionistAppointments = () => {
   });
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Calendar },
+    { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/receptionist-appointments', label: 'Appointments', icon: Calendar },
+    { path: '/pos-dashboard', label: 'POS System', icon: Receipt },
     { path: '/clients', label: 'Clients', icon: Users },
-    { path: '/profile', label: 'Profile', icon: User },
+    { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 
   return (
