@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../shared/DashboardLayout";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { useNavigate } from "react-router-dom";
+import { staffApiService } from "../../services/staffApiService";
 
 import { 
   Users, 
@@ -18,19 +19,50 @@ import {
   Home, 
   Calendar, 
   Package, 
-  BarChart3 
+  BarChart3,
+  Receipt
 } from "lucide-react";
 
 const BranchManagerStaff = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
-  // === Sample Staff Data ===
-  const staffData = [
-    { id: 1, name: "Marvin Santos", role: "Stylist", branch: "Subic", isActive: true, joinedAt: "2025-01-10", probationEnd: "2025-12-31" },
-    { id: 2, name: "Lara Cruz", role: "Masseuse", branch: "Subic", isActive: true, joinedAt: "2025-03-12", probationEnd: "2025-10-20" },
-    { id: 3, name: "Joan Dela Cruz", role: "Stylist", branch: "Subic", isActive: false, joinedAt: "2025-02-15", probationEnd: "2025-08-30" },
-    { id: 4, name: "Ana Lim", role: "Facialist", branch: "Subic", isActive: true, joinedAt: "2025-04-20", probationEnd: "2025-11-15" },
-  ];
+  const [staffData, setStaffData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load staff data on component mount
+  useEffect(() => {
+    const loadStaffData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        if (!userData?.branchId) {
+          throw new Error('Branch ID not found');
+        }
+
+        const response = await staffApiService.getBranchStaff(
+          userData.branchId,
+          userData.role
+        );
+
+        if (response.success) {
+          setStaffData(response.staff);
+        } else {
+          throw new Error('Failed to load staff data');
+        }
+      } catch (err) {
+        console.error('Error loading staff data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userData) {
+      loadStaffData();
+    }
+  }, [userData]);
 
   const menuItems = [
     { path: "/dashboard", label: "Dashboard", icon: Home },
@@ -38,6 +70,7 @@ const BranchManagerStaff = () => {
     { path: "/staff", label: "Staff", icon: Users },
     { path: "/schedule", label: "Schedule", icon: Calendar },
     { path: "/inventory", label: "Inventory", icon: Package },
+    { path: "/transactions", label: "Transactions", icon: Receipt },
     { path: "/reports", label: "Reports", icon: BarChart3 },
     { path: "/profile", label: "Profile", icon: UserCog },
   ];
@@ -49,19 +82,20 @@ const BranchManagerStaff = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  const roles = useMemo(() => ["All", ...Array.from(new Set(staffData.map(s => s.role)))], []);
-  const branches = useMemo(() => ["All", ...Array.from(new Set(staffData.map(s => s.branch)))], []);
+  const roles = useMemo(() => ["All", ...Array.from(new Set(staffData.map(s => s.role)))], [staffData]);
+  const branches = useMemo(() => ["All", ...Array.from(new Set(staffData.map(s => s.branchId)))], [staffData]);
 
   // === Filtered Staff ===
   const filteredStaff = useMemo(() => {
     return staffData.filter(s => {
-      const matchesQuery = query === "" || s.name.toLowerCase().includes(query.toLowerCase());
+      const fullName = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+      const matchesQuery = query === "" || fullName.includes(query.toLowerCase()) || s.email?.toLowerCase().includes(query.toLowerCase());
       const matchesRole = roleFilter === "All" || s.role === roleFilter;
-      const matchesBranch = branchFilter === "All" || s.branch === branchFilter;
+      const matchesBranch = branchFilter === "All" || s.branchId === branchFilter;
       const matchesStatus = statusFilter === "All" || (statusFilter === "Active" ? s.isActive : !s.isActive);
       return matchesQuery && matchesRole && matchesBranch && matchesStatus;
     });
-  }, [query, roleFilter, branchFilter, statusFilter]);
+  }, [staffData, query, roleFilter, branchFilter, statusFilter]);
 
   // === Summary ===
   const totalStaff = staffData.length;
@@ -86,6 +120,40 @@ const BranchManagerStaff = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <DashboardLayout menuItems={menuItems} pageTitle="Staff Management">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#160B53]"></div>
+              <p className="text-gray-600">Loading staff data...</p>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <DashboardLayout menuItems={menuItems} pageTitle="Staff Management">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="text-red-500 text-center">
+                <p className="text-lg font-semibold">Error Loading Staff Data</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout menuItems={menuItems} pageTitle="Staff Management">
@@ -191,7 +259,7 @@ const BranchManagerStaff = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Probation End</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
@@ -205,25 +273,27 @@ const BranchManagerStaff = () => {
                 ) : (
                   filteredStaff.map(s => (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.role}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.branch}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {s.firstName} {s.lastName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">{s.role}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{s.branchId || 'Not assigned'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                           {s.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(s.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        {s.createdAt ? new Date(s.createdAt.seconds * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : 'Unknown'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(s.probationEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        {s.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                         <Button
                           size="sm"
                           className="flex items-center justify-center p-2 bg-white border border-gray-300 hover:bg-[#160B53] hover:text-white transition-colors"
-                          onClick={() => navigate(`/staff/details`)}
+                          onClick={() => navigate(`/staff/details`, { state: { staffId: s.id } })}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>

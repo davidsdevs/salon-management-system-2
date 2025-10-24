@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../shared/DashboardLayout";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
+import { staffApiService } from "../../services/staffApiService";
 import {
   ArrowLeft,
   Calendar,
@@ -14,6 +16,8 @@ import {
   Phone,
   CheckCircle,
   XCircle,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 // === Modal Component ===
@@ -48,52 +52,162 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 const StaffDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { userData } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedServices, setSelectedServices] = useState([
-    "Haircut",
-    "Shampoo",
-    "Beard Trim",
-    "Hair Coloring",
-    "Facial",
-    "Manicure",
-    "Pedicure",
-    "Massage",
-    "Hair Treatment",
-  ]);
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [allServices, setAllServices] = useState([]);
+  const [staff, setStaff] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
-  const allServices = [
-    "Haircut",
-    "Shampoo",
-    "Beard Trim",
-    "Hair Coloring",
-    "Facial",
-    "Manicure",
-    "Pedicure",
-    "Massage",
-    "Hair Treatment",
-  ];
+  // Load staff details and services on component mount
+  useEffect(() => {
+    const loadStaffDetails = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const toggleService = (service) => {
-    if (selectedServices.includes(service)) {
-      setSelectedServices(selectedServices.filter((s) => s !== service));
+        // Get staff ID from URL params or location state
+        const staffId = location.state?.staffId || location.pathname.split('/').pop();
+        
+        if (!staffId) {
+          throw new Error('Staff ID not provided');
+        }
+
+        // Load staff details
+        const staffResponse = await staffApiService.getStaffDetails(
+          staffId,
+          userData?.role,
+          userData?.id
+        );
+
+        if (staffResponse.success) {
+          setStaff(staffResponse.staff);
+          setSelectedServices(staffResponse.staff.services || []);
+        } else {
+          throw new Error('Failed to load staff details');
+        }
+
+        // Load all available services
+        const servicesResponse = await staffApiService.getAllServices(userData?.role);
+        
+        if (servicesResponse.success) {
+          setAllServices(servicesResponse.services);
+        } else {
+          throw new Error('Failed to load services');
+        }
+
+      } catch (err) {
+        console.error('Error loading staff details:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userData) {
+      loadStaffDetails();
+    }
+  }, [userData, location]);
+
+  const toggleService = (serviceId) => {
+    if (selectedServices.includes(serviceId)) {
+      setSelectedServices(selectedServices.filter((s) => s !== serviceId));
     } else {
-      setSelectedServices([...selectedServices, service]);
+      setSelectedServices([...selectedServices, serviceId]);
     }
   };
 
-  // Get staff info from state or fallback to hardcoded values
-  const staff = location.state?.staff || {
-    name: "Marvin Santos",
-    role: "Stylist",
-    branch: "Subic Branch",
-    contact: "0917-123-4567",
-    email: "marvin.santos@salonhub.com",
-    joinedAt: "January 10, 2025",
-    probationEnd: "December 31, 2025",
-    status: "Active",
-    rating: 4.7,
-    shiftsCompleted: 128,
+  const handleSaveServices = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+
+      const response = await staffApiService.updateStaffServices(
+        staff.id,
+        selectedServices,
+        userData?.role,
+        userData?.id
+      );
+
+      if (response.success) {
+        // Update local staff data
+        setStaff(prev => ({
+          ...prev,
+          services: selectedServices
+        }));
+        setIsModalOpen(false);
+      } else {
+        throw new Error('Failed to update services');
+      }
+    } catch (err) {
+      console.error('Error saving services:', err);
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <DashboardLayout pageTitle="Staff Details">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-[#160B53]" />
+              <p className="text-gray-600">Loading staff details...</p>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <DashboardLayout pageTitle="Staff Details">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <p className="text-red-600">{error}</p>
+              <Button
+                onClick={() => navigate("/staff")}
+                className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A]"
+              >
+                <ArrowLeft className="h-4 w-4" /> Back to Staff
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // No staff data
+  if (!staff) {
+    return (
+      <DashboardLayout pageTitle="Staff Details">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <User className="h-8 w-8 text-gray-400" />
+              <p className="text-gray-600">Staff member not found</p>
+              <Button
+                onClick={() => navigate("/staff")}
+                className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A]"
+              >
+                <ArrowLeft className="h-4 w-4" /> Back to Staff
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout pageTitle="Staff Details">
@@ -115,30 +229,27 @@ const StaffDetails = () => {
               <User className="h-8 w-8 text-gray-500" />
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">{staff.name}</h2>
-              <p className="text-gray-500">{staff.role}</p>
+              <h2 className="text-2xl font-semibold text-gray-900">
+                {staff.firstName} {staff.lastName}
+              </h2>
+              <p className="text-gray-500 capitalize">{staff.role}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div className="flex items-center gap-2 text-gray-700">
               <Briefcase className="h-4 w-4 text-gray-500" />
-              <span>Branch: {staff.branch}</span>
+              <span>Branch: {staff.branchId || 'Not assigned'}</span>
             </div>
 
             <div className="flex items-center gap-2 text-gray-700">
               <Phone className="h-4 w-4 text-gray-500" />
-              <span>Contact: {staff.contact}</span>
+              <span>Contact: {staff.phone || 'Not provided'}</span>
             </div>
 
             <div className="flex items-center gap-2 text-gray-700">
               <Calendar className="h-4 w-4 text-gray-500" />
-              <span>Joined: {staff.joinedAt}</span>
-            </div>
-
-            <div className="flex items-center gap-2 text-gray-700">
-              <Clock className="h-4 w-4 text-gray-500" />
-              <span>Probation Ends: {staff.probationEnd}</span>
+              <span>Joined: {staff.createdAt ? new Date(staff.createdAt.seconds * 1000).toLocaleDateString() : 'Unknown'}</span>
             </div>
 
             <div className="flex items-center gap-2 text-gray-700">
@@ -147,7 +258,7 @@ const StaffDetails = () => {
             </div>
 
             <div className="flex items-center gap-2 text-gray-700">
-              {staff.status === "Active" ? (
+              {staff.isActive ? (
                 <>
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <span className="text-green-700">Active</span>
@@ -236,24 +347,47 @@ const StaffDetails = () => {
       </Button>
     </div>
 
+    {/* Error Display */}
+    {error && (
+      <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-4 mt-4">
+        <div className="flex">
+          <AlertCircle className="h-5 w-5 text-red-400" />
+          <div className="ml-3">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* Scrollable Content */}
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {allServices.map((service) => {
-          const isSelected = selectedServices.includes(service);
+          const isSelected = selectedServices.includes(service.id);
           return (
             <div
-              key={service}
-              onClick={() => toggleService(service)}
+              key={service.id}
+              onClick={() => toggleService(service.id)}
               className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md flex items-center justify-between ${
                 isSelected
                   ? 'border-[#160B53] bg-[#160B53]/10 shadow-md'
                   : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
               }`}
             >
-              <span className="text-gray-900 font-medium">{service}</span>
+              <div className="flex-1">
+                <span className="text-gray-900 font-medium block">{service.name}</span>
+                {service.description && (
+                  <span className="text-sm text-gray-500 block mt-1">{service.description}</span>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-sm text-[#160B53] font-semibold">₱{service.price}</span>
+                  {service.duration && (
+                    <span className="text-xs text-gray-500">({service.duration} mins)</span>
+                  )}
+                </div>
+              </div>
               <div
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ml-2 ${
                   isSelected ? 'border-[#160B53] bg-[#160B53]' : 'border-gray-300'
                 }`}
               >
@@ -278,12 +412,27 @@ const StaffDetails = () => {
     </div>
 
     {/* Footer */}
-    <div className="bg-gray-50 px-4 sm:px-6 py-3 border-t flex justify-end">
+    <div className="bg-gray-50 px-4 sm:px-6 py-3 border-t flex justify-end gap-2">
+      <Button
+        variant="outline"
+        onClick={() => setIsModalOpen(false)}
+        disabled={saving}
+      >
+        Cancel
+      </Button>
       <Button
         className="bg-[#160B53] text-white hover:bg-[#160B53]/90"
-        onClick={() => setIsModalOpen(false)}
+        onClick={handleSaveServices}
+        disabled={saving}
       >
-        Save Changes
+        {saving ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            Saving...
+          </>
+        ) : (
+          'Save Changes'
+        )}
       </Button>
     </div>
   </div>

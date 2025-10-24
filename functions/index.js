@@ -2,6 +2,7 @@
 const { createUser } = require('./createUser');
 const appointmentService = require('./appointmentService');
 const masterProductsService = require('./masterProductsService');
+const staffService = require('./staffService');
 
 // Export all functions
 exports.createUser = createUser.createUser;
@@ -20,3 +21,9 @@ exports.updateMasterProduct = masterProductsService.updateMasterProduct;
 exports.deleteMasterProduct = masterProductsService.deleteMasterProduct;
 exports.searchMasterProducts = masterProductsService.searchMasterProducts;
 exports.getMasterProductStats = masterProductsService.getMasterProductStats;
+
+// Staff functions
+exports.getBranchStaff = staffService.getBranchStaff;
+exports.getAllServices = staffService.getAllServices;
+exports.updateStaffServices = staffService.updateStaffServices;
+exports.getStaffDetails = staffService.getStaffDetails;
