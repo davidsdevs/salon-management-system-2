@@ -1,10 +1,25 @@
-import React from 'react';
-import { Button } from '../ui/button';
-import { Card } from '../ui/card';
+import React, { useState, useEffect } from 'react';
+import { Button } from '../../pages/ui/button';
+import { Card } from '../../pages/ui/card';
 import { X, Calendar, Clock, User, MapPin, Scissors, FileText, History, RotateCcw, CheckCircle, XCircle, PartyPopper, Plus, Edit } from 'lucide-react';
 import { APPOINTMENT_STATUS } from '../../services/appointmentService';
 
 const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (appointment) {
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+    }
+  }, [appointment]);
+
+  const handleClose = () => {
+    setIsAnimating(false);
+    setTimeout(() => onClose(), 300);
+  };
+
   if (!appointment) return null;
 
   const formatDate = (timestamp) => {
@@ -71,8 +86,14 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
   const totalPrice = selectedServices.reduce((total, service) => total + (service.price || 0), 0);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[98vh] sm:max-h-[95vh] overflow-hidden flex flex-col">
+    <div 
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 transition-opacity duration-200 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
+      onClick={handleClose}
+    >
+      <div 
+        className={`bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[98vh] sm:max-h-[95vh] overflow-hidden flex flex-col transition-all duration-300 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#160B53] to-[#2D1B69] px-4 sm:px-6 py-3 sm:py-4 text-white flex-shrink-0">
           <div className="flex justify-between items-center">
@@ -85,7 +106,7 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={onClose}
+              onClick={handleClose}
               className="text-white hover:bg-white/20 p-2"
             >
               <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -351,7 +372,7 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
           <div className="flex justify-end">
             <Button 
               variant="outline" 
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 sm:px-6 py-2 border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               Close

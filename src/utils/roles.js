@@ -53,7 +53,8 @@ export const ROLE_PERMISSIONS = {
     'manageClients',
     'posTransactions',
     'voidTransactions',
-    'viewPOSReports'
+    'viewPOSReports',
+    'branchSettings' // Can configure loyalty points and other branch settings
   ],
   [ROLES.RECEPTIONIST]: [
     'manageAppointments',
@@ -63,7 +64,8 @@ export const ROLE_PERMISSIONS = {
     'posTransactions',
     'processPayments',
     'applyDiscounts',
-    'manageLoyaltyPoints'
+    'manageLoyaltyPoints',
+    'voidUnpaidTransactions' // Can only void IN_SERVICE transactions
   ],
   [ROLES.INVENTORY_CONTROLLER]: [
     'manageInventory',

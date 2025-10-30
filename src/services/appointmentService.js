@@ -20,7 +20,7 @@ import { notificationService, NOTIFICATION_TYPES } from './notificationService';
 
 // Appointment status constants
 export const APPOINTMENT_STATUS = {
-  SCHEDULED: 'scheduled',
+  PENDING: 'pending',
   CONFIRMED: 'confirmed',
   IN_SERVICE: 'in_service',
   COMPLETED: 'completed',
@@ -29,7 +29,7 @@ export const APPOINTMENT_STATUS = {
 
 // Appointment status flow
 export const STATUS_FLOW = {
-  [APPOINTMENT_STATUS.SCHEDULED]: [APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.PENDING]: [APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CANCELLED],
   [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.IN_SERVICE, APPOINTMENT_STATUS.CANCELLED],
   [APPOINTMENT_STATUS.IN_SERVICE]: [APPOINTMENT_STATUS.COMPLETED, APPOINTMENT_STATUS.CANCELLED],
   [APPOINTMENT_STATUS.COMPLETED]: [], // Terminal state
@@ -83,7 +83,12 @@ class AppointmentService {
 
       // Validate appointment time and availability
       // Use the first stylist for validation (since we have multiple stylists now)
-      const firstStylistId = appointmentData.serviceStylistPairs[0].stylistId;
+      const firstStylistId = appointmentData.serviceStylistPairs[0]?.stylistId;
+      
+      if (!firstStylistId) {
+        throw new Error('Stylist ID is required for appointment validation');
+      }
+      
       await this.validateAppointmentTime(
         appointmentData.branchId,
         firstStylistId,
@@ -172,6 +177,12 @@ class AppointmentService {
       // Calculate total price
       const totalPrice = serviceStylistPairsWithNames.reduce((total, pair) => total + (pair.servicePrice || 0), 0);
 
+      // Determine appointment status based on who created it
+      // Staff (Receptionist, Branch Manager, etc.) bookings are auto-confirmed
+      // Client bookings (via mobile app - future) will be pending
+      const isStaffBooking = currentUserRole && currentUserRole !== ROLES.CLIENT;
+      const appointmentStatus = isStaffBooking ? APPOINTMENT_STATUS.CONFIRMED : APPOINTMENT_STATUS.PENDING;
+
       const newAppointment = {
         // Core appointment data
         clientId: clientId,
@@ -184,7 +195,7 @@ class AppointmentService {
         serviceStylistPairs: serviceStylistPairsWithNames,
         totalPrice: totalPrice,
         notes: appointmentData.notes || '',
-        status: APPOINTMENT_STATUS.SCHEDULED,
+        status: appointmentStatus,
         
         // System fields
         createdBy: currentUserId,
@@ -501,6 +512,10 @@ class AppointmentService {
           updateData.serviceStylistPairs[0].stylistId :
           updateData.stylistId || currentAppointment.stylistId;
         
+        if (!stylistId) {
+          throw new Error('Stylist ID is required for appointment validation');
+        }
+        
         await this.validateAppointmentTime(
           updateData.branchId || currentAppointment.branchId,
           stylistId,
@@ -601,6 +616,10 @@ class AppointmentService {
         currentAppointment.serviceStylistPairs[0].stylistId :
         currentAppointment.stylistId;
 
+      if (!stylistId) {
+        throw new Error('Stylist ID is required for appointment validation');
+      }
+
       await this.validateAppointmentTime(
         currentAppointment.branchId,
         stylistId,
@@ -694,6 +713,20 @@ class AppointmentService {
   // Validate appointment time and availability
   async validateAppointmentTime(branchId, stylistId, appointmentDate, appointmentTime, serviceIds, excludeAppointmentId = null) {
     try {
+      // Validate required parameters
+      if (!branchId) {
+        throw new Error('Branch ID is required');
+      }
+      if (!stylistId) {
+        throw new Error('Stylist ID is required');
+      }
+      if (!appointmentDate) {
+        throw new Error('Appointment date is required');
+      }
+      if (!appointmentTime) {
+        throw new Error('Appointment time is required');
+      }
+
       // Check if appointment is in the future
       const appointmentDateTime = new Date(`${appointmentDate}T${appointmentTime}`);
       const now = new Date();
@@ -710,7 +743,7 @@ class AppointmentService {
         collection(this.db, this.collection),
         where('stylistId', '==', stylistId),
         where('appointmentDate', '==', appointmentDate),
-        where('status', 'in', [APPOINTMENT_STATUS.SCHEDULED, APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.IN_PROGRESS])
+        where('status', 'in', [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.IN_SERVICE])
       );
 
       const conflictsSnapshot = await getDocs(conflictsQuery);
@@ -991,7 +1024,7 @@ class AppointmentService {
       });
       
       // Create service transaction invoice
-      const { transactionService } = await import('./transactionService');
+      const { transactionService, TRANSACTION_STATUS } = await import('./transactionService');
       const { serviceService } = await import('./serviceService');
       
       console.log('Service service imported:', serviceService);
@@ -1005,35 +1038,28 @@ class AppointmentService {
         clientEmail: appointmentData.clientEmail
       });
       
-      // Extract service ID from serviceStylistPairs array
-      let serviceId = null;
-      if (appointmentData.serviceStylistPairs && appointmentData.serviceStylistPairs.length > 0) {
-        serviceId = appointmentData.serviceStylistPairs[0].serviceId;
-      } else if (appointmentData.serviceId) {
-        serviceId = appointmentData.serviceId;
-      } else if (appointmentData.service?.id) {
-        serviceId = appointmentData.service.id;
-      }
-      
-      if (!serviceId) {
+      // Extract all services from serviceStylistPairs array
+      if (!appointmentData.serviceStylistPairs || appointmentData.serviceStylistPairs.length === 0) {
         console.error('Available appointment fields:', Object.keys(appointmentData));
-        throw new Error('Service ID not found in appointment data. Available fields: ' + Object.keys(appointmentData).join(', '));
+        throw new Error('No services found in appointment data. Available fields: ' + Object.keys(appointmentData).join(', '));
       }
       
-      // Get service details
-      const serviceDetails = await serviceService.getServiceById(serviceId);
-      if (!serviceDetails) {
-        throw new Error('Service not found');
-      }
+      // Build services array for transaction - include ALL services from appointment
+      const transactionServices = [];
+      let totalPrice = 0;
       
-      // Get service information from serviceStylistPairs or service details
-      const firstServicePair = appointmentData.serviceStylistPairs?.[0];
-      const serviceName = firstServicePair?.serviceName || serviceDetails.name;
-      const servicePrice = firstServicePair?.servicePrice || 
-                         (serviceDetails.branchPricing?.find(bp => bp.branchId === appointmentData.branchId)?.price) || 
-                         serviceDetails.price || 0;
-      const stylistId = firstServicePair?.stylistId || appointmentData.stylistId;
-      const stylistName = firstServicePair?.stylistName || appointmentData.stylistName;
+      for (const servicePair of appointmentData.serviceStylistPairs) {
+        const servicePrice = servicePair.servicePrice || 0;
+        totalPrice += servicePrice;
+        
+        transactionServices.push({
+          serviceId: servicePair.serviceId,
+          serviceName: servicePair.serviceName,
+          price: servicePrice,
+          stylistId: servicePair.stylistId,
+          stylistName: servicePair.stylistName
+        });
+      }
       
       // Prepare service transaction data with fallback for client info
       const serviceTransactionData = {
@@ -1044,19 +1070,15 @@ class AppointmentService {
           phone: appointmentData.clientPhone || '',
           email: appointmentData.clientEmail || ''
         },
-        services: [{
-          serviceId: serviceId,
-          serviceName: serviceName,
-          price: servicePrice,
-          stylistId: stylistId,
-          stylistName: stylistName
-        }],
-        subtotal: servicePrice,
+        services: transactionServices, // All services from appointment
+        products: [], // No products in appointment
+        subtotal: totalPrice,
         discount: 0,
         tax: 0,
-        total: servicePrice,
+        total: totalPrice,
+        totalAmount: totalPrice, // Add totalAmount field for consistency
         paymentMethod: null, // No payment method until service is completed
-        status: 'pending', // Invoice status
+        status: TRANSACTION_STATUS.IN_SERVICE, // Invoice status - In Service
         loyaltyEarned: 0, // No loyalty points until payment is processed
         createdBy: currentUserId,
         notes: `Service Invoice from Appointment - ${appointmentData.appointmentDate} at ${appointmentData.appointmentTime}`,
@@ -1079,6 +1101,60 @@ class AppointmentService {
       
     } catch (error) {
       console.error('Error marking appointment as in service:', error);
+      throw error;
+    }
+  }
+
+  // Update appointment status (simple status update)
+  async updateAppointmentStatus(appointmentId, newStatus, currentUserId) {
+    try {
+      const appointmentRef = doc(this.db, this.collection, appointmentId);
+      
+      await updateDoc(appointmentRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUserId
+      });
+      
+      console.log(`Appointment ${appointmentId} status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      throw new Error('Failed to update appointment status');
+    }
+  }
+
+  // Update all appointments with 'scheduled' status to 'pending'
+  async updateScheduledToPending() {
+    try {
+      console.log('Starting to update appointment statuses from scheduled to pending...');
+      
+      // Query all appointments with 'scheduled' status
+      const appointmentsRef = collection(this.db, this.collection);
+      const q = query(appointmentsRef, where('status', '==', 'scheduled'));
+      const querySnapshot = await getDocs(q);
+      
+      console.log(`Found ${querySnapshot.size} appointments with 'scheduled' status`);
+      
+      const updatePromises = [];
+      
+      querySnapshot.forEach((docSnapshot) => {
+        const appointmentRef = doc(this.db, this.collection, docSnapshot.id);
+        updatePromises.push(
+          updateDoc(appointmentRef, {
+            status: 'pending',
+            updatedAt: serverTimestamp()
+          })
+        );
+      });
+      
+      // Execute all updates
+      await Promise.all(updatePromises);
+      
+      console.log(`Successfully updated ${updatePromises.length} appointments from 'scheduled' to 'pending'`);
+      return { success: true, updatedCount: updatePromises.length };
+      
+    } catch (error) {
+      console.error('Error updating appointments:', error);
       throw error;
     }
   }

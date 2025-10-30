@@ -10,13 +10,22 @@ const CancelModal = ({
 }) => {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setReason('');
       setError('');
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
     }
   }, [isOpen]);
+
+  const handleClose = () => {
+    setIsAnimating(false);
+    setTimeout(() => onClose(), 300);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -32,8 +41,14 @@ const CancelModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+    <div 
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-200 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
+      onClick={handleClose}
+    >
+      <div 
+        className={`bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] transition-all duration-300 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
@@ -45,7 +60,7 @@ const CancelModal = ({
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               disabled={loading}
             >
@@ -129,7 +144,7 @@ const CancelModal = ({
           <div className="flex justify-end space-x-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-6 py-3 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg font-medium transition-colors"
               disabled={loading}
             >

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Card } from '../ui/card';
+import { Button } from '../../pages/ui/button';
+import { Input } from '../../pages/ui/input';
+import { Card } from '../../pages/ui/card';
 import { X, Search, User, Building2, Shield, Filter } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { branchService } from '../../services/branchService';
@@ -23,6 +23,20 @@ const StaffAssignmentModal = ({
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+    }
+  }, [isOpen]);
+
+  const handleClose = () => {
+    setIsAnimating(false);
+    setTimeout(() => onClose(), 300);
+  };
 
   const availableRoles = [
     { value: 'receptionist', label: 'Receptionist' },
@@ -129,8 +143,14 @@ const StaffAssignmentModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+    <div 
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-200 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
+      onClick={handleClose}
+    >
+      <div 
+        className={`bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden transition-all duration-300 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center">
@@ -140,8 +160,8 @@ const StaffAssignmentModal = ({
               <p className="text-sm text-gray-600">Select users to assign to this branch</p>
             </div>
           </div>
-          <Button variant="outline" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button variant="outline" onClick={handleClose}>
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
@@ -252,7 +272,7 @@ const StaffAssignmentModal = ({
 
         {/* Footer */}
         <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
           <Button 

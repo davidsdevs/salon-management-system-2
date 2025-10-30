@@ -18,6 +18,13 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
+  Home,
+  Users,
+  Package,
+  Receipt,
+  BarChart3,
+  UserCog,
+  Award,
 } from "lucide-react";
 
 // === Modal Component ===
@@ -60,6 +67,18 @@ const StaffDetails = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const menuItems = [
+    { path: "/dashboard", label: "Dashboard", icon: Home },
+    { path: "/appointments", label: "Appointments", icon: Calendar },
+    { path: "/staff", label: "Staff", icon: Users },
+    { path: "/schedule", label: "Schedule", icon: Calendar },
+    { path: "/inventory", label: "Inventory", icon: Package },
+    { path: "/transactions", label: "Transactions", icon: Receipt },
+    { path: "/loyalty-settings", label: "Loyalty Settings", icon: Award },
+    { path: "/reports", label: "Reports", icon: BarChart3 },
+    { path: "/profile", label: "Profile", icon: UserCog },
+  ];
 
   // Load staff details and services on component mount
   useEffect(() => {
@@ -152,7 +171,7 @@ const StaffDetails = () => {
   // Loading state
   if (loading) {
     return (
-      <DashboardLayout pageTitle="Staff Details">
+      <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -168,7 +187,7 @@ const StaffDetails = () => {
   // Error state
   if (error) {
     return (
-      <DashboardLayout pageTitle="Staff Details">
+      <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -190,7 +209,7 @@ const StaffDetails = () => {
   // No staff data
   if (!staff) {
     return (
-      <DashboardLayout pageTitle="Staff Details">
+      <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -210,7 +229,7 @@ const StaffDetails = () => {
   }
 
   return (
-    <DashboardLayout pageTitle="Staff Details">
+    <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* === Back Button === */}
         <div className="flex items-center justify-between">

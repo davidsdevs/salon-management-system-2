@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
+import { branchService } from '../../services/branchService';
 import { ROLES, getRoleDisplayName, getAllRoles } from '../../utils/roles';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
+import UserForm from '../../components/user/UserForm';
 import { 
   Users, 
   Plus, 
@@ -30,6 +32,7 @@ import {
 const UserManagement = () => {
   const { userData } = useAuth();
   const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,10 +42,19 @@ const UserManagement = () => {
   const [hasMore, setHasMore] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
 
+  // Modal states
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+
   const pageSize = 20;
 
   useEffect(() => {
     loadUsers();
+    loadBranches();
   }, [currentPage, selectedRole, showInactive]);
 
   const loadUsers = async () => {
@@ -67,6 +79,15 @@ const UserManagement = () => {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBranches = async () => {
+    try {
+      const branchesData = await branchService.getBranches(userData.roles?.[0], userData.id);
+      setBranches(branchesData);
+    } catch (error) {
+      console.error('Error loading branches:', error);
     }
   };
 
@@ -212,6 +233,24 @@ const UserManagement = () => {
     );
   };
 
+  const getRoleBadges = (user) => {
+    const roles = user.roles || (user.role ? [user.role] : []);
+    
+    if (roles.length === 0) {
+      return <span className="text-gray-500 text-sm">No roles assigned</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-1">
+        {roles.map((role, index) => (
+          <span key={index}>
+            {getRoleBadge(role)}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/appointment-management', label: 'Appointments', icon: Calendar },
@@ -233,7 +272,7 @@ const UserManagement = () => {
           </p>
         </div>
         
-        <Button>
+        <Button onClick={handleAddUser}>
           <Plus className="h-4 w-4 mr-2" />
           Add Staff User
         </Button>
@@ -354,9 +393,9 @@ const UserManagement = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getRoleBadge(user.role)}
-                    </td>
+                     <td className="px-6 py-4 whitespace-nowrap">
+                       {getRoleBadges(user)}
+                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {user.branchId || 'N/A'}
                     </td>
@@ -371,7 +410,7 @@ const UserManagement = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {/* Edit user */}}
+                          onClick={() => handleEditUser(user)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -409,6 +448,32 @@ const UserManagement = () => {
           </div>
         )}
       </Card>
+
+      {/* User Form Modal */}
+      {showUserForm && (
+        <UserForm
+          isOpen={showUserForm}
+          onClose={handleCloseModals}
+          onSubmit={handleUserSubmit}
+          initialData={selectedUser}
+          isEditing={isEditing}
+          loading={formLoading}
+          branches={branches}
+        />
+      )}
+
+      {/* Success/Error Messages */}
+      {success && (
+        <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50">
+          {success}
+        </div>
+      )}
+      
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+          {error}
+        </div>
+      )}
     </div>
     </DashboardLayout>
   );

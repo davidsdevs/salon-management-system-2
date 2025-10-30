@@ -31,13 +31,15 @@ import ProfilePage from "./pages/shared/ProfilePage";
 // ROUTE GUARDS
 import ProtectedRoute, { AdminRoute, StaffRoute } from "./pages/00_Auth/ProtectedRoute";
 
-
 //BRANCH MANAGER PAGES
 import Appointment from "./pages/04_BranchManager/Appointments";
 import Staff from "./pages/04_BranchManager/Staff";
 import Schedule from "./pages/04_BranchManager/Schedule";
 import StaffDetails from "./pages/04_BranchManager/StaffDetails";
 import BranchManagerTransactions from "./pages/04_BranchManager/Transactions";
+import BranchLoyaltySettings from "./pages/04_BranchManager/BranchLoyaltySettings";
+import BranchManagerClientManagement from "./pages/04_BranchManager/ClientManagement";
+import BranchManagerClientProfile from "./pages/04_BranchManager/ClientProfile";
 
 // APPOINTMENT PAGES
 import ClientAppointments from "./pages/02_Client/ClientAppointments";
@@ -50,9 +52,32 @@ import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
 import Transactions from "./pages/01_SystemAdmin/Transactions";
 
 // POS PAGES
-import ServiceTransactions from "./pages/05_Receptionist/ServiceTransactions";
-import ProductTransactions from "./pages/05_Receptionist/ProductTransactions";
-  
+import POSBilling from "./pages/05_Receptionist/POSBilling";
+
+// CRM PAGES - Receptionist
+import ClientManagement from "./pages/05_Receptionist/ClientManagement";
+import ClientProfile from "./pages/05_Receptionist/ClientProfile";
+import ClientCreate from "./pages/05_Receptionist/ClientCreate";
+import ClientEdit from "./pages/05_Receptionist/ClientEdit";
+
+// CRM PAGES - System Admin
+import AdminClientManagement from "./pages/01_SystemAdmin/ClientManagement";
+import AdminClientProfile from "./pages/01_SystemAdmin/ClientProfile";
+
+// CRM PAGES - Branch Admin
+import BranchAdminClientManagement from "./pages/03_BranchAdmin/ClientManagement";
+import BranchAdminClientProfile from "./pages/03_BranchAdmin/ClientProfile";
+
+// CRM PAGES - Stylist
+import AssignedClients from "./pages/07_Stylist/AssignedClients";
+
+// CRM PAGES - Client
+import MyProfile from "./pages/08_Client/MyProfile";
+
+// CRM PAGES - Operational Manager
+import ClientReports from "./pages/02_OperationalManager/ClientReports";
+import LoyaltySummary from "./pages/02_OperationalManager/LoyaltySummary";
+
 // NEW BRANCH MANAGEMENT PAGES
 import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
 import StaffManagement from "./pages/03_BranchAdmin/StaffManagement";
@@ -192,23 +217,165 @@ function AppRoutes() {
         }
       />
       
-      {/* POS Routes */}
-      <Route
-        path="/service-transactions"
-        element={
-          <StaffRoute>
-            <ServiceTransactions />
-          </StaffRoute>
-        }
-      />
-      <Route
-        path="/product-transactions"
-        element={
-          <StaffRoute>
-            <ProductTransactions />
-          </StaffRoute>
-        }
-      />
+        {/* POS Routes */}
+        <Route
+          path="/pos-billing"
+          element={
+            <StaffRoute>
+              <POSBilling />
+            </StaffRoute>
+          }
+        />
+
+        {/* CRM Routes - Receptionist */}
+        <Route
+          path="/receptionist/clients"
+          element={
+            <StaffRoute>
+              <ClientManagement />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/clients/new"
+          element={
+            <StaffRoute>
+              <ClientCreate />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/clients/:clientId"
+          element={
+            <StaffRoute>
+              <ClientProfile />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/clients/:clientId/edit"
+          element={
+            <StaffRoute>
+              <ClientEdit />
+            </StaffRoute>
+          }
+        />
+
+        {/* CRM Routes - System Admin */}
+        <Route
+          path="/admin/clients"
+          element={
+            <AdminRoute>
+              <AdminClientManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/clients/:clientId"
+          element={
+            <AdminRoute>
+              <AdminClientProfile />
+            </AdminRoute>
+          }
+        />
+
+        {/* CRM Routes - Branch Admin */}
+        <Route
+          path="/branch-admin/clients"
+          element={
+            <AdminRoute>
+              <BranchAdminClientManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/branch-admin/clients/new"
+          element={
+            <AdminRoute>
+              <ClientCreate />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/branch-admin/clients/:clientId"
+          element={
+            <AdminRoute>
+              <BranchAdminClientProfile />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/branch-admin/clients/:clientId/edit"
+          element={
+            <AdminRoute>
+              <ClientEdit />
+            </AdminRoute>
+          }
+        />
+
+        {/* CRM Routes - Branch Manager */}
+        <Route
+          path="/clients"
+          element={
+            <StaffRoute>
+              <BranchManagerClientManagement />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/clients/:clientId"
+          element={
+            <StaffRoute>
+              <BranchManagerClientProfile />
+            </StaffRoute>
+          }
+        />
+
+        {/* CRM Routes - Operational Manager */}
+        <Route
+          path="/operational-manager/clients"
+          element={
+            <AdminRoute>
+              <ClientReports />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/operational-manager/loyalty-summary"
+          element={
+            <AdminRoute>
+              <LoyaltySummary />
+            </AdminRoute>
+          }
+        />
+
+        {/* CRM Routes - Stylist */}
+        <Route
+          path="/stylist/clients"
+          element={
+            <StaffRoute>
+              <AssignedClients />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/stylist/clients/:clientId"
+          element={
+            <StaffRoute>
+              <ClientProfile />
+            </StaffRoute>
+          }
+        />
+
+        {/* CRM Routes - Client */}
+        <Route
+          path="/client/profile"
+          element={
+            <StaffRoute>
+              <MyProfile />
+            </StaffRoute>
+          }
+        />
       
       
       <Route
@@ -532,6 +699,14 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <BranchManagerTransactions />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/loyalty-settings"
+        element={
+          <StaffRoute>
+            <BranchLoyaltySettings />
           </StaffRoute>
         }
       />

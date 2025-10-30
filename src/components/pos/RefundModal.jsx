@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
+import React, { useState, useEffect } from 'react';
+import { Card } from '../../pages/ui/card';
+import { Button } from '../../pages/ui/button';
+import { Input } from '../../pages/ui/input';
+import { Textarea } from '../../pages/ui/textarea';
 import { X, AlertTriangle, DollarSign, CreditCard, RefreshCw } from 'lucide-react';
 
 const RefundModal = ({ 
@@ -16,6 +16,26 @@ const RefundModal = ({
   const [refundMethod, setRefundMethod] = useState('cash');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+    }
+  }, [isOpen]);
+
+  const handleClose = () => {
+    setIsAnimating(false);
+    setTimeout(() => {
+      setRefundAmount(transaction?.total || 0);
+      setRefundMethod('cash');
+      setReason('');
+      setNotes('');
+      onClose();
+    }, 300);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -40,19 +60,17 @@ const RefundModal = ({
     });
   };
 
-  const handleClose = () => {
-    setRefundAmount(transaction?.total || 0);
-    setRefundMethod('cash');
-    setReason('');
-    setNotes('');
-    onClose();
-  };
-
   if (!isOpen || !transaction) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div 
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-200 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
+      onClick={handleClose}
+    >
+      <Card 
+        className={`w-full max-w-md max-h-[90vh] overflow-y-auto bg-white shadow-2xl transition-all duration-300 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6 rounded-t-lg">
           <div className="flex items-center justify-between">
@@ -224,7 +242,7 @@ const RefundModal = ({
             </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 };

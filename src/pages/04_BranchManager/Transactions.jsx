@@ -81,6 +81,7 @@ const BranchManagerTransactions = () => {
     { path: "/schedule", label: "Schedule", icon: Calendar },
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/transactions", label: "Transactions", icon: Receipt },
+    { path: "/loyalty-settings", label: "Loyalty Settings", icon: Award },
     { path: "/reports", label: "Reports", icon: BarChart3 },
     { path: "/profile", label: "Profile", icon: UserCog },
   ];

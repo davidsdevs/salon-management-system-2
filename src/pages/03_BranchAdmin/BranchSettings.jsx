@@ -47,7 +47,11 @@ const BranchSettings = () => {
       sunday: { open: '10:00', close: '16:00', isOpen: false }
     },
     holidays: [],
-    services: []
+    services: [],
+    loyaltyPointsConfig: {
+      enabled: true,
+      amountPerPoint: 100 // ₱100 = 1 point (default)
+    }
   });
 
   const menuItems = [
@@ -90,7 +94,11 @@ const BranchSettings = () => {
           email: branch.email || '',
           operatingHours: branch.operatingHours || formData.operatingHours,
           holidays: branch.holidays || [],
-          services: branch.services || []
+          services: branch.services || [],
+          loyaltyPointsConfig: branch.loyaltyPointsConfig || {
+            enabled: true,
+            amountPerPoint: 100
+          }
         });
       }
     } catch (error) {

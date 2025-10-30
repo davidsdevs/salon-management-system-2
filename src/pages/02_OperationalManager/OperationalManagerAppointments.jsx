@@ -4,7 +4,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
-import AppointmentDetails from '../shared/AppointmentDetails';
+import AppointmentDetails from '../../components/appointment/AppointmentDetails';
 import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
 import { 
   Calendar, 

@@ -20,7 +20,8 @@ import {
   Calendar, 
   Package, 
   BarChart3,
-  Receipt
+  Receipt,
+  Award
 } from "lucide-react";
 
 const BranchManagerStaff = () => {
@@ -71,6 +72,7 @@ const BranchManagerStaff = () => {
     { path: "/schedule", label: "Schedule", icon: Calendar },
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/transactions", label: "Transactions", icon: Receipt },
+    { path: "/loyalty-settings", label: "Loyalty Settings", icon: Award },
     { path: "/reports", label: "Reports", icon: BarChart3 },
     { path: "/profile", label: "Profile", icon: UserCog },
   ];

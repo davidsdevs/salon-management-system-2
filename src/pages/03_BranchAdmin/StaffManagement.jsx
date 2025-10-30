@@ -5,7 +5,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
-import StaffAssignmentModal from '../shared/StaffAssignmentModal';
+import StaffAssignmentModal from '../../components/user/StaffAssignmentModal';
 import { 
   Users, 
   Plus, 
