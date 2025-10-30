@@ -5,7 +5,6 @@ import { ROLES } from '../../utils/roles';
 // Import role-specific dashboards
 import SystemAdminDashboard from '../01_SystemAdmin/Dashboard';
 import OperationalManagerDashboard from '../02_OperationalManager/Dashboard';
-import BranchAdminDashboard from '../03_BranchAdmin/Dashboard';
 import BranchManagerDashboard from '../04_BranchManager/Dashboard';
 import ReceptionistDashboard from '../05_Receptionist/Dashboard';
 import InventoryControllerDashboard from '../06_InventoryController/Dashboard';
@@ -31,8 +30,6 @@ const DashboardRouter = () => {
       return <OperationalManagerDashboard />;
     
     case ROLES.BRANCH_ADMIN:
-      return <BranchAdminDashboard />;
-    
     case ROLES.BRANCH_MANAGER:
       return <BranchManagerDashboard />;
     

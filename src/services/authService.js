@@ -56,7 +56,45 @@ class AuthService {
       // First, check if user was pre-created by admin
       const existingUserQuery = await this.findUserByEmail(email);
       
-      if (existingUserQuery && existingUserQuery.needsRegistration) {
+      // Handle pre-registered users (free tier approach)
+      if (existingUserQuery && existingUserQuery.isPendingActivation) {
+        // Verify the temp password matches
+        if (password !== existingUserQuery.tempPassword) {
+          const error = new Error('Invalid credentials. Please use the temporary password provided by your admin.');
+          error.code = 'auth/wrong-password';
+          throw error;
+        }
+        
+        // Use the temp password to create Firebase Auth user
+        const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
+        const user = userCredential.user;
+
+        // Activate the account and remove temp password
+        const activatedUserData = {
+          ...existingUserQuery,
+          uid: user.uid,
+          isActive: true,
+          isPendingActivation: false,
+          updatedAt: new Date()
+        };
+        
+        // Remove sensitive temp password
+        delete activatedUserData.tempPassword;
+        delete activatedUserData.id; // Remove Firestore doc ID
+
+        await setDoc(doc(this.db, 'users', user.uid), activatedUserData);
+
+        // Send email verification
+        await sendEmailVerification(user);
+
+        return {
+          user,
+          userData: activatedUserData,
+          message: 'Account activated successfully! Please change your password.'
+        };
+      }
+      // Handle legacy pre-created users (old approach)
+      else if (existingUserQuery && existingUserQuery.needsRegistration) {
         // User was pre-created by admin, update their account
         const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
         const user = userCredential.user;
@@ -68,6 +106,7 @@ class AuthService {
           needsRegistration: false, // Remove the flag
           updatedAt: new Date()
         };
+        delete updatedUserData.id;
 
         await setDoc(doc(this.db, 'users', user.uid), updatedUserData);
 

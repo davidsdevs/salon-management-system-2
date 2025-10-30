@@ -49,7 +49,18 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
   };
 
   const isActive = (path) => {
-    return location.pathname === path;
+    // Exact match for root paths
+    if (location.pathname === path) {
+      return true;
+    }
+    
+    // For sub-routes, check if current path starts with the menu path
+    // This handles cases like /staff/details highlighting /staff
+    if (path !== '/' && location.pathname.startsWith(path + '/')) {
+      return true;
+    }
+    
+    return false;
   };
 
   return (

@@ -15,6 +15,8 @@ import {
   UserCog,
   Home,
   Receipt,
+  Settings,
+  Image as ImageIcon,
 } from "lucide-react";
   import {
     LineChart,
@@ -55,6 +57,8 @@ import {
       { path: "/schedule", label: "Schedule", icon: Calendar },
       { path: "/inventory", label: "Inventory", icon: Package },
       { path: "/transactions", label: "Transactions", icon: Receipt },
+      { path: "/stylist-portfolios", label: "Stylist Portfolios", icon: ImageIcon },
+      { path: "/settings", label: "Settings", icon: Settings },
       { path: "/reports", label: "Reports", icon: BarChart3 },
       { path: "/profile", label: "Profile", icon: UserCog },
     ];

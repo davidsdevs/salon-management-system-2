@@ -22,12 +22,14 @@ import {
   signInWithEmailAndPassword
 } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
+import { httpsCallable, getFunctions } from 'firebase/functions';
 import { ROLES, canManageUser } from '../utils/roles';
 
 class UserService {
   constructor() {
     this.db = db;
     this.collection = 'users';
+    this.functions = getFunctions();
   }
 
   // Generate a temporary password
@@ -38,6 +40,116 @@ class UserService {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return password;
+  }
+
+  // Create pre-registered user in Firestore (Free tier - no Cloud Functions needed)
+  async createPreRegisteredUser({ email, tempPassword, displayName, role, branchId, phone, firstName, middleName, lastName, address, certificates }, currentUserRole) {
+    console.log('=== createPreRegisteredUser called ===');
+    console.log('Current user role:', currentUserRole);
+    console.log('Target role:', role);
+    console.log('Payload:', { email, displayName, role, branchId, phone, firstName, lastName });
+    
+    try {
+      if (!canManageUser(currentUserRole, role)) {
+        console.error('Permission check failed:', { currentUserRole, targetRole: role });
+        throw new Error('Insufficient permissions to create user with this role');
+      }
+      console.log('Permission check passed');
+      
+      // Check if email already exists in Firestore
+      const usersRef = collection(this.db, this.collection);
+      const emailQuery = query(usersRef, where('email', '==', email));
+      const existingUsers = await getDocs(emailQuery);
+      
+      if (!existingUsers.empty) {
+        throw new Error('A user with this email already exists');
+      }
+      
+      // Create pre-registered user document in Firestore
+      const primaryRole = Array.isArray(role) ? role[0] : role;
+      
+      const newUser = {
+        email: email,
+        name: displayName,
+        firstName: firstName || '',
+        middleName: middleName || '',
+        lastName: lastName || '',
+        phone: phone || '',
+        address: address || '',
+        role: primaryRole,
+        roles: [primaryRole],
+        branchId: branchId || '',
+        isActive: false, // Will be activated when they complete registration
+        isPendingActivation: true,
+        tempPassword: tempPassword, // Store temporarily (will be removed on activation)
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: auth.currentUser?.uid || 'system'
+      };
+      
+      // Add certificates if provided
+      if (certificates && Array.isArray(certificates) && certificates.length > 0) {
+        newUser.certificates = certificates;
+      }
+      
+      console.log('Creating Firestore document...');
+      const docRef = await addDoc(usersRef, newUser);
+      console.log('User pre-registered with ID:', docRef.id);
+      
+      return {
+        success: true,
+        id: docRef.id,
+        email: email,
+        message: 'User pre-registered successfully. They need to complete registration.'
+      };
+    } catch (error) {
+      console.error('=== createPreRegisteredUser ERROR ===');
+      console.error('Error:', error);
+      throw error;
+    }
+  }
+
+  // Create user via callable Cloud Function (admin-driven, keeps current session)
+  async createUserViaFunction({ email, password, displayName, role, branchId, phone, firstName, middleName, lastName, address, certificates }, currentUserRole) {
+    console.log('=== createUserViaFunction called ===');
+    console.log('Current user role:', currentUserRole);
+    console.log('Target role:', role);
+    console.log('Payload:', { email, displayName, role, branchId, hasPassword: !!password, phone, firstName, lastName });
+    
+    try {
+      if (!canManageUser(currentUserRole, role)) {
+        console.error('Permission check failed:', { currentUserRole, targetRole: role });
+        throw new Error('Insufficient permissions to create user with this role');
+      }
+      console.log('Permission check passed');
+      
+      console.log('Calling createUser Cloud Function...');
+      const fn = httpsCallable(this.functions, 'createUser');
+      const res = await fn({ email, password, displayName, role, branchId, phone, firstName, middleName, lastName, address, certificates });
+      console.log('Cloud Function response:', res.data);
+      return res.data;
+    } catch (error) {
+      console.error('=== createUserViaFunction ERROR ===');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error code:', error?.code);
+      console.error('Error message:', error?.message);
+      console.error('Error details:', error?.details);
+      console.error('Full error:', error);
+      
+      // Extract meaningful message from Firebase error
+      let errorMessage = error?.message || 'Failed to create user';
+      if (error?.code) {
+        errorMessage = `[${error.code}] ${errorMessage}`;
+      }
+      if (error?.details) {
+        errorMessage += ` (Details: ${error.details})`;
+      }
+      
+      console.error('Throwing formatted error:', errorMessage);
+      const formattedError = new Error(errorMessage);
+      formattedError.originalError = error;
+      throw formattedError;
+    }
   }
 
   // Get all users (with pagination)
@@ -407,10 +519,10 @@ class UserService {
     try {
       console.log('Getting users for branch:', branchId, 'with role:', currentUserRole);
       
+      // Get all users for the branch (active, inactive, and pending activation)
       const q = query(
         collection(this.db, this.collection),
-        where('branchId', '==', branchId),
-        where('isActive', '==', true)
+        where('branchId', '==', branchId)
       );
 
       const snapshot = await getDocs(q);
@@ -420,6 +532,7 @@ class UserService {
       
       snapshot.forEach((doc) => {
         const userData = doc.data();
+        // Include all users regardless of status (active, inactive, pending)
         if (this.canViewUser(currentUserRole, userData)) {
           users.push({
             id: doc.id,

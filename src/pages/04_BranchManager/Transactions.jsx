@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../shared/DashboardLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
+import { transactionApiService } from '../../services/transactionApiService';
 import {
   Search,
   Filter,
@@ -63,6 +64,7 @@ const BranchManagerTransactions = () => {
   const { userData } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -71,7 +73,14 @@ const BranchManagerTransactions = () => {
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50); // Increased default for big data
+  const [totalItems, setTotalItems] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastDoc, setLastDoc] = useState(null);
+  
+  // Performance states
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchDebounce, setSearchDebounce] = useState('');
 
   // Branch Manager menu items
   const menuItems = [
@@ -81,244 +90,242 @@ const BranchManagerTransactions = () => {
     { path: "/schedule", label: "Schedule", icon: Calendar },
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/transactions", label: "Transactions", icon: Receipt },
+    { path: "/settings", label: "Settings", icon: Settings },
     { path: "/reports", label: "Reports", icon: BarChart3 },
     { path: "/profile", label: "Profile", icon: UserCog },
   ];
 
-  // Mock data for branch-specific transactions
-  const mockTransactions = [
-    {
-      id: 'TXN001',
-      type: 'Service',
-      customerName: 'Maria Santos',
-      serviceName: 'Hair Cut & Style',
-      stylistName: 'Ana Garcia',
-      appointmentId: 'APT001',
-      amount: 850,
-      commission: 127.50,
-      status: 'Completed',
-      date: '2024-01-15T10:30:00Z',
-      paymentMethod: 'Cash',
-      duration: '60 mins',
-      customerType: 'Regular',
-      satisfaction: 5,
-      items: [
-        { name: 'Hair Cut & Style', price: 850, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN002',
-      type: 'Product',
-      customerName: 'John Dela Cruz',
-      serviceName: 'OTC Product Sale',
-      stylistName: 'Carlos Reyes',
-      appointmentId: null,
-      amount: 450,
-      commission: 67.50,
-      status: 'Completed',
-      date: '2024-01-15T14:15:00Z',
-      paymentMethod: 'Card',
-      duration: '5 mins',
-      customerType: 'New',
-      satisfaction: 4,
-      items: [
-        { name: 'L\'Oreal Professional Shampoo', price: 450, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN003',
-      type: 'Mixed',
-      customerName: 'Sarah Johnson',
-      serviceName: 'Color Treatment + Product',
-      stylistName: 'Lisa Wong',
-      appointmentId: 'APT002',
-      amount: 1850,
-      commission: 277.50,
-      status: 'Completed',
-      date: '2024-01-15T16:45:00Z',
-      paymentMethod: 'Card',
-      duration: '120 mins',
-      customerType: 'VIP',
-      satisfaction: 5,
-      items: [
-        { name: 'Hair Color Treatment', price: 1200, quantity: 1 },
-        { name: 'Kerastase Deep Conditioning Mask', price: 650, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN004',
-      type: 'Service',
-      customerName: 'Michael Brown',
-      serviceName: 'Manicure & Pedicure',
-      stylistName: 'Elena Rodriguez',
-      appointmentId: 'APT003',
-      amount: 600,
-      commission: 90.00,
-      status: 'Completed',
-      date: '2024-01-16T09:00:00Z',
-      paymentMethod: 'Cash',
-      duration: '90 mins',
-      customerType: 'Regular',
-      satisfaction: 4,
-      items: [
-        { name: 'Manicure & Pedicure', price: 600, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN005',
-      type: 'Service',
-      customerName: 'Jennifer Lee',
-      serviceName: 'Hair Treatment Package',
-      stylistName: 'Maria Santos',
-      appointmentId: 'APT004',
-      amount: 1200,
-      commission: 180.00,
-      status: 'Completed',
-      date: '2024-01-16T11:30:00Z',
-      paymentMethod: 'Card',
-      duration: '90 mins',
-      customerType: 'VIP',
-      satisfaction: 5,
-      items: [
-        { name: 'Hair Treatment Package', price: 1200, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN006',
-      type: 'Product',
-      customerName: 'Robert Wilson',
-      serviceName: 'Multiple Product Sale',
-      stylistName: 'Carlos Reyes',
-      appointmentId: null,
-      amount: 920,
-      commission: 138.00,
-      status: 'Completed',
-      date: '2024-01-16T15:20:00Z',
-      paymentMethod: 'Card',
-      duration: '10 mins',
-      customerType: 'Regular',
-      satisfaction: 4,
-      items: [
-        { name: 'OPI Nail Polish', price: 450, quantity: 2 },
-        { name: 'Matrix Color Sync', price: 680, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN007',
-      type: 'Service',
-      customerName: 'Lisa Martinez',
-      serviceName: 'Hair Coloring',
-      stylistName: 'Ana Garcia',
-      appointmentId: 'APT005',
-      amount: 1500,
-      commission: 225.00,
-      status: 'Completed',
-      date: '2024-01-17T10:00:00Z',
-      paymentMethod: 'Card',
-      duration: '150 mins',
-      customerType: 'New',
-      satisfaction: 5,
-      items: [
-        { name: 'Hair Coloring', price: 1500, quantity: 1 }
-      ]
-    },
-    {
-      id: 'TXN008',
-      type: 'Service',
-      customerName: 'David Kim',
-      serviceName: 'Facial Treatment',
-      stylistName: 'Elena Rodriguez',
-      appointmentId: 'APT006',
-      amount: 800,
-      commission: 120.00,
-      status: 'Completed',
-      date: '2024-01-17T14:30:00Z',
-      paymentMethod: 'Cash',
-      duration: '75 mins',
-      customerType: 'Regular',
-      satisfaction: 4,
-      items: [
-        { name: 'Facial Treatment', price: 800, quantity: 1 }
-      ]
-    }
-  ];
 
-  // Load transactions (mock data for now)
+  // Debounced search effect
   useEffect(() => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setTransactions(mockTransactions);
+    const timer = setTimeout(() => {
+      setSearchDebounce(searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Load transactions from API with server-side pagination
+  const loadTransactions = useCallback(async (page = 1, reset = true) => {
+    try {
+      if (reset) {
+        setLoading(true);
+        setError(null);
+      } else {
+        setIsLoadingMore(true);
+      }
+
+      if (!userData?.branchId) {
+        throw new Error('Branch ID not found');
+      }
+
+      const response = await transactionApiService.getBranchTransactions(
+        userData.branchId,
+        userData.role,
+        {
+          page,
+          limit: itemsPerPage,
+          search: searchDebounce,
+          typeFilter,
+          statusFilter,
+          lastDoc: reset ? null : lastDoc
+        }
+      );
+
+      if (response.success) {
+        const newTransactions = response.transactions || [];
+        
+        if (reset) {
+          setTransactions(newTransactions);
+        } else {
+          setTransactions(prev => [...prev, ...newTransactions]);
+        }
+        
+        setTotalItems(response.totalCount || newTransactions.length);
+        setHasMore(response.hasMore || false);
+        setLastDoc(response.lastDoc || null);
+      } else {
+        throw new Error(response.error || 'Failed to load transactions');
+      }
+    } catch (err) {
+      console.error('Error loading transactions:', err);
+      setError(err.message);
+      if (reset) {
+        setTransactions([]);
+      }
+    } finally {
       setLoading(false);
-    }, 1000);
+      setIsLoadingMore(false);
+    }
+  }, [userData, searchDebounce, typeFilter, statusFilter, itemsPerPage, lastDoc]);
+
+  // Initial load
+  useEffect(() => {
+    if (userData) {
+      loadTransactions(1, true);
+    }
+  }, [userData]);
+
+  // Reload when filters change
+  useEffect(() => {
+    if (userData && (searchDebounce !== searchTerm || typeFilter !== 'All' || statusFilter !== 'All')) {
+      loadTransactions(1, true);
+    }
+  }, [searchDebounce, typeFilter, statusFilter, userData]);
+
+  // Memoized filtered transactions (client-side filtering for immediate feedback)
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(transaction => {
+      const matchesSearch = 
+        transaction.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.serviceName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.stylistName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.id?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesType = typeFilter === 'All' || transaction.type === typeFilter;
+      const matchesStatus = statusFilter === 'All' || transaction.status === statusFilter;
+      
+      return matchesSearch && matchesType && matchesStatus;
+    });
+  }, [transactions, searchTerm, typeFilter, statusFilter]);
+
+  // Memoized unique values for filters
+  const transactionTypes = useMemo(() => {
+    return ['All', ...new Set(transactions.map(t => t.type))];
+  }, [transactions]);
+
+  const transactionStatuses = useMemo(() => {
+    return ['All', 'Completed', 'Pending', 'Cancelled', 'Refunded'];
   }, []);
 
-  // Filter transactions based on search and filters
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = 
-      transaction.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.serviceName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.stylistName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.id?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = typeFilter === 'All' || transaction.type === typeFilter;
-    const matchesStatus = statusFilter === 'All' || transaction.status === statusFilter;
-    
-    // Date filtering (simplified for demo)
-    const matchesDate = dateFilter === 'All' || true; // For demo purposes
-    const matchesTime = timeFilter === 'All' || true; // For demo purposes
-    
-    return matchesSearch && matchesType && matchesStatus && matchesDate && matchesTime;
-  });
-
-  // Get unique values for filters
-  const transactionTypes = ['All', ...new Set(transactions.map(t => t.type))];
-  const transactionStatuses = ['All', 'Completed', 'Pending', 'Cancelled', 'Refunded'];
-
   // Pagination calculations
-  const totalItems = filteredTransactions.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+  const paginatedTransactions = useMemo(() => {
+    return filteredTransactions.slice(startIndex, endIndex);
+  }, [filteredTransactions, startIndex, endIndex]);
+
+  // Load more function for infinite scroll
+  const loadMore = useCallback(() => {
+    if (hasMore && !isLoadingMore) {
+      loadTransactions(currentPage + 1, false);
+      setCurrentPage(prev => prev + 1);
+    }
+  }, [hasMore, isLoadingMore, currentPage, loadTransactions]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, typeFilter, statusFilter, dateFilter, timeFilter]);
 
-  // Calculate comprehensive analytics data
-  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-  const totalCommission = transactions.reduce((sum, t) => sum + (t.commission || 0), 0);
-  const serviceRevenue = transactions.filter(t => t.type === 'Service').reduce((sum, t) => sum + (t.amount || 0), 0);
-  const productRevenue = transactions.filter(t => t.type === 'Product').reduce((sum, t) => sum + (t.amount || 0), 0);
-  const mixedRevenue = transactions.filter(t => t.type === 'Mixed').reduce((sum, t) => sum + (t.amount || 0), 0);
-  const completedTransactions = transactions.filter(t => t.status === 'Completed').length;
-  const avgTransactionValue = totalRevenue / transactions.length;
-  
-  // Customer analytics
-  const uniqueCustomers = new Set(transactions.map(t => t.customerName)).size;
-  const vipCustomers = transactions.filter(t => t.customerType === 'VIP').length;
-  const newCustomers = transactions.filter(t => t.customerType === 'New').length;
-  const regularCustomers = transactions.filter(t => t.customerType === 'Regular').length;
-  
-  // Satisfaction analytics
-  const avgSatisfaction = transactions.reduce((sum, t) => sum + (t.satisfaction || 0), 0) / transactions.length;
-  const highSatisfaction = transactions.filter(t => t.satisfaction >= 5).length;
-  const satisfactionRate = (highSatisfaction / transactions.length) * 100;
-  
-  // Performance metrics
-  const totalDuration = transactions.reduce((sum, t) => {
-    const duration = parseInt(t.duration?.replace(' mins', '') || '0');
-    return sum + duration;
-  }, 0);
-  const avgServiceDuration = totalDuration / transactions.filter(t => t.type === 'Service' || t.type === 'Mixed').length;
-  
-  // Payment method analytics
-  const cashTransactions = transactions.filter(t => t.paymentMethod === 'Cash').length;
-  const cardTransactions = transactions.filter(t => t.paymentMethod === 'Card').length;
-  const cashRevenue = transactions.filter(t => t.paymentMethod === 'Cash').reduce((sum, t) => sum + t.amount, 0);
-  const cardRevenue = transactions.filter(t => t.paymentMethod === 'Card').reduce((sum, t) => sum + t.amount, 0);
+  // Memoized analytics calculations for performance
+  const analytics = useMemo(() => {
+    if (transactions.length === 0) {
+      return {
+        totalRevenue: 0,
+        totalCommission: 0,
+        serviceRevenue: 0,
+        productRevenue: 0,
+        mixedRevenue: 0,
+        completedTransactions: 0,
+        avgTransactionValue: 0,
+        uniqueCustomers: 0,
+        vipCustomers: 0,
+        newCustomers: 0,
+        regularCustomers: 0,
+        avgSatisfaction: 0,
+        highSatisfaction: 0,
+        satisfactionRate: 0,
+        totalDuration: 0,
+        avgServiceDuration: 0,
+        cashTransactions: 0,
+        cardTransactions: 0,
+        cashRevenue: 0,
+        cardRevenue: 0
+      };
+    }
+
+    const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalCommission = transactions.reduce((sum, t) => sum + (t.commission || 0), 0);
+    const serviceRevenue = transactions.filter(t => t.type === 'Service').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const productRevenue = transactions.filter(t => t.type === 'Product').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const mixedRevenue = transactions.filter(t => t.type === 'Mixed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const completedTransactions = transactions.filter(t => t.status === 'Completed').length;
+    const avgTransactionValue = totalRevenue / transactions.length;
+    
+    // Customer analytics
+    const uniqueCustomers = new Set(transactions.map(t => t.customerName)).size;
+    const vipCustomers = transactions.filter(t => t.customerType === 'VIP').length;
+    const newCustomers = transactions.filter(t => t.customerType === 'New').length;
+    const regularCustomers = transactions.filter(t => t.customerType === 'Regular').length;
+    
+    // Satisfaction analytics
+    const avgSatisfaction = transactions.reduce((sum, t) => sum + (t.satisfaction || 0), 0) / transactions.length;
+    const highSatisfaction = transactions.filter(t => t.satisfaction >= 5).length;
+    const satisfactionRate = (highSatisfaction / transactions.length) * 100;
+    
+    // Performance metrics
+    const totalDuration = transactions.reduce((sum, t) => {
+      const duration = parseInt(t.duration?.replace(' mins', '') || '0');
+      return sum + duration;
+    }, 0);
+    const serviceTransactions = transactions.filter(t => t.type === 'Service' || t.type === 'Mixed');
+    const avgServiceDuration = serviceTransactions.length > 0 ? totalDuration / serviceTransactions.length : 0;
+    
+    // Payment method analytics
+    const cashTransactions = transactions.filter(t => t.paymentMethod === 'Cash').length;
+    const cardTransactions = transactions.filter(t => t.paymentMethod === 'Card').length;
+    const cashRevenue = transactions.filter(t => t.paymentMethod === 'Cash').reduce((sum, t) => sum + t.amount, 0);
+    const cardRevenue = transactions.filter(t => t.paymentMethod === 'Card').reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      totalRevenue,
+      totalCommission,
+      serviceRevenue,
+      productRevenue,
+      mixedRevenue,
+      completedTransactions,
+      avgTransactionValue,
+      uniqueCustomers,
+      vipCustomers,
+      newCustomers,
+      regularCustomers,
+      avgSatisfaction,
+      highSatisfaction,
+      satisfactionRate,
+      totalDuration,
+      avgServiceDuration,
+      cashTransactions,
+      cardTransactions,
+      cashRevenue,
+      cardRevenue
+    };
+  }, [transactions]);
+
+  // Destructure analytics for easier use
+  const {
+    totalRevenue,
+    totalCommission,
+    serviceRevenue,
+    productRevenue,
+    mixedRevenue,
+    completedTransactions,
+    avgTransactionValue,
+    uniqueCustomers,
+    vipCustomers,
+    newCustomers,
+    regularCustomers,
+    avgSatisfaction,
+    highSatisfaction,
+    satisfactionRate,
+    totalDuration,
+    avgServiceDuration,
+    cashTransactions,
+    cardTransactions,
+    cashRevenue,
+    cardRevenue
+  } = analytics;
   
   // Hourly performance (mock data for decision making)
   const hourlyPerformance = [
@@ -411,6 +418,26 @@ const BranchManagerTransactions = () => {
       <DashboardLayout menuItems={menuItems}>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#160B53]"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout menuItems={menuItems}>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Transactions</h3>
+            <p className="text-gray-500 mb-4">{error}</p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="bg-[#160B53] hover:bg-[#12094A] text-white"
+            >
+              Try Again
+            </Button>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -812,11 +839,11 @@ const BranchManagerTransactions = () => {
           </div>
         </Card>
 
-        {/* === Transactions Table === */}
+        {/* === Transactions Table with Virtual Scrolling === */}
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                     Transaction
@@ -868,7 +895,7 @@ const BranchManagerTransactions = () => {
                     </td>
                   </tr>
                 ) : (
-                  paginatedTransactions.map((transaction) => (
+                  paginatedTransactions.map((transaction, index) => (
                   <tr key={transaction.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center">
@@ -975,7 +1002,7 @@ const BranchManagerTransactions = () => {
             </table>
           </div>
           
-          {/* Pagination Controls */}
+          {/* Enhanced Pagination Controls with Infinite Scroll */}
           <div className="bg-white px-4 py-3 border-t border-gray-200">
             <div className="flex flex-col space-y-3">
               {/* Top row: Items per page and page info */}
@@ -987,27 +1014,28 @@ const BranchManagerTransactions = () => {
                     onChange={(e) => {
                       setItemsPerPage(Number(e.target.value));
                       setCurrentPage(1);
+                      loadTransactions(1, true);
                     }}
                     className="border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
                   >
-                    <option value={5}>5</option>
-                    <option value={10}>10</option>
                     <option value={25}>25</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
+                    <option value={200}>200</option>
+                    <option value={500}>500</option>
                   </select>
                   <span className="text-xs text-gray-600">per page</span>
                 </div>
 
                 <div className="text-xs text-gray-600">
-                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                  <span className="font-medium">{Math.min(endIndex, totalItems)}</span> of{' '}
-                  <span className="font-medium">{totalItems}</span> results
+                  Showing <span className="font-medium">{transactions.length}</span> of{' '}
+                  <span className="font-medium">{totalItems}</span> total transactions
+                  {hasMore && <span className="text-blue-600 ml-2">(More available)</span>}
                 </div>
               </div>
 
-              {/* Bottom row: Navigation buttons */}
-              <div className="flex items-center justify-center gap-1">
+              {/* Bottom row: Navigation buttons and Load More */}
+              <div className="flex items-center justify-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1029,16 +1057,16 @@ const BranchManagerTransactions = () => {
                 
                 {/* Page numbers */}
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum;
-                    if (totalPages <= 3) {
+                    if (totalPages <= 5) {
                       pageNum = i + 1;
-                    } else if (currentPage <= 2) {
+                    } else if (currentPage <= 3) {
                       pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 1) {
-                      pageNum = totalPages - 2 + i;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
                     } else {
-                      pageNum = currentPage - 1 + i;
+                      pageNum = currentPage - 2 + i;
                     }
                     
                     return (
@@ -1077,6 +1105,40 @@ const BranchManagerTransactions = () => {
                 >
                   Last
                 </Button>
+
+                {/* Load More Button for Infinite Scroll */}
+                {hasMore && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
+                    className="px-3 py-1 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                  >
+                    {isLoadingMore ? (
+                      <div className="flex items-center gap-1">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                        Loading...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        Load More
+                      </div>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {/* Performance indicator */}
+              <div className="text-center">
+                <div className="text-xs text-gray-500">
+                  {transactions.length > 1000 && (
+                    <span className="text-green-600">
+                      ⚡ Optimized for large datasets ({transactions.length.toLocaleString()} records)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

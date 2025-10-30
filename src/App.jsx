@@ -38,12 +38,15 @@ import Staff from "./pages/04_BranchManager/Staff";
 import Schedule from "./pages/04_BranchManager/Schedule";
 import StaffDetails from "./pages/04_BranchManager/StaffDetails";
 import BranchManagerTransactions from "./pages/04_BranchManager/Transactions";
+import BranchManagerSettings from "./pages/04_BranchManager/Settings";
+import BranchManagerInventory from "./pages/04_BranchManager/Inventory";
+import StylistPortfolios from "./pages/04_BranchManager/StylistPortfolios";
+// Removed Leave Management
 
 // APPOINTMENT PAGES
 import ClientAppointments from "./pages/02_Client/ClientAppointments";
 import ReceptionistAppointments from "./pages/05_Receptionist/ReceptionistAppointments";
 import StylistAppointments from "./pages/07_Stylist/StylistAppointments";
-import BranchAdminAppointments from "./pages/03_BranchAdmin/BranchAdminAppointments";
 import OperationalManagerAppointments from "./pages/02_OperationalManager/OperationalManagerAppointments";
 import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
 import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
@@ -54,13 +57,8 @@ import ServiceTransactions from "./pages/05_Receptionist/ServiceTransactions";
 import ProductTransactions from "./pages/05_Receptionist/ProductTransactions";
   
 // NEW BRANCH MANAGEMENT PAGES
-import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
-import StaffManagement from "./pages/03_BranchAdmin/StaffManagement";
 import BranchMonitoring from "./pages/02_OperationalManager/BranchMonitoring";
 import BranchDetailsManagement from "./pages/01_SystemAdmin/BranchDetailsManagement";
-import ServiceConfiguration from "./pages/03_BranchAdmin/ServiceConfiguration";
-import HolidayManagement from "./pages/03_BranchAdmin/HolidayManagement";
-import BranchProducts from "./pages/03_BranchAdmin/BranchProducts";
 
 // INVENTORY CONTROLLER PAGES
 import InventoryControllerDashboard from "./pages/06_InventoryController/Dashboard";
@@ -220,14 +218,6 @@ function AppRoutes() {
         }
       />
       
-      <Route
-        path="/branch-appointments"
-        element={
-          <AdminRoute>
-            <BranchAdminAppointments />
-          </AdminRoute>
-        }
-      />
       
       <Route
         path="/appointment-reports"
@@ -289,17 +279,12 @@ function AppRoutes() {
         path="/inventory"
         element={
           <StaffRoute>
-            <div className="min-h-screen bg-gray-50 p-6">
-              <div className="max-w-7xl mx-auto">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Inventory Management</h1>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-600">Inventory management page - Coming soon!</p>
-                </div>
-              </div>
-            </div>
+            <BranchManagerInventory />
           </StaffRoute>
         }
       />
+
+      {/* Leave Management removed */}
 
       {/* Reports Routes */}
       <Route
@@ -318,36 +303,6 @@ function AppRoutes() {
         }
       />
 
-      {/* NEW BRANCH MANAGEMENT ROUTES */}
-      {/* Branch Settings - Branch Admin */}
-      <Route
-        path="/branch-settings"
-        element={
-          <StaffRoute>
-            <BranchSettings />
-          </StaffRoute>
-        }
-      />
-
-      {/* Staff Management - Branch Admin */}
-      <Route
-        path="/staff"
-        element={
-          <StaffRoute>
-            <StaffManagement />
-          </StaffRoute>
-        }
-      />
-
-      {/* Branch Products - Branch Admin */}
-      <Route
-        path="/branch-products"
-        element={
-          <StaffRoute>
-            <BranchProducts />
-          </StaffRoute>
-        }
-      />
 
       {/* Branch Monitoring - Operational Manager */}
       <Route
@@ -490,25 +445,6 @@ function AppRoutes() {
         }
       />
 
-      {/* Service Configuration - Branch Admin */}
-      <Route
-        path="/service-config"
-        element={
-          <StaffRoute>
-            <ServiceConfiguration />
-          </StaffRoute>
-        }
-      />
-
-      {/* Holiday Management - Branch Admin */}
-      <Route
-        path="/holiday-management"
-        element={
-          <StaffRoute>
-            <HolidayManagement />
-          </StaffRoute>
-        }
-      />
 
       {/* Unauthorized Page */}
       <Route
@@ -532,6 +468,22 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <BranchManagerTransactions />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <StaffRoute>
+            <BranchManagerSettings />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/stylist-portfolios"
+        element={
+          <StaffRoute>
+            <StylistPortfolios />
           </StaffRoute>
         }
       />

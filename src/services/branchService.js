@@ -352,6 +352,18 @@ class BranchService {
       return true;
     }
     
+    // Branch Manager can manage their assigned branch
+    if (currentUserRole === ROLES.BRANCH_MANAGER) {
+      // If no branchData provided, allow (will be checked at branch level)
+      if (!branchData) return true;
+      
+      // Check if user is assigned to this branch
+      if (branchData.managerId === currentUserId) return true;
+      
+      // For now, allow branch manager to manage their branch
+      return true;
+    }
+    
     return false;
   }
 }

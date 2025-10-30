@@ -31,7 +31,6 @@ const InventoryControllerDashboard = () => {
   const menuItems = [
     { path: '/inventory/dashboard', label: 'Dashboard', icon: Home },
     { path: '/inventory/products', label: 'Products', icon: Package },
-    { path: '/branch-products', label: 'Branch Products', icon: Package },
     { path: '/inventory/stocks', label: 'Stocks', icon: TrendingUp },
     { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
     { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
