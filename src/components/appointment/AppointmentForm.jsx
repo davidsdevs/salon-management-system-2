@@ -74,8 +74,21 @@ const AppointmentForm = ({
   
   // Animation state
   const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Time slot dropdown state
+  const [showTimeSlotDropdown, setShowTimeSlotDropdown] = useState(false);
 
   const servicesData = realServices;
+
+  // Convert 24-hour time to 12-hour AM/PM format
+  const formatTimeTo12Hour = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
 
   // Load existing appointments for conflict checking
   const loadExistingAppointments = async (branchId, appointmentDate) => {
@@ -567,6 +580,20 @@ const AppointmentForm = ({
     }
   }, [isOpen]);
 
+  // Close time slot dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showTimeSlotDropdown && !event.target.closest('.time-slot-dropdown')) {
+        setShowTimeSlotDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTimeSlotDropdown]);
+
   const handleClose = () => {
     setIsAnimating(false);
     setTimeout(() => onClose(), 300);
@@ -787,27 +814,46 @@ const AppointmentForm = ({
                 
                 {loadingAppointments ? (
                   <div className="space-y-2">
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center justify-center">
+                    <div className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-300 bg-gray-50 px-4 shadow-sm">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#160B53] mr-2"></div>
                       <span className="text-sm text-gray-600">Loading available time slots...</span>
                     </div>
                   </div>
                 ) : availableTimeSlots.length > 0 ? (
                   <div className="space-y-2">
-                    <select
-                      name="appointmentTime"
-                      value={formData.appointmentTime}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#160B53] focus:border-transparent"
-                      required
-                    >
-                      <option value="">Select a time slot</option>
-                      {availableTimeSlots.map((time, index) => (
-                        <option key={index} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative time-slot-dropdown">
+                      <button
+                        type="button"
+                        onClick={() => setShowTimeSlotDropdown(!showTimeSlotDropdown)}
+                        className="flex h-9 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-base shadow-sm transition-colors hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#160B53] focus:border-transparent md:text-sm"
+                      >
+                        <span className={formData.appointmentTime ? 'text-gray-900' : 'text-gray-400'}>
+                          {formData.appointmentTime ? formatTimeTo12Hour(formData.appointmentTime) : 'Select a time slot'}
+                        </span>
+                        <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform flex-shrink-0 ${showTimeSlotDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      
+                      {showTimeSlotDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                          {availableTimeSlots.map((time, index) => (
+                            <div
+                              key={index}
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, appointmentTime: time }));
+                                setShowTimeSlotDropdown(false);
+                              }}
+                              className={`px-4 py-2 cursor-pointer hover:bg-[#160B53]/10 transition-colors text-sm first:rounded-t-lg last:rounded-b-lg ${
+                                formData.appointmentTime === time ? 'bg-[#160B53]/5 text-[#160B53] font-medium' : 'text-gray-900'
+                              }`}
+                            >
+                              {formatTimeTo12Hour(time)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-600">
                       {availableTimeSlots.length} available time slots for {selectedBranch?.name}
                     </p>
@@ -1109,7 +1155,7 @@ const AppointmentForm = ({
                                 {formData.serviceStylistPairs.reduce((total, servicePair) => {
                                   const service = servicesData.find(s => s.id === servicePair.serviceId);
                                   return total + (service?.duration || 0);
-                                }, 0)} minutes total
+                                }, 0)} minutes
                               </div>
                             </div>
                           </div>

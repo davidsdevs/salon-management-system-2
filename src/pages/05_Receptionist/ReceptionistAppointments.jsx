@@ -12,6 +12,7 @@ import CancelModal from '../../components/appointment/CancelModal';
 import FilterModal from '../../components/appointment/FilterModal';
 import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
 import { transactionService } from '../../services/transactionService';
+import { branchService } from '../../services/branchService';
 import { 
   Calendar, 
   Clock, 
@@ -58,6 +59,7 @@ const ReceptionistAppointments = () => {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [clients, setClients] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -120,6 +122,7 @@ const ReceptionistAppointments = () => {
   useEffect(() => {
     loadAppointments();
     loadClients();
+    loadBranches();
   }, []);
 
   useEffect(() => {
@@ -146,6 +149,16 @@ const ReceptionistAppointments = () => {
   };
 
 
+
+  const loadBranches = async () => {
+    try {
+      const branchesData = await branchService.getBranches(userData?.roles?.[0], userData?.userId);
+      setBranches(branchesData);
+    } catch (error) {
+      console.error('Error loading branches:', error);
+      showError('Failed to load branches');
+    }
+  };
 
   const loadAppointments = async () => {
     try {
@@ -1721,6 +1734,7 @@ const ReceptionistAppointments = () => {
             initialData={null}
             isEditing={false}
             loading={creatingAppointment}
+            branches={branches}
             clients={clients}
             userData={userData}
           />

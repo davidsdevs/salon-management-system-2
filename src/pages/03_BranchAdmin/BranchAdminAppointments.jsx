@@ -7,6 +7,7 @@ import DashboardLayout from '../shared/DashboardLayout';
 import AppointmentForm from '../../components/appointment/AppointmentForm';
 import AppointmentDetails from '../../components/appointment/AppointmentDetails';
 import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
+import { branchService } from '../../services/branchService';
 import { 
   Calendar, 
   Clock, 
@@ -33,6 +34,7 @@ const BranchAdminAppointments = () => {
   const { userData } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [clients, setClients] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,6 +55,7 @@ const BranchAdminAppointments = () => {
   useEffect(() => {
     loadAppointments();
     loadClients();
+    loadBranches();
   }, []);
 
   // Helper functions for notifications
@@ -69,6 +72,16 @@ const BranchAdminAppointments = () => {
   };
 
 
+
+  const loadBranches = async () => {
+    try {
+      const branchesData = await branchService.getBranches(userData?.roles?.[0], userData?.userId);
+      setBranches(branchesData);
+    } catch (error) {
+      console.error('Error loading branches:', error);
+      showError('Failed to load branches');
+    }
+  };
 
   const loadAppointments = async () => {
     try {
@@ -493,6 +506,7 @@ const BranchAdminAppointments = () => {
             initialData={isEditing ? selectedAppointment : null}
             isEditing={isEditing}
             loading={false}
+            branches={branches}
             clients={clients}
             userData={userData}
           />

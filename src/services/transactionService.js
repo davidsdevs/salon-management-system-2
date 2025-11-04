@@ -151,8 +151,9 @@ class TransactionService {
         const clientId = transactionData.clientId;
         
         // 1. Add loyalty points (configurable per branch)
-        // NOTE: Only PRODUCT transactions earn loyalty points, SERVICE transactions do not
-        if (clientId && transactionData.total && transactionData.branchId && transactionData.transactionType === 'product') {
+        // NOTE: Only PRODUCT or MIXED transactions earn loyalty points, pure SERVICE transactions do not
+        if (clientId && transactionData.total && transactionData.branchId && 
+            (transactionData.transactionType === 'product' || transactionData.transactionType === 'mixed')) {
           try {
             const { clientService } = await import('./clientService');
             const { branchService } = await import('./branchService');
@@ -168,6 +169,12 @@ class TransactionService {
               
               if (pointsToAdd > 0) {
                 await clientService.addLoyaltyPoints(clientId, pointsToAdd, transactionData.branchId);
+                
+                // Store points earned in transaction for future reference (display & void)
+                await updateDoc(transactionRef, {
+                  loyaltyPointsEarned: pointsToAdd
+                });
+                
                 console.log(`Added ${pointsToAdd} loyalty points to client ${clientId} for branch ${transactionData.branchId} (₱${amountPerPoint} = 1 point)`);
               } else {
                 console.log(`Transaction total (₱${transactionData.total}) is below minimum for points (₱${amountPerPoint} = 1 point)`);
@@ -249,7 +256,7 @@ class TransactionService {
       // If transaction was paid and had loyalty points, reverse them
       if (transactionData.status === TRANSACTION_STATUS.PAID && 
           transactionData.clientId && 
-          transactionData.transactionType === 'product' &&
+          (transactionData.transactionType === 'product' || transactionData.transactionType === 'mixed') &&
           transactionData.loyaltyPointsEarned > 0) {
         try {
           const { clientService } = await import('./clientService');

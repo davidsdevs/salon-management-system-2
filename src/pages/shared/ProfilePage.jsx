@@ -25,9 +25,13 @@ import {
   Package,
   ShoppingCart,
   Scissors,
-  Bell
+  Bell,
+  Key,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { getRoleDisplayName, ROLES } from '../../utils/roles';
+import rolePinService from '../../services/rolePinService';
 
 const ProfilePage = () => {
   const { userData, updateProfile, updatePassword } = useAuth();
@@ -50,6 +54,9 @@ const ProfilePage = () => {
     newPassword: '',
     confirmPassword: ''
   });
+
+  const [rolePins, setRolePins] = useState({});
+  const [pinMessage, setPinMessage] = useState({ type: '', text: '', role: '' });
 
   useEffect(() => {
     if (userData) {
@@ -152,6 +159,83 @@ const ProfilePage = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handlePinChange = (role, value) => {
+    // Only allow 4-digit numbers
+    if (value && (!/^\d+$/.test(value) || value.length > 4)) return;
+    
+    setRolePins(prev => ({
+      ...prev,
+      [role]: value
+    }));
+  };
+
+  const handleSetPin = async (role) => {
+    const pin = rolePins[role];
+    
+    if (!pin || pin.length !== 4) {
+      setPinMessage({ 
+        type: 'error', 
+        text: 'PIN must be exactly 4 digits', 
+        role 
+      });
+      setTimeout(() => setPinMessage({ type: '', text: '', role: '' }), 3000);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await rolePinService.setRolePin(userData.uid, role, pin);
+      
+      setPinMessage({ 
+        type: 'success', 
+        text: `PIN set successfully for ${getRoleDisplayName(role)}`, 
+        role 
+      });
+      
+      // Clear the PIN field
+      setRolePins(prev => ({ ...prev, [role]: '' }));
+      
+      setTimeout(() => setPinMessage({ type: '', text: '', role: '' }), 3000);
+    } catch (error) {
+      console.error('Error setting PIN:', error);
+      setPinMessage({ 
+        type: 'error', 
+        text: error.message, 
+        role 
+      });
+      setTimeout(() => setPinMessage({ type: '', text: '', role: '' }), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemovePin = async (role) => {
+    if (!confirm(`Remove PIN for ${getRoleDisplayName(role)}?`)) return;
+
+    try {
+      setLoading(true);
+      await rolePinService.removeRolePin(userData.uid, role);
+      
+      setPinMessage({ 
+        type: 'success', 
+        text: `PIN removed for ${getRoleDisplayName(role)}`, 
+        role 
+      });
+      
+      setTimeout(() => setPinMessage({ type: '', text: '', role: '' }), 3000);
+    } catch (error) {
+      console.error('Error removing PIN:', error);
+      setPinMessage({ 
+        type: 'error', 
+        text: error.message, 
+        role 
+      });
+      setTimeout(() => setPinMessage({ type: '', text: '', role: '' }), 3000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatDate = (timestamp) => {
@@ -491,6 +575,99 @@ const ProfilePage = () => {
               </div>
             )}
           </Card>
+
+          {/* Role PIN Management */}
+          {userData?.roles && userData.roles.length > 1 && (
+            <Card className="p-6">
+              <div className="mb-6">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Key className="h-5 w-5 text-[#160B53]" />
+                  <h3 className="text-lg font-medium text-gray-900">Role PINs</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Set a 4-digit PIN for each role for secure role switching
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                {userData.roles.map(role => (
+                  <div key={role} className="border-b border-gray-200 pb-6 last:border-0">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {getRoleDisplayName(role)}
+                        </h4>
+                        <p className="text-xs text-gray-600">
+                          Required when switching to this role
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* PIN Message */}
+                    {pinMessage.role === role && pinMessage.text && (
+                      <div className={`mb-3 p-3 rounded-lg flex items-center space-x-2 ${
+                        pinMessage.type === 'success' 
+                          ? 'bg-green-50 text-green-800' 
+                          : 'bg-red-50 text-red-800'
+                      }`}>
+                        {pinMessage.type === 'success' ? (
+                          <Check className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span className="text-sm">{pinMessage.text}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center space-x-3">
+                      <Input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={rolePins[role] || ''}
+                        onChange={(e) => handlePinChange(role, e.target.value)}
+                        placeholder="Enter 4-digit PIN"
+                        className="flex-1"
+                        disabled={loading}
+                      />
+                      <Button
+                        onClick={() => handleSetPin(role)}
+                        disabled={!rolePins[role] || rolePins[role].length !== 4 || loading}
+                        className="bg-[#160B53] hover:bg-[#2D1B69] text-white"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Set PIN
+                      </Button>
+                      <Button
+                        onClick={() => handleRemovePin(role)}
+                        disabled={loading}
+                        variant="outline"
+                        className="text-red-600 hover:bg-red-50"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-semibold mb-1">About Role PINs:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>PINs provide extra security when switching between roles</li>
+                      <li>You'll be asked for the PIN when switching to that role</li>
+                      <li>If no PIN is set, you can switch freely (backward compatible)</li>
+                      <li>PINs are encrypted and stored securely</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </DashboardLayout>

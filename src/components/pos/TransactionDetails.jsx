@@ -204,7 +204,9 @@ const TransactionDetails = ({
                     {transaction.products.map((product, index) => (
                       <div key={index} className="flex justify-between items-center py-3 border-b border-gray-200 last:border-b-0">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{product.productName}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {product.name || product.productName || 'Unnamed Product'}
+                          </p>
                           <p className="text-xs text-gray-500">
                             Quantity: {product.quantity} × ₱{product.price?.toFixed(2)}
                           </p>

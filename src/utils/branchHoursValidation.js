@@ -134,6 +134,20 @@ export const validateAppointmentTime = (branch, appointmentDate, appointmentTime
 };
 
 /**
+ * Convert 24-hour time to 12-hour AM/PM format
+ * @param {string} time24 - Time in HH:MM format
+ * @returns {string} - Time in 12-hour format with AM/PM
+ */
+const formatTimeTo12Hour = (time24) => {
+  if (!time24) return '';
+  const [hours, minutes] = time24.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${minutes} ${ampm}`;
+};
+
+/**
  * Get branch operating hours for display
  * @param {Object} operatingHours - Branch operating hours object
  * @returns {Array} - Array of formatted operating hours
@@ -156,7 +170,7 @@ export const getFormattedOperatingHours = (operatingHours) => {
     day: dayLabels[day],
     isOpen: operatingHours[day]?.isOpen || false,
     hours: operatingHours[day]?.isOpen 
-      ? `${operatingHours[day].open} - ${operatingHours[day].close}`
+      ? `${formatTimeTo12Hour(operatingHours[day].open)} - ${formatTimeTo12Hour(operatingHours[day].close)}`
       : 'Closed'
   }));
 };

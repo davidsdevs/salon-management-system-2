@@ -26,6 +26,7 @@ import DashboardRouter from "./pages/shared/DashboardRouter";
 import UserManagement from "./pages/01_SystemAdmin/UserManagement";
 import BranchManagement from "./pages/01_SystemAdmin/BranchManagement";
 import MasterProducts from "./pages/01_SystemAdmin/MasterProducts";
+import AppointmentSeeder from "./pages/01_SystemAdmin/AppointmentSeeder";
 import ProfilePage from "./pages/shared/ProfilePage";
 
 // ROUTE GUARDS
@@ -186,6 +187,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <MasterProducts />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/appointment-seeder"
+        element={
+          <AdminRoute>
+            <AppointmentSeeder />
           </AdminRoute>
         }
       />

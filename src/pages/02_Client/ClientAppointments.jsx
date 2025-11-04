@@ -9,6 +9,7 @@ import AppointmentDetails from '../../components/appointment/AppointmentDetails'
 import RescheduleModal from '../../components/appointment/RescheduleModal';
 import CancelModal from '../../components/appointment/CancelModal';
 import { appointmentService, APPOINTMENT_STATUS } from '../../services/appointmentService';
+import { branchService } from '../../services/branchService';
 import { 
   Calendar, 
   Clock, 
@@ -29,6 +30,7 @@ import {
 const ClientAppointments = () => {
   const { userData } = useAuth();
   const [appointments, setAppointments] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,6 +61,7 @@ const ClientAppointments = () => {
 
   useEffect(() => {
     loadAppointments();
+    loadBranches();
   }, []);
 
   // Helper functions for notifications
@@ -75,6 +78,16 @@ const ClientAppointments = () => {
   };
 
 
+
+  const loadBranches = async () => {
+    try {
+      const branchesData = await branchService.getBranches(userData?.roles?.[0], userData?.userId);
+      setBranches(branchesData);
+    } catch (error) {
+      console.error('Error loading branches:', error);
+      showError('Failed to load branches');
+    }
+  };
 
   const loadAppointments = async () => {
     try {
@@ -465,6 +478,7 @@ const ClientAppointments = () => {
             initialData={isEditing ? selectedAppointment : null}
             isEditing={isEditing}
             loading={isEditing ? updatingAppointment : creatingAppointment}
+            branches={branches}
             userData={userData}
           />
         )}
