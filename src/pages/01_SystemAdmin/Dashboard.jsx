@@ -1,13 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import DashboardLayout from '../shared/DashboardLayout';
-import { Users, Calendar, Package, DollarSign, User, Home, Building2, Settings, BarChart3, UserCog, Scissors, Package2 } from 'lucide-react';
+import UserForm from '../../components/user/UserForm';
+import { appointmentService } from '../../services/appointmentService';
+import { Users, Calendar, Package, DollarSign, User, Home, Building2, Settings, BarChart3, UserCog, Scissors, Package2, RefreshCw } from 'lucide-react';
 
 const SystemAdminDashboard = () => {
   const { userData } = useAuth();
+  const [updating, setUpdating] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
+  const [showUserForm, setShowUserForm] = useState(false);
+
+  const handleUpdateScheduledToPending = async () => {
+    try {
+      setUpdating(true);
+      setUpdateMessage('Updating appointments...');
+      
+      const result = await appointmentService.updateScheduledToPending();
+      
+      setUpdateMessage(`Successfully updated ${result.updatedCount} appointments from 'scheduled' to 'pending'`);
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setUpdateMessage('');
+      }, 5000);
+      
+    } catch (error) {
+      console.error('Update failed:', error);
+      setUpdateMessage(`Update failed: ${error.message}`);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setUpdateMessage('');
+      }, 5000);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
@@ -64,7 +96,56 @@ const SystemAdminDashboard = () => {
             </div>
           </Card>
         </div>
-        
+
+        {/* Test User Form Button */}
+        <Card className="p-6 mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Test User Form</h3>
+              <p className="text-sm text-gray-600">Open User Form modal for testing</p>
+            </div>
+            <Button
+              onClick={() => setShowUserForm(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <UserCog className="h-4 w-4 mr-2" />
+              Open User Form
+            </Button>
+          </div>
+        </Card>
+
+        {/* Database Update Section */}
+        <Card className="p-6 mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Database Update</h3>
+              <p className="text-sm text-gray-600">Update all appointments with 'scheduled' status to 'pending'</p>
+              {updateMessage && (
+                <p className={`text-sm mt-2 ${updateMessage.includes('Successfully') ? 'text-green-600' : 'text-red-600'}`}>
+                  {updateMessage}
+                </p>
+              )}
+            </div>
+            <Button
+              onClick={handleUpdateScheduledToPending}
+              disabled={updating}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {updating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Update Status
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+
         {/* Quick Actions */}
         <div>
           <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h2>
@@ -99,6 +180,19 @@ const SystemAdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* UserForm Modal (original version) */}
+      <UserForm
+        isOpen={showUserForm}
+        onClose={() => setShowUserForm(false)}
+        onSubmit={(data) => {
+          console.log('User form submitted (shared folder):', data);
+          alert('Test successful! Check console for data.');
+          setShowUserForm(false);
+        }}
+        isEditing={false}
+        loading={false}
+      />
     </DashboardLayout>
   );
 };

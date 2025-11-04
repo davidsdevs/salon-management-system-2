@@ -326,19 +326,33 @@ class UserService {
       const currentUserData = userDoc.data();
 
       // Check if current user can manage this user
-      if (!canManageUser(currentUserRole, currentUserData.role)) {
+      const userRoles = currentUserData.roles || (currentUserData.role ? [currentUserData.role] : []);
+      const canManage = userRoles.some(role => canManageUser(currentUserRole, role));
+      
+      if (!canManage) {
         throw new Error('Insufficient permissions to update this user');
       }
 
-      // Check if trying to change role
-      if (updateData.role && updateData.role !== currentUserData.role) {
-        if (!canManageUser(currentUserRole, updateData.role)) {
-          throw new Error('Insufficient permissions to assign this role');
+      // Check if trying to change roles
+      const newRoles = updateData.roles || (updateData.role ? [updateData.role] : null);
+      const currentRoles = currentUserData.roles || (currentUserData.role ? [currentUserData.role] : []);
+      
+      if (newRoles && JSON.stringify(newRoles.sort()) !== JSON.stringify(currentRoles.sort())) {
+        // Check if current user can manage all the new roles
+        for (const role of newRoles) {
+          if (!canManageUser(currentUserRole, role)) {
+            throw new Error(`Insufficient permissions to assign role: ${role}`);
+          }
         }
       }
 
+      // Filter out undefined values to prevent Firebase errors
+      const filteredUpdateData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, value]) => value !== undefined)
+      );
+
       const updatedData = {
-        ...updateData,
+        ...filteredUpdateData,
         updatedAt: serverTimestamp()
       };
 

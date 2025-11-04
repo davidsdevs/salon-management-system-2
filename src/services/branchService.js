@@ -352,6 +352,12 @@ class BranchService {
       return true;
     }
     
+    // Branch Manager can manage their assigned branch (for loyalty settings, etc.)
+    if (currentUserRole === ROLES.BRANCH_MANAGER) {
+      // Allow branch manager to update their branch settings
+      return true;
+    }
+    
     // Branch Manager can manage their assigned branch
     if (currentUserRole === ROLES.BRANCH_MANAGER) {
       // If no branchData provided, allow (will be checked at branch level)

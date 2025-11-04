@@ -15,27 +15,29 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+// Transaction Status Constants
+export const TRANSACTION_STATUS = {
+  IN_SERVICE: 'in_service',
+  PAID: 'paid',
+  VOIDED: 'voided'
+};
+
 class TransactionService {
   /**
    * Create a new transaction
    * @param {Object} transactionData - Transaction data
-   * @param {string} transactionType - Type of transaction ('service' or 'product')
-   * @returns {Promise<string>} - Transaction ID
+     * @returns {Promise<string>} - Transaction ID
    */
-  async createTransaction(transactionData, transactionType = 'service') {
+  async createTransaction(transactionData) {
     try {
-      // Determine collection name based on transaction type
-      const collectionName = transactionType === 'service' ? 'service_transactions' : 'product_transactions';
-      
       console.log('Creating transaction with data:', transactionData);
       console.log('Client info in transaction data:', {
         clientId: transactionData.clientId,
         clientInfo: transactionData.clientInfo
       });
       
-      const transactionRef = await addDoc(collection(db, collectionName), {
+      const transactionRef = await addDoc(collection(db, 'transactions'), {
         ...transactionData,
-        transactionType: transactionType,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -52,94 +54,49 @@ class TransactionService {
    * Get transactions by branch
    * @param {string} branchId - Branch ID
    * @param {Object} filters - Filter options
-   * @param {string} transactionType - Type of transactions to fetch ('service', 'product', or 'all')
    * @returns {Promise<Array>} - Array of transactions
    */
-  async getTransactionsByBranch(branchId, filters = {}, transactionType = 'all') {
+  async getTransactionsByBranch(branchId, filters = {}) {
     try {
-      let allTransactions = [];
+      const { limit: limitCount = 50, status, transactionType } = filters;
       
-      // Fetch from service_transactions if needed
-      if (transactionType === 'all' || transactionType === 'service') {
-        let serviceQuery = query(
-          collection(db, 'service_transactions'),
-          where('branchId', '==', branchId)
-        );
-
-        // Apply date filter for service transactions (temporarily removed orderBy for index building)
-        if (filters.startDate && filters.endDate) {
-          serviceQuery = query(
-            collection(db, 'service_transactions'),
-            where('branchId', '==', branchId),
-            where('createdAt', '>=', filters.startDate),
-            where('createdAt', '<=', filters.endDate)
-          );
-        }
-
-        // Apply status filter for service transactions (temporarily removed orderBy for index building)
-        if (filters.status && filters.status !== 'all') {
-          serviceQuery = query(
-            collection(db, 'service_transactions'),
-            where('branchId', '==', branchId),
-            where('status', '==', filters.status)
-          );
-        }
-
-        const serviceSnapshot = await getDocs(serviceQuery);
-        const serviceTransactions = serviceSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        allTransactions = [...allTransactions, ...serviceTransactions];
-      }
-
-      // Fetch from product_transactions if needed
-      if (transactionType === 'all' || transactionType === 'product') {
-        let productQuery = query(
-          collection(db, 'product_transactions'),
-          where('branchId', '==', branchId)
-        );
-
-        // Apply date filter for product transactions (temporarily removed orderBy for index building)
-        if (filters.startDate && filters.endDate) {
-          productQuery = query(
-            collection(db, 'product_transactions'),
-            where('branchId', '==', branchId),
-            where('createdAt', '>=', filters.startDate),
-            where('createdAt', '<=', filters.endDate)
-          );
-        }
-
-        // Apply status filter for product transactions (temporarily removed orderBy for index building)
-        if (filters.status && filters.status !== 'all') {
-          productQuery = query(
-            collection(db, 'product_transactions'),
-            where('branchId', '==', branchId),
-            where('status', '==', filters.status)
-          );
-        }
-
-        const productSnapshot = await getDocs(productQuery);
-        const productTransactions = productSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        allTransactions = [...allTransactions, ...productTransactions];
-      }
-
-      // Apply limit if specified
-      if (filters.limit && filters.limit > 0) {
-        allTransactions = allTransactions.slice(0, filters.limit);
+      let q = query(
+        collection(db, 'transactions'),
+        where('branchId', '==', branchId)
+      );
+      
+      // Add status filter if provided
+      if (status && status !== 'all') {
+        q = query(q, where('status', '==', status));
       }
       
-      // Sort by createdAt descending (newest first)
-      return allTransactions.sort((a, b) => {
-        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
-        return dateB - dateA;
+      // Add transaction type filter if provided
+      if (transactionType && transactionType !== 'all') {
+        q = query(q, where('transactionType', '==', transactionType));
+      }
+      
+      // Add ordering and limit (temporarily disabled while indexes build)
+      // q = query(q, orderBy('createdAt', 'desc'), limit(limitCount));
+      q = query(q, limit(limitCount));
+      
+      const querySnapshot = await getDocs(q);
+      const transactions = [];
+      
+      querySnapshot.forEach((doc) => {
+        transactions.push({
+          id: doc.id,
+          ...doc.data()
+        });
       });
+      
+      // Client-side sorting by createdAt (desc) since orderBy is temporarily disabled
+      transactions.sort((a, b) => {
+        const aTime = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const bTime = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return bTime - aTime; // Descending order
+      });
+      
+      return transactions;
     } catch (error) {
       console.error('Error fetching transactions:', error);
       throw new Error('Failed to fetch transactions');
@@ -174,19 +131,99 @@ class TransactionService {
    * Update transaction
    * @param {string} transactionId - Transaction ID
    * @param {Object} updateData - Update data
-   * @param {string} transactionType - Type of transaction ('service' or 'product')
    * @returns {Promise<void>}
    */
-  async updateTransaction(transactionId, updateData, transactionType = 'service') {
+  async updateTransaction(transactionId, updateData) {
     try {
-      // Determine collection name based on transaction type
-      const collectionName = transactionType === 'service' ? 'service_transactions' : 'product_transactions';
+      const transactionRef = doc(db, 'transactions', transactionId);
       
-      const transactionRef = doc(db, collectionName, transactionId);
+      // Get the transaction to check if it has an appointmentId
+      const transactionDoc = await getDoc(transactionRef);
+      const transactionData = transactionDoc.data();
+      
       await updateDoc(transactionRef, {
         ...updateData,
         updatedAt: serverTimestamp()
       });
+      
+      // If transaction is being marked as paid
+      if (updateData.status === TRANSACTION_STATUS.PAID) {
+        const clientId = transactionData.clientId;
+        
+        // 1. Add loyalty points (configurable per branch)
+        // NOTE: Only PRODUCT or MIXED transactions earn loyalty points, pure SERVICE transactions do not
+        if (clientId && transactionData.total && transactionData.branchId && 
+            (transactionData.transactionType === 'product' || transactionData.transactionType === 'mixed')) {
+          try {
+            const { clientService } = await import('./clientService');
+            const { branchService } = await import('./branchService');
+            
+            // Get branch configuration for loyalty points
+            const branch = await branchService.getBranch(transactionData.branchId);
+            const loyaltyConfig = branch?.loyaltyPointsConfig || { enabled: true, amountPerPoint: 100 };
+            
+            // Only add points if loyalty program is enabled for this branch
+            if (loyaltyConfig.enabled) {
+              const amountPerPoint = loyaltyConfig.amountPerPoint || 100;
+              const pointsToAdd = Math.floor(transactionData.total / amountPerPoint);
+              
+              if (pointsToAdd > 0) {
+                await clientService.addLoyaltyPoints(clientId, pointsToAdd, transactionData.branchId);
+                
+                // Store points earned in transaction for future reference (display & void)
+                await updateDoc(transactionRef, {
+                  loyaltyPointsEarned: pointsToAdd
+                });
+                
+                console.log(`Added ${pointsToAdd} loyalty points to client ${clientId} for branch ${transactionData.branchId} (₱${amountPerPoint} = 1 point)`);
+              } else {
+                console.log(`Transaction total (₱${transactionData.total}) is below minimum for points (₱${amountPerPoint} = 1 point)`);
+              }
+            } else {
+              console.log(`Loyalty points disabled for branch ${transactionData.branchId}`);
+            }
+          } catch (loyaltyError) {
+            console.error('Error adding loyalty points:', loyaltyError);
+          }
+        } else if (clientId && transactionData.transactionType === 'service') {
+          console.log(`Service transactions do not earn loyalty points (Transaction type: ${transactionData.transactionType})`);
+        }
+        
+        // 2. Add service history entry
+        if (clientId) {
+          try {
+            const { clientService } = await import('./clientService');
+            await clientService.addServiceHistory(clientId, {
+              appointmentId: transactionData.appointmentId || null,
+              date: serverTimestamp(),
+              services: transactionData.services || [],
+              products: transactionData.products || [],
+              stylist: transactionData.services?.[0]?.stylistName || 'Staff',
+              totalAmount: transactionData.total || 0,
+              paymentMethod: updateData.paymentMethod || transactionData.paymentMethod,
+              transactionId: transactionId
+            });
+            console.log(`Added service history for client ${clientId}`);
+          } catch (historyError) {
+            console.error('Error adding service history:', historyError);
+          }
+        }
+        
+        // 3. Mark appointment as completed (if linked)
+        if (transactionData?.appointmentId) {
+          try {
+            const { appointmentService, APPOINTMENT_STATUS } = await import('./appointmentService');
+            await appointmentService.updateAppointmentStatus(
+              transactionData.appointmentId, 
+              APPOINTMENT_STATUS.COMPLETED,
+              transactionData.createdBy || 'system'
+            );
+            console.log(`Appointment ${transactionData.appointmentId} marked as completed after payment`);
+          } catch (appointmentError) {
+            console.error('Error updating appointment status:', appointmentError);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error updating transaction:', error);
       throw new Error('Failed to update transaction');
@@ -200,19 +237,63 @@ class TransactionService {
    * @param {string} userId - User ID who performed the action
    * @returns {Promise<void>}
    */
-  async voidTransaction(transactionId, reason, userId) {
+  async voidTransaction(transactionId, reason, notes, userId) {
     try {
       const transactionRef = doc(db, 'transactions', transactionId);
+      const transactionDoc = await getDoc(transactionRef);
+      
+      if (!transactionDoc.exists()) {
+        throw new Error('Transaction not found');
+      }
+
+      const transactionData = transactionDoc.data();
+
+      // Check if transaction can be voided (only pending or completed transactions)
+      if (transactionData.status === TRANSACTION_STATUS.VOIDED) {
+        throw new Error('Transaction is already voided');
+      }
+
+      // If transaction was paid and had loyalty points, reverse them
+      if (transactionData.status === TRANSACTION_STATUS.PAID && 
+          transactionData.clientId && 
+          (transactionData.transactionType === 'product' || transactionData.transactionType === 'mixed') &&
+          transactionData.loyaltyPointsEarned > 0) {
+        try {
+          const { clientService } = await import('./clientService');
+          await clientService.deductLoyaltyPoints(
+            transactionData.clientId, 
+            transactionData.loyaltyPointsEarned,
+            transactionData.branchId
+          );
+        } catch (pointsError) {
+          console.warn('Failed to reverse loyalty points:', pointsError);
+        }
+      }
+
+      // TODO: If transaction had inventory deductions, reverse them
+      // This will be implemented when inventoryService is available
+      if (transactionData.status === TRANSACTION_STATUS.PAID && 
+          transactionData.products && 
+          transactionData.products.length > 0) {
+        console.log('Note: Inventory reversal not yet implemented. Products in voided transaction:', 
+          transactionData.products.map(p => `${p.productName} (Qty: ${p.quantity})`).join(', ')
+        );
+      }
+
+      // Update transaction to voided status
       await updateDoc(transactionRef, {
-        status: 'voided',
+        status: TRANSACTION_STATUS.VOIDED,
         voidReason: reason,
+        voidNotes: notes || '',
         voidedBy: userId,
         voidedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      return { success: true };
     } catch (error) {
       console.error('Error voiding transaction:', error);
-      throw new Error('Failed to void transaction');
+      throw error;
     }
   }
 
@@ -254,42 +335,26 @@ class TransactionService {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
 
-      let allTransactions = [];
-
-      // Fetch from service_transactions (temporarily simplified query for index building)
-      const serviceQuery = query(
-        collection(db, 'service_transactions'),
+      // Fetch from transactions collection
+      const q = query(
+        collection(db, 'transactions'),
         where('branchId', '==', branchId),
         where('createdAt', '>=', startOfDay),
         where('createdAt', '<=', endOfDay),
         where('status', '==', 'completed')
       );
 
-      const serviceSnapshot = await getDocs(serviceQuery);
-      const serviceTransactions = serviceSnapshot.docs.map(doc => doc.data());
-
-      // Fetch from product_transactions (temporarily simplified query for index building)
-      const productQuery = query(
-        collection(db, 'product_transactions'),
-        where('branchId', '==', branchId),
-        where('createdAt', '>=', startOfDay),
-        where('createdAt', '<=', endOfDay),
-        where('status', '==', 'completed')
-      );
-
-      const productSnapshot = await getDocs(productQuery);
-      const productTransactions = productSnapshot.docs.map(doc => doc.data());
-
-      allTransactions = [...serviceTransactions, ...productTransactions];
+      const snapshot = await getDocs(q);
+      const transactions = snapshot.docs.map(doc => doc.data());
 
       const summary = {
-        totalTransactions: allTransactions.length,
-        totalRevenue: allTransactions.reduce((sum, t) => sum + (t.total || 0), 0),
-        totalDiscounts: allTransactions.reduce((sum, t) => sum + (t.discount || 0), 0),
-        totalTax: allTransactions.reduce((sum, t) => sum + (t.tax || 0), 0),
-        averageTransaction: allTransactions.length > 0 ? 
-          allTransactions.reduce((sum, t) => sum + (t.total || 0), 0) / allTransactions.length : 0,
-        paymentMethods: this.getPaymentMethodSummary(allTransactions)
+        totalTransactions: transactions.length,
+        totalRevenue: transactions.reduce((sum, t) => sum + (t.total || 0), 0),
+        totalDiscounts: transactions.reduce((sum, t) => sum + (t.discount || 0), 0),
+        totalTax: transactions.reduce((sum, t) => sum + (t.tax || 0), 0),
+        averageTransaction: transactions.length > 0 ? 
+          transactions.reduce((sum, t) => sum + (t.total || 0), 0) / transactions.length : 0,
+        paymentMethods: this.getPaymentMethodSummary(transactions)
       };
 
       return summary;

@@ -8,27 +8,46 @@ import {
   Menu, 
   X,
   Home,
-  MapPin
+  MapPin,
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import RolePinModal from '../../components/auth/RolePinModal';
+import rolePinService from '../../services/rolePinService';
 
 const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) => {
-  const { userData, signOut } = useAuth();
+  const { userData, signOut, switchRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [branchName, setBranchName] = useState('');
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [switchingRole, setSwitchingRole] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingRole, setPendingRole] = useState(null);
+  const [verifyingPin, setVerifyingPin] = useState(false);
 
-  // Fetch branch name when userData changes
+  // Fetch branch name when userData changes (cache it to avoid flashing)
   useEffect(() => {
     const fetchBranchName = async () => {
       if (userData?.branchId) {
+        // Check cache first
+        const cached = localStorage.getItem(`branch_${userData.branchId}`);
+        if (cached) {
+          setBranchName(cached);
+          return;
+        }
+
         try {
           const branchRef = doc(db, 'branches', userData.branchId);
           const branchDoc = await getDoc(branchRef);
           if (branchDoc.exists()) {
-            setBranchName(branchDoc.data().name);
+            const name = branchDoc.data().name;
+            setBranchName(name);
+            // Cache for future use
+            localStorage.setItem(`branch_${userData.branchId}`, name);
           }
         } catch (error) {
           console.error('Error fetching branch name:', error);
@@ -47,6 +66,74 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
       console.error('Error signing out:', error);
     }
   };
+
+  const handleRoleSwitch = async (newRole) => {
+    // Don't switch if already on this role
+    if (userData.roles[0] === newRole) return;
+
+    // Store the role we want to switch to
+    setPendingRole(newRole);
+    setShowRoleSwitcher(false);
+    setShowPinModal(true);
+  };
+
+  const getRoleDashboard = (role) => {
+    // Map roles to their dashboard routes
+    const dashboardRoutes = {
+      'systemAdmin': '/dashboard',
+      'operationalManager': '/dashboard',
+      'branchAdmin': '/dashboard',
+      'branchManager': '/dashboard',
+      'receptionist': '/dashboard',
+      'inventoryController': '/dashboard',
+      'stylist': '/dashboard',
+      'client': '/dashboard'
+    };
+    return dashboardRoutes[role] || '/dashboard';
+  };
+
+  const handlePinVerify = async (pin) => {
+    try {
+      setVerifyingPin(true);
+      
+      // Verify PIN for the role
+      const isValid = await rolePinService.verifyRolePin(userData.uid, pendingRole, pin);
+      
+      if (!isValid) {
+        throw new Error('Invalid PIN');
+      }
+
+      // PIN is valid, proceed with role switch
+      await switchRole(pendingRole);
+      setShowPinModal(false);
+      setPendingRole(null);
+      
+      // Navigate to the new role's dashboard and reload
+      const dashboardRoute = getRoleDashboard(pendingRole);
+      window.location.href = dashboardRoute;
+    } catch (error) {
+      setVerifyingPin(false);
+      throw error; // Let the modal handle the error display
+    }
+  };
+
+  const handlePinModalClose = () => {
+    setShowPinModal(false);
+    setPendingRole(null);
+    setVerifyingPin(false);
+  };
+
+  // Close role switcher on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showRoleSwitcher && !event.target.closest('.role-switcher-container')) {
+        setShowRoleSwitcher(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showRoleSwitcher]);
 
   const isActive = (path) => {
     // Exact match for root paths
@@ -78,16 +165,26 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Sidebar Header */}
-        <div className="flex items-center justify-center px-6 py-4 border-b border-gray-200 relative">
-          <Link to="/" className="flex items-center">
-            <img src="/logo.png" alt="David's Salon" className="h-[54px]" />
-          </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-gray-500 hover:text-gray-700 absolute right-4"
-          >
-            <X className="h-6 w-6" />
-          </button>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-center relative mb-3">
+            <Link to="/" className="flex items-center">
+              <img src="/logo.png" alt="David's Salon" className="h-[54px]" />
+            </Link>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden text-gray-500 hover:text-gray-700 absolute right-0"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          
+          {/* Branch Information */}
+          {branchName && (
+              <div className="flex items-center justify-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg">
+              <MapPin className="h-4 w-4 text-gray-500" />
+              <p className="text-sm font-medium text-gray-900">{branchName}</p>
+            </div>
+          )}
         </div>
 
         {/* User Info */}
@@ -100,7 +197,6 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
               <p className="text-sm font-medium text-gray-900">
                 {userData?.firstName} {userData?.lastName}
               </p>
-              <p className="text-xs text-gray-500">{getRoleDisplayName(userData?.roles?.[0] || userData?.role)}</p>
             </div>
           </div>
         </div>
@@ -149,7 +245,7 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
       {/* Main Content */}
       <div className="lg:pl-64">
         {/* Header Container */}
-        <div className="bg-white border-b border-gray-200">
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
           <div className="px-6 py-4">
               <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -178,13 +274,53 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
                 </div>
               </div>
               
-              {/* Branch Information */}
-              {branchName && (
-                <div className="flex items-center space-x-2 bg-gray-50 px-4 py-2 rounded-lg">
-                  <MapPin className="h-4 w-4 text-gray-500" />
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{branchName}</p>
-                  </div>
+              {/* Role Switcher */}
+              {userData?.roles && userData.roles.length > 1 && (
+                <div className="relative role-switcher-container">
+                  <button
+                    onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
+                    className="flex items-center space-x-2 bg-gradient-to-r from-[#160B53] to-[#2D1B69] text-white px-4 py-2 rounded-lg hover:from-[#2D1B69] hover:to-[#160B53] transition-all duration-200 shadow-md"
+                    disabled={switchingRole}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${switchingRole ? 'animate-spin' : ''}`} />
+                    <span className="font-medium text-sm">
+                      {getRoleDisplayName(userData.roles[0])}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showRoleSwitcher ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown */}
+                  {showRoleSwitcher && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                      <div className="px-4 py-2 border-b border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Switch Role
+                        </p>
+                      </div>
+                      {userData.roles.map((role, index) => (
+                        <button
+                          key={role}
+                          onClick={() => handleRoleSwitch(role)}
+                          disabled={switchingRole || index === 0}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                            index === 0 ? 'bg-[#160B53] bg-opacity-5 cursor-default' : ''
+                          } ${switchingRole ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <div>
+                            <p className={`font-medium text-sm ${index === 0 ? 'text-[#160B53]' : 'text-gray-700'}`}>
+                              {getRoleDisplayName(role)}
+                            </p>
+                            {index === 0 && (
+                              <p className="text-xs text-[#160B53] mt-0.5">Current Role</p>
+                            )}
+                          </div>
+                          {index === 0 && (
+                            <div className="h-2 w-2 rounded-full bg-[#160B53]"></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -196,6 +332,15 @@ const DashboardLayout = ({ children, menuItems = [], pageTitle = 'Dashboard' }) 
           {children}
         </main>
       </div>
+
+      {/* Role PIN Modal */}
+      <RolePinModal
+        isOpen={showPinModal}
+        onClose={handlePinModalClose}
+        onVerify={handlePinVerify}
+        roleName={pendingRole ? getRoleDisplayName(pendingRole) : ''}
+        isVerifying={verifyingPin}
+      />
     </div>
   );
 };

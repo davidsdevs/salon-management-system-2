@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Card } from '../ui/card';
-import { X, Calendar, Clock, User, MapPin, Scissors, Search } from 'lucide-react';
+import { Button } from '../../pages/ui/button';
+import { Input } from '../../pages/ui/input';
+import { Card } from '../../pages/ui/card';
+import { X, Calendar, Clock, User, MapPin, Scissors, Search, AlertCircle } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { 
+  validateAppointmentTime, 
+  getAvailableTimeSlots, 
+  getFormattedOperatingHours,
+  getDayOfWeek 
+} from '../../utils/branchHoursValidation';
+import { 
+  checkTimeSlotConflict,
+  getAvailableTimeSlots as getConflictFreeTimeSlots,
+  validateAppointmentBooking 
+} from '../../utils/appointmentConflicts';
 
 const AppointmentForm = ({ 
   isOpen,
@@ -50,8 +61,130 @@ const AppointmentForm = ({
   // Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Branch hours validation state
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+  const [timeValidation, setTimeValidation] = useState({ isValid: true, message: '' });
+  const [showBranchHours, setShowBranchHours] = useState(false);
+  
+  // Existing appointments state
+  const [existingAppointments, setExistingAppointments] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+  
+  // Animation state
+  const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Time slot dropdown state
+  const [showTimeSlotDropdown, setShowTimeSlotDropdown] = useState(false);
 
   const servicesData = realServices;
+
+  // Convert 24-hour time to 12-hour AM/PM format
+  const formatTimeTo12Hour = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  // Load existing appointments for conflict checking
+  const loadExistingAppointments = async (branchId, appointmentDate) => {
+    if (!branchId || !appointmentDate) return;
+    
+    try {
+      setLoadingAppointments(true);
+      
+      // Query appointments for the specific branch and date
+      const appointmentsQuery = query(
+        collection(db, 'appointments'),
+        where('branchId', '==', branchId),
+        where('appointmentDate', '==', appointmentDate)
+      );
+      
+      const snapshot = await getDocs(appointmentsQuery);
+      const appointments = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setExistingAppointments(appointments);
+    } catch (error) {
+      console.error('Error loading existing appointments:', error);
+      setExistingAppointments([]);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+
+  // Handle branch selection and time validation
+  useEffect(() => {
+    if (formData.branchId && branches.length > 0) {
+      const branch = branches.find(b => b.id === formData.branchId);
+      setSelectedBranch(branch);
+      
+      if (branch && branch.operatingHours && formData.appointmentDate) {
+        const dayOfWeek = getDayOfWeek(formData.appointmentDate);
+        
+        // Load existing appointments for conflict checking
+        loadExistingAppointments(formData.branchId, formData.appointmentDate);
+        
+        // Get basic time slots from operating hours
+        const basicTimeSlots = getAvailableTimeSlots(branch.operatingHours, dayOfWeek);
+        setAvailableTimeSlots(basicTimeSlots);
+        
+        // Validate current time if set
+        if (formData.appointmentTime) {
+          const validation = validateAppointmentTime(branch, formData.appointmentDate, formData.appointmentTime);
+          setTimeValidation(validation);
+        }
+      }
+    }
+  }, [formData.branchId, formData.appointmentDate, formData.appointmentTime, branches]);
+
+  // Update time slots when existing appointments are loaded
+  useEffect(() => {
+    if (selectedBranch && selectedBranch.operatingHours && formData.appointmentDate && existingAppointments.length >= 0) {
+      const dayOfWeek = getDayOfWeek(formData.appointmentDate);
+      
+      // Get conflict-free time slots
+      const conflictFreeSlots = getConflictFreeTimeSlots(
+        existingAppointments,
+        selectedBranch.operatingHours,
+        formData.branchId,
+        formData.appointmentDate,
+        null, // No specific stylist filter for general availability
+        isEditing ? initialData?.id : null, // Exclude current appointment if editing
+        30 // 30-minute slots
+      );
+      
+      setAvailableTimeSlots(conflictFreeSlots);
+      
+      // Re-validate current time selection
+      if (formData.appointmentTime) {
+        const conflict = checkTimeSlotConflict(
+          existingAppointments,
+          formData.branchId,
+          formData.appointmentDate,
+          formData.appointmentTime,
+          null,
+          isEditing ? initialData?.id : null
+        );
+        
+        if (conflict.hasConflict) {
+          setTimeValidation({
+            isValid: false,
+            message: 'This time slot is already booked'
+          });
+        } else {
+          const validation = validateAppointmentTime(selectedBranch, formData.appointmentDate, formData.appointmentTime);
+          setTimeValidation(validation);
+        }
+      }
+    }
+  }, [existingAppointments, selectedBranch, formData.appointmentDate, formData.appointmentTime, formData.branchId, isEditing, initialData]);
 
   // Initialize form data when editing
   useEffect(() => {
@@ -292,6 +425,30 @@ const AppointmentForm = ({
     if (!formData.appointmentTime) {
       newErrors.appointmentTime = 'Please select an appointment time';
     }
+    
+    // Validate appointment time against branch hours
+    if (formData.appointmentTime && selectedBranch) {
+      const validation = validateAppointmentTime(selectedBranch, formData.appointmentDate, formData.appointmentTime);
+      if (!validation.isValid) {
+        newErrors.appointmentTime = validation.message;
+      }
+    }
+    
+    // Check for appointment conflicts
+    if (formData.appointmentTime && formData.branchId && formData.appointmentDate) {
+      const conflict = checkTimeSlotConflict(
+        existingAppointments,
+        formData.branchId,
+        formData.appointmentDate,
+        formData.appointmentTime,
+        null,
+        isEditing ? initialData?.id : null
+      );
+      
+      if (conflict.hasConflict) {
+        newErrors.appointmentTime = 'This time slot is already booked';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -324,6 +481,30 @@ const AppointmentForm = ({
         }
         if (!formData.appointmentTime) {
           newErrors.appointmentTime = 'Appointment time is required';
+        }
+        
+        // Validate appointment time against branch hours
+        if (formData.appointmentTime && selectedBranch) {
+          const validation = validateAppointmentTime(selectedBranch, formData.appointmentDate, formData.appointmentTime);
+          if (!validation.isValid) {
+            newErrors.appointmentTime = validation.message;
+          }
+        }
+        
+        // Check for appointment conflicts
+        if (formData.appointmentTime && formData.branchId && formData.appointmentDate) {
+          const conflict = checkTimeSlotConflict(
+            existingAppointments,
+            formData.branchId,
+            formData.appointmentDate,
+            formData.appointmentTime,
+            null,
+            isEditing ? initialData?.id : null
+          );
+          
+          if (conflict.hasConflict) {
+            newErrors.appointmentTime = 'This time slot is already booked';
+          }
         }
         
         // Services validation
@@ -390,17 +571,51 @@ const AppointmentForm = ({
     handleStepSubmit();
   };
 
+  // Animation effects
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+    }
+  }, [isOpen]);
+
+  // Close time slot dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showTimeSlotDropdown && !event.target.closest('.time-slot-dropdown')) {
+        setShowTimeSlotDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTimeSlotDropdown]);
+
+  const handleClose = () => {
+    setIsAnimating(false);
+    setTimeout(() => onClose(), 300);
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[98vh] sm:max-h-[95vh] overflow-hidden flex flex-col">
+    <div 
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 transition-opacity duration-200 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
+      onClick={handleClose}
+    >
+      <div 
+        className={`bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[98vh] sm:max-h-[95vh] overflow-hidden flex flex-col transition-all duration-300 ease-out transform ${isAnimating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#160B53] to-[#2D1B69] px-4 sm:px-6 py-3 sm:py-4 text-white flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-lg sm:text-2xl font-bold">
-                {isEditing ? 'Edit Appointment' : 'Create New Appointment'}
+                {isEditing ? 'Edit Appointment' : 'Book New Appointment'}
               </h2>
               <p className="text-blue-100 mt-1 text-sm sm:text-base">
                 {isEditing ? 'Update appointment details' : 'Schedule a new appointment for your client'}
@@ -409,7 +624,7 @@ const AppointmentForm = ({
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={onClose}
+              onClick={handleClose}
               className="text-white hover:bg-white/20 p-2"
             >
               <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -418,20 +633,21 @@ const AppointmentForm = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="bg-gray-50 px-4 sm:px-6 py-3 border-b">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">
-              Step {currentStep} of 2
-            </span>
-            <span className="text-sm text-gray-500">
-              {currentStep === 1 ? 'Client & Schedule & Services' : 'Confirmation'}
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-[#160B53] h-2 rounded-full transition-all duration-300 ease-in-out"
-              style={{ width: `${(currentStep / 2) * 100}%` }}
-            ></div>
+        <div className="px-6 py-4 border-b">
+          <div className="flex items-center justify-center space-x-4">
+            <div className={`flex items-center ${currentStep >= 1 ? 'text-[#160B53]' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? 'bg-[#160B53] text-white' : 'bg-gray-200'}`}>
+                1
+              </div>
+              <span className="ml-2 font-medium">Client & Schedule</span>
+            </div>
+            <div className={`w-8 h-0.5 ${currentStep >= 2 ? 'bg-[#160B53]' : 'bg-gray-200'}`}></div>
+            <div className={`flex items-center ${currentStep >= 2 ? 'text-[#160B53]' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 2 ? 'bg-[#160B53] text-white' : 'bg-gray-200'}`}>
+                2
+              </div>
+              <span className="ml-2 font-medium">Confirmation</span>
+            </div>
           </div>
         </div>
 
@@ -580,10 +796,70 @@ const AppointmentForm = ({
               </div>
 
               <div className="space-y-2">
+                <div className="flex items-center justify-between">
                 <label className="flex items-center text-sm font-semibold text-gray-700">
                   <Clock className="w-4 h-4 mr-2 text-[#160B53]" />
                   Appointment Time *
                 </label>
+                  {selectedBranch && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBranchHours(!showBranchHours)}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      View Branch Hours
+                    </button>
+                  )}
+                </div>
+                
+                {loadingAppointments ? (
+                  <div className="space-y-2">
+                    <div className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-300 bg-gray-50 px-4 shadow-sm">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#160B53] mr-2"></div>
+                      <span className="text-sm text-gray-600">Loading available time slots...</span>
+                    </div>
+                  </div>
+                ) : availableTimeSlots.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="relative time-slot-dropdown">
+                      <button
+                        type="button"
+                        onClick={() => setShowTimeSlotDropdown(!showTimeSlotDropdown)}
+                        className="flex h-9 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-base shadow-sm transition-colors hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#160B53] focus:border-transparent md:text-sm"
+                      >
+                        <span className={formData.appointmentTime ? 'text-gray-900' : 'text-gray-400'}>
+                          {formData.appointmentTime ? formatTimeTo12Hour(formData.appointmentTime) : 'Select a time slot'}
+                        </span>
+                        <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform flex-shrink-0 ${showTimeSlotDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      
+                      {showTimeSlotDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                          {availableTimeSlots.map((time, index) => (
+                            <div
+                              key={index}
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, appointmentTime: time }));
+                                setShowTimeSlotDropdown(false);
+                              }}
+                              className={`px-4 py-2 cursor-pointer hover:bg-[#160B53]/10 transition-colors text-sm first:rounded-t-lg last:rounded-b-lg ${
+                                formData.appointmentTime === time ? 'bg-[#160B53]/5 text-[#160B53] font-medium' : 'text-gray-900'
+                              }`}
+                            >
+                              {formatTimeTo12Hour(time)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      {availableTimeSlots.length} available time slots for {selectedBranch?.name}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
                 <Input
                   type="time"
                   name="appointmentTime"
@@ -591,7 +867,28 @@ const AppointmentForm = ({
                   onChange={handleInputChange}
                       className="w-full"
                       required
-                />
+                    />
+                    {selectedBranch && existingAppointments.length > 0 ? (
+                      <p className="text-xs text-red-600 flex items-center">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        No available time slots - all slots are booked for this date
+                      </p>
+                    ) : selectedBranch ? (
+                      <p className="text-xs text-orange-600 flex items-center">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Branch may be closed on selected date
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+                
+                {!timeValidation.isValid && (
+                  <p className="text-red-500 text-sm flex items-center">
+                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                    {timeValidation.message}
+                  </p>
+                )}
+                
                 {errors.appointmentTime && (
                   <p className="text-red-500 text-sm flex items-center">
                     <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
@@ -858,7 +1155,7 @@ const AppointmentForm = ({
                                 {formData.serviceStylistPairs.reduce((total, servicePair) => {
                                   const service = servicesData.find(s => s.id === servicePair.serviceId);
                                   return total + (service?.duration || 0);
-                                }, 0)} minutes total
+                                }, 0)} minutes
                               </div>
                             </div>
                           </div>
@@ -890,7 +1187,7 @@ const AppointmentForm = ({
             <Button 
               type="button" 
               variant="outline" 
-              onClick={onClose}
+              onClick={handleClose}
                 className="px-4 sm:px-6 py-2 border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               Cancel
@@ -905,10 +1202,10 @@ const AppointmentForm = ({
               {loading || isSubmitting ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {isEditing ? 'Updating...' : 'Creating...'}
+                  {isEditing ? 'Updating...' : 'Booking...'}
                 </div>
               ) : currentStep === 2 ? (
-                isEditing ? 'Update Appointment' : 'Create Appointment'
+                isEditing ? 'Update Appointment' : 'Book Appointment'
               ) : (
                 'Next'
               )}
@@ -916,6 +1213,44 @@ const AppointmentForm = ({
           </div>
         </div>
       </div>
+      
+      {/* Branch Hours Modal */}
+      {showBranchHours && selectedBranch && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {selectedBranch.name} Operating Hours
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBranchHours(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </Button>
+            </div>
+            
+            <div className="space-y-3">
+              {getFormattedOperatingHours(selectedBranch.operatingHours).map((day, index) => (
+                <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="font-medium text-gray-700">{day.day}</span>
+                  <span className={`text-sm ${day.isOpen ? 'text-green-600' : 'text-red-600'}`}>
+                    {day.hours}
+                  </span>
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-xs text-gray-600">
+                Please select an appointment time within the operating hours shown above.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
