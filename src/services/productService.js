@@ -25,17 +25,40 @@ class ProductService {
   async getAllProducts() {
     try {
       const productsRef = collection(db, this.collectionName);
-      const q = query(productsRef, orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
+      
+      // Try to get products with orderBy, but fallback to simple query if index is missing
+      let querySnapshot;
+      try {
+        const q = query(productsRef, orderBy('createdAt', 'desc'));
+        querySnapshot = await getDocs(q);
+      } catch (orderError) {
+        // If orderBy fails (missing index), just get all products without ordering
+        console.warn('Could not order by createdAt, fetching without order:', orderError.message);
+        querySnapshot = await getDocs(productsRef);
+      }
       
       const products = [];
       querySnapshot.forEach((doc) => {
+        const data = doc.data();
         products.push({
           id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate?.() || new Date()
+          ...data,
+          // Handle createdAt - could be Timestamp, Date, or string
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : 
+                     data.createdAt instanceof Date ? data.createdAt :
+                     data.createdAt ? new Date(data.createdAt) : new Date(),
+          // Handle updatedAt - could be Timestamp, Date, or string
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : 
+                     data.updatedAt instanceof Date ? data.updatedAt :
+                     data.updatedAt ? new Date(data.updatedAt) : new Date()
         });
+      });
+
+      // Sort by createdAt descending if we didn't use orderBy
+      products.sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+        const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
       });
 
       return {

@@ -9,7 +9,8 @@ import DashboardLayout from '../shared/DashboardLayout';
 import BranchForm from '../../components/branch/BranchForm';
 import BranchDetails from '../../components/branch/BranchDetails';
 import { 
-  Building2, 
+  Building2,
+  Building,
   Plus, 
   Search, 
   Edit, 
@@ -27,7 +28,8 @@ import {
   Phone,
   Users,
   Scissors,
-  Package2
+  Package2,
+  DollarSign
 } from 'lucide-react';
 
 const BranchManagement = () => {
@@ -56,6 +58,8 @@ const BranchManagement = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package2 },
+    { path: '/suppliers', label: 'Suppliers', icon: Building },
+    { path: '/admin/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

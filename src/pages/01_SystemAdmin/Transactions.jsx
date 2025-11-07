@@ -14,6 +14,7 @@ import {
   Scissors,
   Users,
   Building2,
+  Building,
   Clock,
   CheckCircle,
   XCircle,
@@ -46,7 +47,8 @@ const Transactions = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package },
-    { path: '/transactions', label: 'Transactions', icon: DollarSign },
+    { path: '/suppliers', label: 'Suppliers', icon: Building },
+    { path: '/admin/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

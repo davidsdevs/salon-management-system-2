@@ -160,6 +160,98 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client';
     }
     
+    // Branch Stocks collection rules
+    match /branch_stocks/{stockId} {
+      // Allow system admin to read/write all stocks
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow branch admin and inventory controller to read/write stocks in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'inventoryController'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow branch manager to read/write stocks in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow create with branchId validation
+      allow create: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager', 'inventoryController'] &&
+        request.resource.data.branchId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId;
+    }
+    
+    // Inventory Movements collection rules
+    match /inventory_movements/{movementId} {
+      // Allow system admin to read/write all movements
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow branch admin and inventory controller to read/write movements in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'inventoryController'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow branch manager to read/write movements in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow create with branchId validation
+      allow create: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager', 'inventoryController'] &&
+        request.resource.data.branchId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId;
+    }
+    
+    // Product Batches collection rules
+    match /product_batches/{batchId} {
+      // Allow system admin to read/write all batches
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow branch admin and inventory controller to read/write batches in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'inventoryController'] &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow branch manager to read/write batches in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow create with branchId validation
+      allow create: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['branchAdmin', 'branchManager', 'inventoryController'] &&
+        request.resource.data.branchId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId;
+    }
+    
+    // Deposits collection rules
+    match /deposits/{depositId} {
+      // Allow system admin to read/write all deposits
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'systemAdmin';
+      
+      // Allow operational manager to read/write all deposits
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'operationalManager';
+      
+      // Allow branch manager to read/write deposits in their branch
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+      
+      // Allow branch manager to create deposits for their branch
+      allow create: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchManager' &&
+        request.resource.data.branchId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId;
+      
+      // Allow branch admin to read deposits in their branch
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'branchAdmin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId;
+    }
+    
     // Default deny rule
     match /{document=**} {
       allow read, write: if false;

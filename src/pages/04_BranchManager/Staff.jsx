@@ -32,6 +32,7 @@ import {
   Receipt,
   Settings
 } from "lucide-react";
+import { branchManagerMenuItems } from "./menuItems";
 
 const BranchManagerStaff = () => {
   const { userData } = useAuth();
@@ -102,17 +103,6 @@ const BranchManagerStaff = () => {
     }
   }, [userData]);
 
-  const menuItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home },
-    { path: "/appointments", label: "Appointments", icon: Calendar },
-    { path: "/staff", label: "Staff", icon: Users },
-    { path: "/schedule", label: "Schedule", icon: Calendar },
-    { path: "/inventory", label: "Inventory", icon: Package },
-    { path: "/transactions", label: "Transactions", icon: Receipt },
-    { path: "/settings", label: "Settings", icon: Settings },
-    { path: "/reports", label: "Reports", icon: BarChart3 },
-    { path: "/profile", label: "Profile", icon: UserCog },
-  ];
 
   // === Filter State ===
   const [query, setQuery] = useState("");
@@ -468,7 +458,7 @@ const BranchManagerStaff = () => {
   // Loading state
   if (loading) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Staff Management">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Management">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -484,7 +474,7 @@ const BranchManagerStaff = () => {
   // Error state
   if (error) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Staff Management">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Management">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -501,7 +491,7 @@ const BranchManagerStaff = () => {
 
   return (
     <>
-      <DashboardLayout menuItems={menuItems} pageTitle="Staff Management">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Management">
         <div className="max-w-7xl mx-auto space-y-6">
 
           {/* === Summary Cards === */}
@@ -539,20 +529,31 @@ const BranchManagerStaff = () => {
 
         {/* === Advanced Filter Modal === */}
         {isFilterOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold">Advanced Filters</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Filter className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Advanced Filters</h2>
+                      <p className="text-white/80 text-sm mt-1">Refine your staff search</p>
+                    </div>
+                  </div>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => setIsFilterOpen(false)}
-                    className="p-1"
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                   >
                     <X className="h-5 w-5" />
                   </Button>
                 </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
 
                 <div className="space-y-4">
                   {/* Status Filter */}
@@ -647,7 +648,11 @@ const BranchManagerStaff = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
+              </div>
+              
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end gap-3">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -657,18 +662,19 @@ const BranchManagerStaff = () => {
                       setSortBy("name");
                       setSortOrder("asc");
                     }}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
                   >
                     Reset
                   </Button>
                   <Button
                     onClick={() => setIsFilterOpen(false)}
-                    className="bg-[#160B53] text-white hover:bg-[#12094A]"
+                    className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
                   >
                     Apply Filters
                   </Button>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
@@ -833,20 +839,31 @@ const BranchManagerStaff = () => {
 
         {/* === Add Staff Modal === */}
         {isAddOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold">Add Staff {addStep === 2 ? '— Summary' : ''}</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Add Staff {addStep === 2 ? '— Summary' : addStep === 3 ? '— Success' : ''}</h2>
+                      <p className="text-white/80 text-sm mt-1">Create a new staff member account</p>
+                    </div>
+                  </div>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => { setIsAddOpen(false); setAddStep(1); }}
-                    className="p-1"
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                   >
                     <X className="h-5 w-5" />
                   </Button>
                 </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
 
                 {addError && (
                   <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
@@ -1085,7 +1102,7 @@ const BranchManagerStaff = () => {
                 </>
                 )}
               </div>
-            </Card>
+            </div>
           </div>
         )}
 

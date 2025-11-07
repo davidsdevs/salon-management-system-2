@@ -23,24 +23,12 @@ import {
   Users,
   BarChart3
 } from 'lucide-react';
+import { branchManagerMenuItems } from './menuItems';
 
 const ClientProfile = () => {
   const { clientId } = useParams();
   const navigate = useNavigate();
   const { userData } = useAuth();
-
-  const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'Appointments', icon: Calendar },
-    { path: '/staff', label: 'Staff', icon: Users },
-    { path: '/schedule', label: 'Schedule', icon: Calendar },
-    { path: '/inventory', label: 'Inventory', icon: Package },
-    { path: '/transactions', label: 'Transactions', icon: Receipt },
-    { path: '/clients', label: 'Clients', icon: Users },
-    { path: '/loyalty-settings', label: 'Loyalty Settings', icon: Award },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
-    { path: '/profile', label: 'Profile', icon: UserCog },
-  ];
 
   const [client, setClient] = useState(null);
   const [serviceHistory, setServiceHistory] = useState([]);
@@ -115,7 +103,7 @@ const ClientProfile = () => {
 
   if (loading) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Client Profile">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Client Profile">
         <div className="p-6">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#160B53] mx-auto"></div>
@@ -128,7 +116,7 @@ const ClientProfile = () => {
 
   if (error || !client) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Client Profile">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Client Profile">
         <div className="p-6">
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error || 'Client not found'}

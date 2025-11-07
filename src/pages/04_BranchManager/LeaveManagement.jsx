@@ -26,21 +26,10 @@ import {
   Building,
   FileText,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  X,
 } from 'lucide-react';
-
-// Menu items for branch manager
-const menuItems = [
-  { path: "/dashboard", label: "Dashboard", icon: Calendar },
-  { path: "/appointments", label: "Appointments", icon: Calendar },
-  { path: "/staff", label: "Staff", icon: User },
-  { path: "/schedule", label: "Schedule", icon: Clock },
-  { path: "/inventory", label: "Inventory", icon: Building },
-  { path: "/transactions", label: "Transactions", icon: FileText },
-  { path: "/leave-management", label: "Leave Management", icon: Calendar },
-  { path: "/settings", label: "Settings", icon: Building },
-  { path: "/reports", label: "Reports", icon: BarChart3 },
-];
+import { branchManagerMenuItems } from './menuItems';
 
 const LeaveManagement = () => {
   const { userData } = useAuth();
@@ -226,7 +215,7 @@ const LeaveManagement = () => {
 
   if (loading && leaveRequests.length === 0) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Leave Management">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Leave Management">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
@@ -490,18 +479,31 @@ const LeaveManagement = () => {
 
         {/* Detail Modal */}
         {isDetailModalOpen && selectedRequest && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <Card className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Leave Request Details</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDetailModalOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <FileText className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Leave Request Details</h2>
+                      <p className="text-white/80 text-sm mt-1">{selectedRequest.employeeName}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsDetailModalOpen(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -584,99 +586,125 @@ const LeaveManagement = () => {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDetailModalOpen(false)}
-                >
-                  Close
-                </Button>
-                {selectedRequest.status === LEAVE_STATUS.PENDING && (
-                  <>
-                    <Button
-                      onClick={() => {
-                        setIsDetailModalOpen(false);
-                        setActionType('approve');
-                        setIsActionModalOpen(true);
-                      }}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setIsDetailModalOpen(false);
-                        setActionType('deny');
-                        setIsActionModalOpen(true);
-                      }}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      Deny
-                    </Button>
-                  </>
-                )}
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDetailModalOpen(false)}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Close
+                  </Button>
+                  {selectedRequest.status === LEAVE_STATUS.PENDING && (
+                    <>
+                      <Button
+                        onClick={() => {
+                          setIsDetailModalOpen(false);
+                          setActionType('approve');
+                          setIsActionModalOpen(true);
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white transition-colors"
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsDetailModalOpen(false);
+                          setActionType('deny');
+                          setIsActionModalOpen(true);
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white transition-colors"
+                      >
+                        Deny
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
         {/* Action Modal */}
         {isActionModalOpen && selectedRequest && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <Card className="bg-white rounded-lg p-6 w-full max-w-md">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {actionType === 'approve' ? 'Approve Leave Request' : 'Deny Leave Request'}
-                </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsActionModalOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      {actionType === 'approve' ? (
+                        <CheckCircle className="h-6 w-6" />
+                      ) : (
+                        <XCircle className="h-6 w-6" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">
+                        {actionType === 'approve' ? 'Approve Leave Request' : 'Deny Leave Request'}
+                      </h2>
+                      <p className="text-white/80 text-sm mt-1">{selectedRequest.employeeName}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsActionModalOpen(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
 
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <strong>{selectedRequest.employeeName}</strong> - {LEAVE_TYPE_LABELS[selectedRequest.leaveType]}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {selectedRequest.getFormattedDateRange()} ({selectedRequest.getDurationInDays()} day{selectedRequest.getDurationInDays() !== 1 ? 's' : ''})
-                </p>
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>{selectedRequest.employeeName}</strong> - {LEAVE_TYPE_LABELS[selectedRequest.leaveType]}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {selectedRequest.getFormattedDateRange()} ({selectedRequest.getDurationInDays()} day{selectedRequest.getDurationInDays() !== 1 ? 's' : ''})
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {actionType === 'approve' ? 'Approval Notes (Optional)' : 'Reason for Denial'}
+                  </label>
+                  <textarea
+                    value={actionNotes}
+                    onChange={(e) => setActionNotes(e.target.value)}
+                    placeholder={actionType === 'approve' ? 'Add any notes about this approval...' : 'Please provide a reason for denying this request...'}
+                    rows={3}
+                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    required={actionType === 'deny'}
+                  />
+                </div>
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {actionType === 'approve' ? 'Approval Notes (Optional)' : 'Reason for Denial'}
-                </label>
-                <textarea
-                  value={actionNotes}
-                  onChange={(e) => setActionNotes(e.target.value)}
-                  placeholder={actionType === 'approve' ? 'Add any notes about this approval...' : 'Please provide a reason for denying this request...'}
-                  rows={3}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required={actionType === 'deny'}
-                />
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsActionModalOpen(false)}
+                    disabled={loading}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAction}
+                    disabled={loading}
+                    className={actionType === 'approve' ? 'bg-green-600 hover:bg-green-700 text-white transition-colors' : 'bg-red-600 hover:bg-red-700 text-white transition-colors'}
+                  >
+                    {loading ? 'Processing...' : (actionType === 'approve' ? 'Approve' : 'Deny')}
+                  </Button>
+                </div>
               </div>
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsActionModalOpen(false)}
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleAction}
-                  disabled={loading}
-                  className={actionType === 'approve' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}
-                >
-                  {loading ? 'Processing...' : (actionType === 'approve' ? 'Approve' : 'Deny')}
-                </Button>
-              </div>
-            </Card>
+            </div>
           </div>
         )}
       </div>

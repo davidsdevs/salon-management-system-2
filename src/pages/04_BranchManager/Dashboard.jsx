@@ -18,6 +18,7 @@ import {
   Settings,
   Image as ImageIcon,
 } from "lucide-react";
+import { branchManagerMenuItems } from "./menuItems";
   import {
     LineChart,
     Line,
@@ -50,21 +51,8 @@ import {
       { week: "Week 4", revenue: 70000 },
     ];
 
-    const menuItems = [
-      { path: "/dashboard", label: "Dashboard", icon: Home },
-      { path: "/appointments", label: "Appointments", icon: Calendar },
-      { path: "/staff", label: "Staff", icon: Users },
-      { path: "/schedule", label: "Schedule", icon: Calendar },
-      { path: "/inventory", label: "Inventory", icon: Package },
-      { path: "/transactions", label: "Transactions", icon: Receipt },
-      { path: "/stylist-portfolios", label: "Stylist Portfolios", icon: ImageIcon },
-      { path: "/settings", label: "Settings", icon: Settings },
-      { path: "/reports", label: "Reports", icon: BarChart3 },
-      { path: "/profile", label: "Profile", icon: UserCog },
-    ];
-
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Branch Manager Dashboard">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Branch Manager Dashboard">
         <div className="max-w-7xl mx-auto space-y-10">
           {/* === STAT CARDS === */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

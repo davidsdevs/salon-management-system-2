@@ -18,11 +18,13 @@ import {
   Search,
   Filter,
   BarChart3,
+  ShoppingCart,
   Home,
   UserCog,
   MapPin,
   Phone,
-  Mail
+  Mail,
+  DollarSign
 } from 'lucide-react';
 
 const BranchMonitoring = () => {
@@ -38,6 +40,8 @@ const BranchMonitoring = () => {
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/appointment-reports', label: 'Appointment Reports', icon: Calendar },
     { path: '/branch-monitoring', label: 'Branch Monitoring', icon: Building2 },
+    { path: '/operational-manager/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/operational-manager/deposits', label: 'Deposit Reviews', icon: DollarSign },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];

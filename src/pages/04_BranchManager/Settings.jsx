@@ -37,22 +37,11 @@ import {
   Phone,
   Mail
 } from 'lucide-react';
+import { branchManagerMenuItems } from './menuItems';
 
 const BranchManagerSettings = () => {
   const { userData } = useAuth();
   const [activeFeature, setActiveFeature] = useState(null);
-
-  const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'Appointments', icon: Calendar },
-    { path: '/staff', label: 'Staff', icon: Users },
-    { path: '/schedule', label: 'Schedule', icon: Calendar },
-    { path: '/inventory', label: 'Inventory', icon: Package },
-    { path: '/transactions', label: 'Transactions', icon: DollarSign },
-    { path: '/settings', label: 'Settings', icon: Settings },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
-    { path: '/profile', label: 'Profile', icon: UserCog },
-  ];
 
   // All Branch Manager features - limited to branch-specific settings only
   const settingsFeatures = [
@@ -121,14 +110,14 @@ const BranchManagerSettings = () => {
 
   if (activeFeature) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Settings">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Settings">
         {renderFeatureComponent()}
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout menuItems={menuItems} pageTitle="Settings">
+    <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Settings">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center mb-8">
@@ -1358,20 +1347,45 @@ const StaffManagementComponent = ({ onBack }) => {
 
              {/* Staff Assignment Modal */}
              {showAssignmentModal && (
-               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                 <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
-                   <div className="p-6">
-                     <div className="flex items-center justify-between mb-4">
-                       <h3 className="text-lg font-semibold text-gray-900">Assign Staff to Branch</h3>
-                       <Button variant="outline" onClick={() => setShowAssignmentModal(false)}>
-                         <X className="h-4 w-4" />
+               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+                 <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+                   {/* Modal Header */}
+                   <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-4">
+                         <div className="p-2 bg-white/20 rounded-lg">
+                           <Users className="h-6 w-6" />
+                         </div>
+                         <div>
+                           <h2 className="text-2xl font-bold">Assign Staff to Branch</h2>
+                           <p className="text-white/80 text-sm mt-1">Manage staff assignments</p>
+                         </div>
+                       </div>
+                       <Button
+                         variant="ghost"
+                         onClick={() => setShowAssignmentModal(false)}
+                         className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                       >
+                         <X className="h-5 w-5" />
                        </Button>
                      </div>
+                   </div>
+                   
+                   {/* Modal Content */}
+                   <div className="flex-1 overflow-y-auto p-6">
                      <p className="text-gray-600 mb-4">
                        This feature will be implemented to assign staff members to your branch.
                      </p>
-                     <div className="flex justify-end space-x-3">
-                       <Button variant="outline" onClick={() => setShowAssignmentModal(false)}>
+                   </div>
+                   
+                   {/* Modal Footer */}
+                   <div className="border-t border-gray-200 p-6 bg-gray-50">
+                     <div className="flex justify-end">
+                       <Button
+                         variant="outline"
+                         onClick={() => setShowAssignmentModal(false)}
+                         className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                       >
                          Close
                        </Button>
                      </div>
@@ -1382,20 +1396,33 @@ const StaffManagementComponent = ({ onBack }) => {
 
              {/* Service Assignment Modal */}
              {showServiceAssignmentModal && selectedStaff && (
-               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                 <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
-                   <div className="p-6">
-                     <div className="flex items-center justify-between mb-6">
-                       <div>
-                         <h3 className="text-lg font-semibold text-gray-900">Service Assignment</h3>
-                         <p className="text-sm text-gray-600">Assign services to {selectedStaff.name}</p>
+               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+                 <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+                   {/* Modal Header */}
+                   <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-4">
+                         <div className="p-2 bg-white/20 rounded-lg">
+                           <Scissors className="h-6 w-6" />
+                         </div>
+                         <div>
+                           <h2 className="text-2xl font-bold">Service Assignment</h2>
+                           <p className="text-white/80 text-sm mt-1">Assign services to {selectedStaff.name}</p>
+                         </div>
                        </div>
-                       <Button variant="outline" onClick={() => setShowServiceAssignmentModal(false)}>
-                         <X className="h-4 w-4" />
+                       <Button
+                         variant="ghost"
+                         onClick={() => setShowServiceAssignmentModal(false)}
+                         className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                       >
+                         <X className="h-5 w-5" />
                        </Button>
                      </div>
-                     
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                   </div>
+                   
+                   {/* Modal Content */}
+                   <div className="flex-1 overflow-y-auto p-6">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                        {availableServices.map(service => {
                          const isAssigned = selectedStaff.service_id?.includes(service.id) || false;
                          return (
@@ -1420,9 +1447,16 @@ const StaffManagementComponent = ({ onBack }) => {
                          );
                        })}
                      </div>
-                     
-                     <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                       <Button variant="outline" onClick={() => setShowServiceAssignmentModal(false)}>
+                   </div>
+                   
+                   {/* Modal Footer */}
+                   <div className="border-t border-gray-200 p-6 bg-gray-50">
+                     <div className="flex justify-end">
+                       <Button
+                         variant="outline"
+                         onClick={() => setShowServiceAssignmentModal(false)}
+                         className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                       >
                          Close
                        </Button>
                      </div>
@@ -1779,26 +1813,34 @@ const HolidayManagementComponent = ({ onBack }) => {
 
       {/* Holiday Modal */}
       {showHolidayModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <div className="flex items-center">
-                <Calendar className="h-6 w-6 mr-3 text-[#160B53]" />
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    {editingHoliday ? 'Edit Holiday' : 'Add New Holiday'}
-                  </h2>
-                  <p className="text-sm text-gray-600">Configure holiday details and settings</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">
+                      {editingHoliday ? 'Edit Holiday' : 'Add New Holiday'}
+                    </h2>
+                    <p className="text-white/80 text-sm mt-1">Configure holiday details and settings</p>
+                  </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowHolidayModal(false)}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
-              <Button variant="outline" onClick={() => setShowHolidayModal(false)}>
-                <X className="h-4 w-4" />
-              </Button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 max-h-[70vh] overflow-y-auto">
+            {/* Modal Content */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
               <div className="space-y-6">
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1878,18 +1920,28 @@ const HolidayManagementComponent = ({ onBack }) => {
                   </div>
                 </div>
               </div>
-              
-              {/* Footer */}
-              <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-                <Button variant="outline" onClick={() => setShowHolidayModal(false)}>
+            </form>
+            
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowHolidayModal(false)}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex items-center">
-                  <Save className="h-4 w-4 mr-2" />
+                <Button
+                  type="submit"
+                  onClick={handleSubmit}
+                  className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors flex items-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
                   {editingHoliday ? 'Update Holiday' : 'Add Holiday'}
                 </Button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -2256,28 +2308,33 @@ const BranchProductsComponent = ({ onBack }) => {
 
       {/* Add Product Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
             {/* Modal Header */}
-            <div className="bg-[#160B53] text-white p-6">
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Package className="h-5 w-5 text-white" />
-                  <h2 className="text-xl font-semibold text-white">Add Product to Branch</h2>
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Add Product to Branch</h2>
+                    <p className="text-white/80 text-sm mt-1">Select products from the master catalog</p>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => setShowAddModal(false)} 
-                  className="text-white hover:text-gray-200 p-1"
+                <Button
+                  onClick={() => setShowAddModal(false)}
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                 >
                   <X className="h-5 w-5" />
-                </button>
+                </Button>
               </div>
             </div>
             
-            <div className="p-6">
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="space-y-4">
-                <p className="text-gray-600 mb-4">Select products from the master catalog to add to your branch:</p>
-                
                 {/* Products List */}
                 <div className="max-h-[400px] overflow-y-auto">
                   {availableProducts.length === 0 ? (
@@ -2333,25 +2390,51 @@ const BranchProductsComponent = ({ onBack }) => {
                 </div>
               </div>
             </div>
+            
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => setShowAddModal(false)}
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Confirmation Modal */}
       {showConfirmModal && productToAdd && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
             {/* Modal Header */}
-            <div className="bg-blue-50 p-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <AlertCircle className="h-8 w-8 text-blue-600" />
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Confirm Product Addition</h2>
+                    <p className="text-white/80 text-sm mt-1">Verify product details</p>
+                  </div>
                 </div>
+                <Button
+                  onClick={() => setShowConfirmModal(false)}
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 text-center">Confirm Product Addition</h2>
             </div>
             
-            <div className="p-6">
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="text-center space-y-4">
                 <p className="text-gray-600">
                   Are you sure you want to add this product to your branch?
@@ -2380,41 +2463,45 @@ const BranchProductsComponent = ({ onBack }) => {
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setShowConfirmModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        // Add this branch to the product's branches array
-                        const productRef = doc(db, 'products', productToAdd.id);
-                        await updateDoc(productRef, {
-                          branches: arrayUnion(userData.branchId)
-                        });
-                        
-                        // Refresh the lists
-                        await loadBranchProducts();
-                        await loadAvailableProducts();
-                        
-                        setShowConfirmModal(false);
-                        setShowAddModal(false);
-                        setShowSuccessModal(true);
-                      } catch (error) {
-                        console.error('Error adding product to branch:', error);
-                        setError('Failed to add product: ' + error.message);
-                        setShowConfirmModal(false);
-                      }
-                    }}
-                    className="flex-1 px-4 py-2 bg-[#160B53] text-white rounded-md hover:bg-[#12094A] transition-colors"
-                  >
-                    Add to Branch
-                  </button>
-                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex justify-end gap-3">
+                <Button
+                  onClick={() => setShowConfirmModal(false)}
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      // Add this branch to the product's branches array
+                      const productRef = doc(db, 'products', productToAdd.id);
+                      await updateDoc(productRef, {
+                        branches: arrayUnion(userData.branchId)
+                      });
+                      
+                      // Refresh the lists
+                      await loadBranchProducts();
+                      await loadAvailableProducts();
+                      
+                      setShowConfirmModal(false);
+                      setShowAddModal(false);
+                      setShowSuccessModal(true);
+                    } catch (error) {
+                      console.error('Error adding product to branch:', error);
+                      setError('Failed to add product: ' + error.message);
+                      setShowConfirmModal(false);
+                    }
+                  }}
+                  className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+                >
+                  Add to Branch
+                </Button>
               </div>
             </div>
           </div>
@@ -2423,19 +2510,32 @@ const BranchProductsComponent = ({ onBack }) => {
 
       {/* Remove Confirmation Modal */}
       {showRemoveConfirmModal && productToRemove && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
             {/* Modal Header */}
-            <div className="bg-red-50 p-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="p-3 bg-red-100 rounded-full">
-                  <AlertCircle className="h-8 w-8 text-red-600" />
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Remove Product from Branch</h2>
+                    <p className="text-white/80 text-sm mt-1">Confirm removal action</p>
+                  </div>
                 </div>
+                <Button
+                  onClick={() => setShowRemoveConfirmModal(false)}
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 text-center">Remove Product from Branch</h2>
             </div>
             
-            <div className="p-6">
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="text-center space-y-4">
                 <p className="text-gray-600">
                   Are you sure you want to remove this product from your branch?
@@ -2464,40 +2564,44 @@ const BranchProductsComponent = ({ onBack }) => {
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setShowRemoveConfirmModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        // Remove this branch from the product's branches array
-                        const productRef = doc(db, 'products', productToRemove.id);
-                        await updateDoc(productRef, {
-                          branches: arrayRemove(userData.branchId)
-                        });
-                        
-                        // Refresh the lists
-                        await loadBranchProducts();
-                        await loadAvailableProducts();
-                        
-                        setShowRemoveConfirmModal(false);
-                        setShowRemoveSuccessModal(true);
-                      } catch (error) {
-                        console.error('Error removing product from branch:', error);
-                        setError('Failed to remove product: ' + error.message);
-                        setShowRemoveConfirmModal(false);
-                      }
-                    }}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                  >
-                    Remove from Branch
-                  </button>
-                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex justify-end gap-3">
+                <Button
+                  onClick={() => setShowRemoveConfirmModal(false)}
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      // Remove this branch from the product's branches array
+                      const productRef = doc(db, 'products', productToRemove.id);
+                      await updateDoc(productRef, {
+                        branches: arrayRemove(userData.branchId)
+                      });
+                      
+                      // Refresh the lists
+                      await loadBranchProducts();
+                      await loadAvailableProducts();
+                      
+                      setShowRemoveConfirmModal(false);
+                      setShowRemoveSuccessModal(true);
+                    } catch (error) {
+                      console.error('Error removing product from branch:', error);
+                      setError('Failed to remove product: ' + error.message);
+                      setShowRemoveConfirmModal(false);
+                    }
+                  }}
+                  className="bg-red-600 text-white hover:bg-red-700 transition-colors"
+                >
+                  Remove from Branch
+                </Button>
               </div>
             </div>
           </div>
@@ -2506,30 +2610,44 @@ const BranchProductsComponent = ({ onBack }) => {
 
       {/* Remove Success Modal */}
       {showRemoveSuccessModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
-            <div className="bg-green-50 p-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="p-3 bg-green-100 rounded-full">
-                  <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <CheckCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Product Removed Successfully!</h2>
+                    <p className="text-white/80 text-sm mt-1">Action completed</p>
+                  </div>
                 </div>
+                <Button
+                  onClick={() => setShowRemoveSuccessModal(false)}
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 text-center">Product Removed Successfully!</h2>
             </div>
             
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="text-center space-y-4">
                 <p className="text-gray-600">
                   The product has been successfully removed from your branch.
                 </p>
-                
-                <button
-                  onClick={() => setShowRemoveSuccessModal(false)}
-                  className="w-full px-4 py-2 bg-[#160B53] text-white rounded-md hover:bg-[#12094A] transition-colors"
-                >
-                  Continue
-                </button>
               </div>
+            </div>
+            
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <Button
+                onClick={() => setShowRemoveSuccessModal(false)}
+                className="w-full bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+              >
+                Continue
+              </Button>
             </div>
           </div>
         </div>
@@ -2537,36 +2655,48 @@ const BranchProductsComponent = ({ onBack }) => {
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
-            {/* Modal Header */}
-            <div className="bg-green-50 p-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="p-3 bg-green-100 rounded-full">
-                  <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <CheckCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Product Added Successfully!</h2>
+                    <p className="text-white/80 text-sm mt-1">Product is now available</p>
+                  </div>
                 </div>
+                <Button
+                  onClick={() => setShowSuccessModal(false)}
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 text-center">Product Added Successfully!</h2>
             </div>
             
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="text-center space-y-4">
                 <p className="text-gray-600">
                   The product has been successfully added to your branch and is now available for sale.
                 </p>
-                
                 <div className="flex items-center justify-center space-x-2 text-green-600">
                   <CheckCircle className="h-5 w-5" />
                   <span className="text-sm font-medium">Product Added</span>
                 </div>
-                
-                <button
-                  onClick={() => setShowSuccessModal(false)}
-                  className="w-full px-4 py-2 bg-[#160B53] text-white rounded-md hover:bg-[#12094A] transition-colors"
-                >
-                  Continue
-                </button>
               </div>
+            </div>
+            
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <Button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+              >
+                Continue
+              </Button>
             </div>
           </div>
         </div>

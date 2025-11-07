@@ -87,18 +87,7 @@ const formatTime12Hour = (time24) => {
   return `${hour12}:${minutes} ${ampm}`;
 };
 
-// menu (kept as your real code uses)
-const menuItems = [
-  { path: "/dashboard", label: "Dashboard", icon: Home },
-  { path: "/appointments", label: "Appointments", icon: Calendar },
-  { path: "/staff", label: "Staff", icon: Users },
-  { path: "/schedule", label: "Schedule", icon: Calendar },
-  { path: "/inventory", label: "Inventory", icon: Package },
-  { path: "/transactions", label: "Transactions", icon: Receipt },
-  { path: "/settings", label: "Settings", icon: Settings },
-  { path: "/reports", label: "Reports", icon: BarChart3 },
-  { path: "/profile", label: "Profile", icon: UserCog },
-];
+import { branchManagerMenuItems } from "./menuItems";
 
 const BranchManagerSchedules = () => {
   const { userData } = useAuth();
@@ -149,44 +138,61 @@ const BranchManagerSchedules = () => {
 
 
   // Load staff and schedules function
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        if (!userData?.branchId) {
-          throw new Error('Branch ID not found');
-        }
-
-        // Get all users assigned to this branch
-        const users = await userService.getUsersByBranch(userData.branchId, userData.roles?.[0]);
-        
-        // Filter to show only stylists in this branch
-        const stylists = users.filter(user => 
-          user.roles?.includes('stylist') && 
-          user.branchId === userData.branchId &&
-          user.isActive === true
-        );
-        
-        setStaffData(stylists);
-
-        // Load schedules for this branch
-        const branchSchedules = await scheduleService.getSchedulesByBranch(userData.branchId);
-        setSchedules(branchSchedules);
-      } catch (err) {
-        console.error('Error loading schedule data:', err);
-        setError(err.message);
-      } finally {
+      if (!userData?.branchId) {
+        console.warn('⚠️ No branchId found in userData:', userData);
+        setError('Branch ID not found. Please refresh the page.');
         setLoading(false);
+        return;
       }
-    };
+
+      console.log('📅 Loading schedule data for branch:', userData.branchId);
+
+      // Get all users assigned to this branch
+      const users = await userService.getUsersByBranch(userData.branchId, userData.roles?.[0] || 'branchManager');
+      console.log('👥 Fetched users:', users.length);
+      
+      // Filter to show only stylists in this branch
+      const stylists = users.filter(user => 
+        user.roles?.includes('stylist') && 
+        user.branchId === userData.branchId &&
+        user.isActive === true
+      );
+      
+      console.log('✂️ Filtered stylists:', stylists.length);
+      setStaffData(stylists);
+
+      // Load schedules for this branch
+      const branchSchedules = await scheduleService.getSchedulesByBranch(userData.branchId);
+      console.log('📋 Fetched schedules:', branchSchedules.length);
+      setSchedules(branchSchedules || []);
+    } catch (err) {
+      console.error('❌ Error loading schedule data:', err);
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack,
+        branchId: userData?.branchId,
+        userRole: userData?.roles?.[0]
+      });
+      setError(err.message || 'Failed to load schedule data. Please try refreshing the page.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Load staff and schedules on mount
   useEffect(() => {
-    if (userData) {
+    if (userData?.branchId) {
       loadData();
+    } else {
+      console.warn('⏳ Waiting for userData...', userData);
+      setLoading(false);
     }
-  }, [userData]);
+  }, [userData?.branchId]); // Only depend on branchId to avoid unnecessary re-renders
 
   // helpers
   const roles = useMemo(() => ["All", "stylist"], []);
@@ -1226,7 +1232,7 @@ const BranchManagerSchedules = () => {
   // main render: keep your UI and add toggles, nav, filters
   if (loading) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Schedule Management">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Schedule Management">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -1241,7 +1247,7 @@ const BranchManagerSchedules = () => {
 
   if (error) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Schedule Management">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Schedule Management">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -1257,7 +1263,7 @@ const BranchManagerSchedules = () => {
   }
 
   return (
-    <DashboardLayout menuItems={menuItems} pageTitle="Schedule Management">
+    <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Schedule Management">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
   <Card className="bg-white p-4 flex items-center gap-4 shadow-sm border border-gray-200">
@@ -1473,8 +1479,37 @@ const BranchManagerSchedules = () => {
 
                  {/* Configuration Modal */}
          {isConfigModalOpen && selectedEmployee && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-             <Card className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+               {/* Modal Header */}
+               <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     <div className="p-2 bg-white/20 rounded-lg">
+                       <Calendar className="h-6 w-6" />
+                     </div>
+                     <div>
+                       <h2 className="text-2xl font-bold">Configure Staff Availability</h2>
+                       <p className="text-white/80 text-sm mt-1">
+                         {selectedEmployee.firstName} {selectedEmployee.lastName}
+                       </p>
+                     </div>
+                   </div>
+                   <Button
+                     variant="ghost"
+                     onClick={() => {
+                       setIsConfigModalOpen(false);
+                       setSelectedEmployee(null);
+                       setEmployeeShifts([]);
+                     }}
+                     className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                   >
+                     <X className="h-5 w-5" />
+                   </Button>
+                 </div>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-6">
                <div className="flex items-center gap-4 mb-6">
                  <div className="relative">
                    {selectedEmployee.profileUrl ? (
@@ -1596,25 +1631,31 @@ const BranchManagerSchedules = () => {
                 </button>
               </div>
 
-              <div className="flex justify-end gap-2 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsConfigModalOpen(false);
-                    setSelectedEmployee(null);
-                    setEmployeeShifts([]);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={saveShifts}
-                  className="bg-[#160B53] text-white hover:bg-[#12094A]"
-                >
-                  Save Availability
-                </Button>
               </div>
-            </Card>
+              
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsConfigModalOpen(false);
+                      setSelectedEmployee(null);
+                      setEmployeeShifts([]);
+                    }}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={saveShifts}
+                    className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+                  >
+                    Save Availability
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1740,70 +1781,104 @@ const BranchManagerSchedules = () => {
 
         {/* Quick Edit Availability Modal */}
         {isQuickEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
-              <h3 className="text-lg font-semibold mb-4">
-                {getSchedule(quickEditData.employeeId, quickEditData.dayOfWeek) ? 'Edit Availability' : 'Set Availability'}
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {quickEditData.dayOfWeek} - {staffData.find(s => (s.uid || s.id) === quickEditData.employeeId)?.firstName || 'Staff'}
-              </p>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                  <input
-                    type="time"
-                    value={quickEditData.startTime}
-                    onChange={(e) => setQuickEditData(prev => ({ ...prev, startTime: e.target.value }))}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                  <input
-                    type="time"
-                    value={quickEditData.endTime}
-                    onChange={(e) => setQuickEditData(prev => ({ ...prev, endTime: e.target.value }))}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-                  <input
-                    type="text"
-                    value={quickEditData.notes}
-                    onChange={(e) => setQuickEditData(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="e.g., Morning shift, Special notes"
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
-                  />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+            <div className="bg-white rounded-xl shadow-2xl w-96 max-w-md overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Clock className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">
+                        {getSchedule(quickEditData.employeeId, quickEditData.dayOfWeek) ? 'Edit Availability' : 'Set Availability'}
+                      </h2>
+                      <p className="text-white/80 text-sm mt-1">
+                        {quickEditData.dayOfWeek} - {staffData.find(s => (s.uid || s.id) === quickEditData.employeeId)?.firstName || 'Staff'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setIsQuickEditModalOpen(false);
+                      setQuickEditData({
+                        employeeId: null,
+                        dayOfWeek: null,
+                        startTime: '09:00',
+                        endTime: '17:00',
+                        notes: ''
+                      });
+                    }}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
               
-              <div className="flex justify-end space-x-2 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsQuickEditModalOpen(false);
-                    setQuickEditData({
-                      employeeId: null,
-                      dayOfWeek: null,
-                      startTime: '09:00',
-                      endTime: '17:00',
-                      notes: ''
-                    });
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={saveQuickEditAvailability}
-                  className="bg-[#160B53] hover:bg-[#160B53]/90"
-                >
-                  {getSchedule(quickEditData.employeeId, quickEditData.dayOfWeek) ? 'Update' : 'Set Available'}
-                </Button>
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      value={quickEditData.startTime}
+                      onChange={(e) => setQuickEditData(prev => ({ ...prev, startTime: e.target.value }))}
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={quickEditData.endTime}
+                      onChange={(e) => setQuickEditData(prev => ({ ...prev, endTime: e.target.value }))}
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                    <input
+                      type="text"
+                      value={quickEditData.notes}
+                      onChange={(e) => setQuickEditData(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="e.g., Morning shift, Special notes"
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsQuickEditModalOpen(false);
+                      setQuickEditData({
+                        employeeId: null,
+                        dayOfWeek: null,
+                        startTime: '09:00',
+                        endTime: '17:00',
+                        notes: ''
+                      });
+                    }}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={saveQuickEditAvailability}
+                    className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+                  >
+                    {getSchedule(quickEditData.employeeId, quickEditData.dayOfWeek) ? 'Update' : 'Set Available'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -1811,68 +1886,93 @@ const BranchManagerSchedules = () => {
 
         {/* CSV Export Modal */}
         {isExportModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold mb-4">Export Schedule Data</h3>
-              <p className="text-sm text-gray-600 mb-4">Choose filters for your CSV export</p>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff Filter</label>
-                  <select
-                    value={exportFilters.staffFilter}
-                    onChange={(e) => setExportFilters(prev => ({ ...prev, staffFilter: e.target.value }))}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+            <div className="bg-white rounded-xl shadow-2xl w-96 max-w-md overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <FileDown className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Export Schedule Data</h2>
+                      <p className="text-white/80 text-sm mt-1">Choose filters for your CSV export</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsExportModalOpen(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                   >
-                    <option value="all">All Staff</option>
-                    <option value="available">Available Staff Only</option>
-                    <option value="unavailable">Unavailable Staff Only</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Day Filter</label>
-                  <select
-                    value={exportFilters.dayFilter}
-                    onChange={(e) => setExportFilters(prev => ({ ...prev, dayFilter: e.target.value }))}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
-                  >
-                    <option value="all">All Days</option>
-                    {DAYS.map(day => (
-                      <option key={day} value={day.toLowerCase()}>{day}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Shift Type</label>
-                  <select
-                    value={exportFilters.shiftType}
-                    onChange={(e) => setExportFilters(prev => ({ ...prev, shiftType: e.target.value }))}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
-                  >
-                    <option value="all">All Shift Types</option>
-                    <option value="morning">Morning Shifts (6 AM - 12 PM)</option>
-                    <option value="afternoon">Afternoon Shifts (12 PM - 6 PM)</option>
-                    <option value="evening">Evening Shifts (6 PM - 12 AM)</option>
-                    <option value="wholeDay">Whole Day Shifts (8+ hours)</option>
-                  </select>
+                    <X className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
               
-              <div className="flex justify-end space-x-2 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsExportModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={exportFilteredCSV}
-                  className="bg-[#160B53] hover:bg-[#160B53]/90"
-                >
-                  Export CSV
-                </Button>
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff Filter</label>
+                    <select
+                      value={exportFilters.staffFilter}
+                      onChange={(e) => setExportFilters(prev => ({ ...prev, staffFilter: e.target.value }))}
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    >
+                      <option value="all">All Staff</option>
+                      <option value="available">Available Staff Only</option>
+                      <option value="unavailable">Unavailable Staff Only</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Day Filter</label>
+                    <select
+                      value={exportFilters.dayFilter}
+                      onChange={(e) => setExportFilters(prev => ({ ...prev, dayFilter: e.target.value }))}
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    >
+                      <option value="all">All Days</option>
+                      {DAYS.map(day => (
+                        <option key={day} value={day.toLowerCase()}>{day}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Shift Type</label>
+                    <select
+                      value={exportFilters.shiftType}
+                      onChange={(e) => setExportFilters(prev => ({ ...prev, shiftType: e.target.value }))}
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#160B53]"
+                    >
+                      <option value="all">All Shift Types</option>
+                      <option value="morning">Morning Shifts (6 AM - 12 PM)</option>
+                      <option value="afternoon">Afternoon Shifts (12 PM - 6 PM)</option>
+                      <option value="evening">Evening Shifts (6 PM - 12 AM)</option>
+                      <option value="wholeDay">Whole Day Shifts (8+ hours)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsExportModalOpen(false)}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={exportFilteredCSV}
+                    className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
+                  >
+                    Export CSV
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

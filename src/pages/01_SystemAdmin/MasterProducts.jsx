@@ -5,6 +5,8 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { productService } from '../../services/productService';
 import { cloudinaryService } from '../../services/cloudinaryService';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import {
   Plus,
   Search,
@@ -24,6 +26,7 @@ import {
   Users,
   Home,
   Building2,
+  Building,
   Settings,
   BarChart3,
   UserCog,
@@ -34,6 +37,7 @@ import {
 const MasterProducts = () => {
   const { userData } = useAuth();
   const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -55,7 +59,8 @@ const MasterProducts = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package2 },
-    { path: '/transactions', label: 'Transactions', icon: DollarSign },
+    { path: '/suppliers', label: 'Suppliers', icon: Building },
+    { path: '/admin/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
   
@@ -124,10 +129,8 @@ const MasterProducts = () => {
         break;
       
       case 'supplier':
-        if (!value.trim()) {
-          error = 'Supplier is required';
-        } else if (value.trim().length < 2) {
-          error = 'Supplier must be at least 2 characters';
+        if (!value || !value.trim()) {
+          error = 'Please select a supplier';
         }
         break;
       
@@ -205,8 +208,28 @@ const MasterProducts = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Load suppliers from Firestore
+  const loadSuppliers = async () => {
+    try {
+      const suppliersRef = collection(db, 'suppliers');
+      const snapshot = await getDocs(suppliersRef);
+      const suppliersList = [];
+      snapshot.forEach((doc) => {
+        suppliersList.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      setSuppliers(suppliersList);
+    } catch (err) {
+      console.error('Error loading suppliers:', err);
+      // Don't set error state - suppliers are optional
+    }
+  };
+
   // Load products on component mount
   useEffect(() => {
+    loadSuppliers();
     loadProducts();
   }, []);
 
@@ -219,19 +242,24 @@ const MasterProducts = () => {
       const result = await productService.getAllProducts();
       
       if (result.success) {
-        setProducts(result.data || []);
-        console.log('✅ Products loaded from database:', result.data?.length || 0);
-        if (result.data && result.data.length > 0) {
-          console.log('📅 Sample product timestamps:', {
-            createdAt: result.data[0].createdAt,
-            updatedAt: result.data[0].updatedAt,
-            createdAtType: typeof result.data[0].createdAt,
-            updatedAtType: typeof result.data[0].updatedAt
+        // productService returns { success: true, products: [...] }
+        const productsList = result.products || result.data || [];
+        setProducts(productsList);
+        console.log('✅ Products loaded from database:', productsList.length);
+        if (productsList.length > 0) {
+          console.log('📅 Sample product:', {
+            id: productsList[0].id,
+            name: productsList[0].name,
+            supplier: productsList[0].supplier,
+            createdAt: productsList[0].createdAt,
+            updatedAt: productsList[0].updatedAt,
+            createdAtType: typeof productsList[0].createdAt,
+            updatedAtType: typeof productsList[0].updatedAt
           });
         }
       } else {
-        setError(result.error || 'Failed to load products');
-        console.error('❌ Failed to load products:', result.error);
+        setError(result.error || result.message || 'Failed to load products');
+        console.error('❌ Failed to load products:', result.error || result.message);
       }
       
     } catch (err) {
@@ -244,16 +272,28 @@ const MasterProducts = () => {
 
   // Filter products based on search and filters
   const filteredProducts = products.filter(product => {
+    // Get supplier name for search
+    const supplierDoc = product.supplier ? suppliers.find(s => s.id === product.supplier) : null;
+    const supplierName = supplierDoc ? supplierDoc.name : product.supplier || '';
+    
     const matchesSearch = 
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.upc?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
     const matchesStatus = statusFilter === 'All' || product.status === statusFilter;
     const matchesBrand = brandFilter === 'All' || product.brand === brandFilter;
-    const matchesSupplier = supplierFilter === 'All' || product.supplier === supplierFilter;
+    const matchesSupplier = supplierFilter === 'All' || (() => {
+      // If supplierFilter is a name, try to match by supplier name
+      if (product.supplier) {
+        const supplierDoc = suppliers.find(s => s.id === product.supplier);
+        const supplierName = supplierDoc ? supplierDoc.name : product.supplier;
+        return supplierName === supplierFilter;
+      }
+      return false;
+    })();
     
     return matchesSearch && matchesCategory && matchesStatus && matchesBrand && matchesSupplier;
   });
@@ -261,7 +301,16 @@ const MasterProducts = () => {
   // Get unique categories, brands, and suppliers from real data
   const categories = ['All', ...new Set(products.map(p => p.category).filter(Boolean))];
   const brands = ['All', ...new Set(products.map(p => p.brand).filter(Boolean))];
-  const suppliers = ['All', ...new Set(products.map(p => p.supplier).filter(Boolean))];
+  
+  // Get supplier names for filter dropdown (from products)
+  const supplierNames = ['All', ...new Set(products.map(p => {
+    // If supplier is an ID, try to find the supplier name
+    if (p.supplier) {
+      const supplierDoc = suppliers.find(s => s.id === p.supplier);
+      return supplierDoc ? supplierDoc.name : p.supplier;
+    }
+    return null;
+  }).filter(Boolean))];
 
   // Pagination calculations
   const totalItems = filteredProducts.length;
@@ -777,7 +826,7 @@ const MasterProducts = () => {
                 value={supplierFilter}
                 onChange={(e) => setSupplierFilter(e.target.value)}
               >
-                {suppliers.map(supplier => (
+                {supplierNames.map(supplier => (
                   <option key={supplier} value={supplier}>{supplier}</option>
                 ))}
               </select>
@@ -1176,7 +1225,12 @@ const MasterProducts = () => {
                             </div>
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="text-sm font-medium text-gray-600">Supplier</span>
-                            <span className="text-sm text-gray-900">{formData.supplier}</span>
+                            <span className="text-sm text-gray-900">
+                              {(() => {
+                                const supplierDoc = suppliers.find(s => s.id === formData.supplier);
+                                return supplierDoc ? supplierDoc.name : formData.supplier || 'N/A';
+                              })()}
+                            </span>
                             </div>
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="text-sm font-medium text-gray-600">Shelf Life</span>
@@ -1321,21 +1375,26 @@ const MasterProducts = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Supplier <span className="text-red-500">*</span>
                             </label>
-                            <input
-                              type="text"
+                            <select
                               name="supplier"
                               value={formData.supplier}
                               onChange={handleInputChange}
                               onBlur={handleBlur}
                               required
                               disabled={modalMode === 'view'}
-                              placeholder="Enter supplier name"
                               className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
                                 errors.supplier && touched.supplier 
                                   ? 'border-red-500' 
                                   : 'border-gray-300'
                               }`}
-                            />
+                            >
+                              <option value="">Select a supplier</option>
+                              {suppliers.map(supplier => (
+                                <option key={supplier.id} value={supplier.id}>
+                                  {supplier.name}
+                                </option>
+                              ))}
+                            </select>
                             {errors.supplier && touched.supplier && (
                               <p className="mt-1 text-sm text-red-600">{errors.supplier}</p>
                             )}

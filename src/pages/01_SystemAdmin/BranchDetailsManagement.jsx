@@ -7,7 +7,8 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import DashboardLayout from '../shared/DashboardLayout';
 import { 
-  Building2, 
+  Building2,
+  Building,
   Users, 
   Calendar, 
   MapPin, 
@@ -30,7 +31,8 @@ import {
   AlertCircle,
   CheckCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  DollarSign
 } from 'lucide-react';
 
 const BranchDetailsManagement = () => {
@@ -51,6 +53,8 @@ const BranchDetailsManagement = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package2 },
+    { path: '/suppliers', label: 'Suppliers', icon: Building },
+    { path: '/admin/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

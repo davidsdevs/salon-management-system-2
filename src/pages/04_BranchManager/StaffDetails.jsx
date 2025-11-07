@@ -28,6 +28,7 @@ import {
   Receipt,
   Settings
 } from "lucide-react";
+import { branchManagerMenuItems } from "./menuItems";
 
 const StaffDetails = () => {
   const navigate = useNavigate();
@@ -55,19 +56,6 @@ const StaffDetails = () => {
 
   // Get unique categories from all services
   const serviceCategories = [...new Set(allServices.map(service => service.category).filter(Boolean))];
-
-  // Menu items - same as Staff.jsx to maintain consistency
-  const menuItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home },
-    { path: "/appointments", label: "Appointments", icon: Calendar },
-    { path: "/staff", label: "Staff", icon: Users },
-    { path: "/schedule", label: "Schedule", icon: Calendar },
-    { path: "/inventory", label: "Inventory", icon: Package },
-    { path: "/transactions", label: "Transactions", icon: Receipt },
-    { path: "/settings", label: "Settings", icon: Settings },
-    { path: "/reports", label: "Reports", icon: BarChart3 },
-    { path: "/profile", label: "Profile", icon: UserCog },
-  ];
 
   // Load staff details and services on component mount
   useEffect(() => {
@@ -205,7 +193,7 @@ const StaffDetails = () => {
   // Loading state
   if (loading) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Details">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -221,7 +209,7 @@ const StaffDetails = () => {
   // Error state
   if (error) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Details">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -243,7 +231,7 @@ const StaffDetails = () => {
   // No staff data
   if (!staff) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Details">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -263,7 +251,7 @@ const StaffDetails = () => {
   }
 
   return (
-    <DashboardLayout menuItems={menuItems} pageTitle="Staff Details">
+    <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Staff Details">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* === Back Button === */}
         <div className="flex items-center justify-between">
@@ -733,30 +721,29 @@ const StaffDetails = () => {
 
         {/* === Enhanced Services Modal === */}
         <div
-          className={`fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-all duration-300 ${
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 p-4 ${
             isModalOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
           }`}
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100">
-            {/* Enhanced Header */}
-            <div className="bg-gradient-to-r from-[#160B53] to-[#2D1B69] px-6 py-4 text-white">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <div className="p-2 bg-white/20 rounded-lg">
                     <Briefcase className="h-6 w-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">Manage Services</h2>
-                    <p className="text-white/80 text-sm">
+                    <h2 className="text-2xl font-bold">Manage Services</h2>
+                    <p className="text-white/80 text-sm mt-1">
                       Assign services to {staff.firstName} {staff.lastName}
                     </p>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
-                  size="sm"
                   onClick={() => setIsModalOpen(false)}
-                  className="text-white hover:bg-white/20 p-2 rounded-full"
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </Button>
@@ -912,8 +899,8 @@ const StaffDetails = () => {
               )}
             </div>
 
-            {/* Enhanced Footer */}
-            <div className="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50 flex items-center justify-between">
               <div className="text-sm text-gray-600">
                 {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} selected
               </div>
@@ -922,12 +909,12 @@ const StaffDetails = () => {
                   variant="outline"
                   onClick={() => setIsModalOpen(false)}
                   disabled={saving}
-                  className="px-6"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="bg-[#160B53] text-white hover:bg-[#12094A] px-6"
+                  className="bg-[#160B53] text-white hover:bg-[#12094A] transition-colors"
                   onClick={handleSaveServices}
                   disabled={saving}
                 >

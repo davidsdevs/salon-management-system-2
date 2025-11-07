@@ -23,19 +23,16 @@ import {
   FileText,
   Receipt,
   Settings,
+  Search,
+  X,
+  Clock,
+  User,
+  Scissors,
+  CheckCircle,
 } from "lucide-react";
+import { branchManagerMenuItems } from "./menuItems";
 
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+// Chart imports removed - focusing on printing and export features
 
 const BranchManagerAppointments = () => {
   let userData, loading, error;
@@ -347,19 +344,6 @@ const BranchManagerAppointments = () => {
     }
   }, [userData?.branchId]);
 
-  // Menu (kept as your real code)
-  const menuItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home },
-    { path: "/appointments", label: "Appointments", icon: Calendar },
-    { path: "/staff", label: "Staff", icon: Users },
-    { path: "/schedule", label: "Schedule", icon: Calendar },
-    { path: "/inventory", label: "Inventory", icon: Package },
-    { path: "/transactions", label: "Transactions", icon: Receipt },
-    { path: "/settings", label: "Settings", icon: Settings },
-    { path: "/reports", label: "Reports", icon: BarChart3 },
-    { path: "/profile", label: "Profile", icon: UserCog },
-  ];
-
   // === Filter State ===
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -625,65 +609,9 @@ const BranchManagerAppointments = () => {
     }
   };
 
-  // === Chart Data ===
-  const appointmentTrendData = useMemo(() => {
-    // Group filtered appointments by date for trend chart
-    const dateGroups = {};
-    filteredAppointments.forEach(appointment => {
-      const date = appointment.appointmentDate;
-      if (!dateGroups[date]) {
-        dateGroups[date] = {
-          date: date,
-          appointments: 0
-        };
-      }
-      dateGroups[date].appointments += 1;
-    });
-    
-    // Convert to array and sort by date
-    return Object.values(dateGroups).sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [filteredAppointments]);
+  // === Chart Data (Removed trend - focusing on actionable features) ===
 
-  // === Stylist Performance (Based on Filtered Data) ===
-  const stylistPerformance = useMemo(() => {
-    const performance = {};
-    
-    filteredAppointments.forEach(appointment => {
-      // Handle new serviceStylistPairs structure
-      if (appointment.serviceStylistPairs && appointment.serviceStylistPairs.length > 0) {
-        appointment.serviceStylistPairs.forEach(pair => {
-          const stylistId = pair.stylistId;
-          if (!stylistId) return;
-          
-          const stylistName = getStylistName(stylistId);
-          
-          if (!performance[stylistName]) {
-            performance[stylistName] = {
-              stylist: stylistName,
-              appointments: 0
-            };
-          }
-          
-          performance[stylistName].appointments += 1;
-        });
-      } else if (appointment.stylistId) {
-        // Fallback to old stylistId field
-        const stylistId = appointment.stylistId;
-        const stylistName = getStylistName(stylistId);
-        
-        if (!performance[stylistName]) {
-          performance[stylistName] = {
-            stylist: stylistName,
-            appointments: 0
-          };
-        }
-        
-        performance[stylistName].appointments += 1;
-      }
-    });
-    
-    return Object.values(performance);
-  }, [filteredAppointments, stylistsData]);
+  // Stylist Performance chart removed - focusing on actionable features
 
   // === Actions ===
   const exportToExcel = async (rows = filteredAppointments, filename = "appointments.xlsx") => {
@@ -1313,7 +1241,6 @@ const BranchManagerAppointments = () => {
       <html>
         <head>
           <title>Appointments Report - Branch Appointments</title>
-          <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
           <style>
             @page {
               margin: 0.5in;
@@ -1321,249 +1248,161 @@ const BranchManagerAppointments = () => {
             }
             
             * {
-              font-family: 'Poppins', sans-serif !important;
+              font-family: Arial, sans-serif;
             }
             body {
-              font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-              font-size: 12px;
-              line-height: 1.4;
-              color: #333;
+              font-family: Arial, sans-serif;
+              font-size: 11px;
+              line-height: 1.3;
+              color: #000;
               margin: 0;
               padding: 0;
             }
             .report-header {
               text-align: center;
-              margin-bottom: 30px;
-              padding-bottom: 20px;
-              border-bottom: 3px solid #160B53;
-            }
-            .logo-section {
-              margin-bottom: 20px;
-            }
-            .logo {
-              width: 80px;
-              height: 80px;
-              margin: 0 auto 15px auto;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .logo img {
-              width: 100%;
-              height: 100%;
-              object-fit: contain;
+              margin-bottom: 15px;
+              padding-bottom: 10px;
+              border-bottom: 1px solid #000;
             }
             .report-title {
-              font-family: 'Poppins', sans-serif !important;
-              font-size: 28px;
-              font-weight: 700;
-              color: #160B53;
-              margin-bottom: 10px;
+              font-size: 18px;
+              font-weight: bold;
+              color: #000;
+              margin-bottom: 5px;
               text-transform: uppercase;
-              letter-spacing: 1px;
             }
             .report-subtitle {
-              font-family: 'Poppins', sans-serif !important;
-              font-size: 18px;
-              color: #666;
-              margin-bottom: 20px;
-              font-weight: 500;
-            }
-            .report-info {
-              display: flex;
-              justify-content: space-between;
               font-size: 12px;
-              color: #555;
-              margin-bottom: 20px;
-              background-color: #f8f9fa;
-              padding: 15px;
-              border-radius: 8px;
-            }
-            .report-info div {
-              flex: 1;
-              padding: 0 10px;
-            }
-            .report-info strong {
-              color: #160B53;
-              font-weight: 600;
-            }
-            .report-info .info-label {
-              display: block;
-              margin-bottom: 5px;
-              font-weight: 600;
-              color: #160B53;
-              font-family: 'Poppins', sans-serif;
-            }
-            .report-info .info-value {
-              display: block;
-              margin-bottom: 8px;
-              color: #333;
-              font-family: 'Poppins', sans-serif;
+              color: #000;
+              margin-bottom: 10px;
             }
             .report-info-simple {
-              margin-bottom: 20px;
-              padding: 10px 0;
+              margin-bottom: 15px;
+              padding: 8px 0;
               border-bottom: 1px solid #000;
-              font-family: 'Poppins', sans-serif;
             }
             .info-row {
               display: flex;
               align-items: center;
               flex-wrap: wrap;
-              font-size: 11px;
+              font-size: 10px;
               line-height: 1.2;
             }
             .info-label {
-              font-weight: 600;
+              font-weight: bold;
               color: #000;
               margin-right: 5px;
             }
             .info-value {
-              font-weight: 400;
+              font-weight: normal;
               color: #000;
               margin-right: 15px;
             }
             .info-separator {
-              color: #666;
+              color: #000;
               margin: 0 8px;
-              font-weight: 300;
             }
             .summary-simple {
-              margin: 15px 0;
-              padding: 8px 0;
+              margin: 10px 0;
+              padding: 5px 0;
               border-top: 1px solid #000;
-              font-size: 11px;
-              font-family: 'Poppins', sans-serif;
+              font-size: 10px;
             }
             .summary-item {
-              font-weight: 400;
+              font-weight: normal;
               color: #000;
               margin-right: 15px;
             }
             .summary-separator {
-              color: #666;
+              color: #000;
               margin: 0 8px;
-              font-weight: 300;
             }
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 20px;
-              font-size: 11px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              margin-top: 15px;
+              font-size: 10px;
             }
             th {
-              background-color: #160B53;
-              color: white;
-              padding: 14px 10px;
+              background-color: #fff;
+              color: #000;
+              padding: 8px 6px;
               text-align: left;
-              font-weight: 600;
-              border: 1px solid #ddd;
-              font-size: 12px;
+              font-weight: bold;
+              border: 1px solid #000;
+              font-size: 10px;
               text-transform: uppercase;
-              letter-spacing: 0.5px;
-              font-family: 'Poppins', sans-serif;
             }
             td {
-              padding: 12px 10px;
-              border: 1px solid #ddd;
+              padding: 6px;
+              border: 1px solid #000;
               vertical-align: top;
-              font-size: 11px;
-              font-family: 'Poppins', sans-serif;
-            }
-            tr:nth-child(even) {
-              background-color: #f9f9f9;
-            }
-            tr:hover {
-              background-color: #f5f5f5;
+              font-size: 10px;
             }
             .status-badge {
-              padding: 6px 12px;
-              border-radius: 15px;
-              font-size: 10px;
-              font-weight: bold;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            }
-            .status-scheduled { background-color: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
-            .status-confirmed { background-color: #f3e5f5; color: #7b1fa2; border: 1px solid #e1bee7; }
-            .status-completed { background-color: #e8f5e8; color: #2e7d32; border: 1px solid #c8e6c9; }
-            .status-cancelled { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
-            .service-tag {
-              display: inline-block;
-              background-color: #160B53;
-              color: white;
-              padding: 3px 8px;
-              border-radius: 4px;
               font-size: 9px;
-              margin: 1px 2px 1px 0;
-              font-weight: 500;
+              font-weight: normal;
+              text-transform: capitalize;
+              color: #000;
+            }
+            .service-tag {
+              display: inline;
+              color: #000;
+              font-size: 9px;
+              margin-right: 5px;
             }
             .revenue {
               font-weight: bold;
-              color: #2e7d32;
-              font-size: 12px;
-              font-family: 'Poppins', sans-serif;
+              color: #000;
+              font-size: 10px;
             }
             .client-name {
-              font-weight: 600;
-              color: #333;
+              font-weight: bold;
+              color: #000;
             }
             .date-time {
-              color: #555;
-              font-size: 10px;
+              color: #000;
+              font-size: 9px;
             }
             .report-footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 2px solid #e0e0e0;
+              margin-top: 20px;
+              padding-top: 10px;
+              border-top: 1px solid #000;
               text-align: center;
-              font-size: 10px;
-              color: #666;
-              background-color: #f8f9fa;
-              padding: 20px;
-              border-radius: 8px;
-              font-family: 'Poppins', sans-serif;
+              font-size: 9px;
+              color: #000;
             }
             .report-footer p {
-              margin: 5px 0;
+              margin: 3px 0;
             }
             .summary-stats {
               display: flex;
               justify-content: space-around;
-              margin: 20px 0;
-              padding: 15px;
-              background-color: #f0f0f0;
-              border-radius: 8px;
+              margin: 15px 0;
+              padding: 10px 0;
+              border-top: 1px solid #000;
+              border-bottom: 1px solid #000;
             }
             .stat-item {
               text-align: center;
             }
             .stat-number {
-              font-size: 24px;
+              font-size: 16px;
               font-weight: bold;
-              color: #160B53;
+              color: #000;
             }
             .stat-label {
-              font-size: 11px;
-              color: #666;
+              font-size: 9px;
+              color: #000;
               text-transform: uppercase;
-              letter-spacing: 0.5px;
-              font-family: 'Poppins', sans-serif;
             }
             @media print {
-              body { -webkit-print-color-adjust: exact; }
-              .status-badge, .service-tag { -webkit-print-color-adjust: exact; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
           <div class="report-header">
-            <div class="logo-section">
-              <div class="logo">
-                <img src="/logo.png" alt="David's Salon" />
-              </div>
-            </div>
             <div class="report-title">Branch Appointments Report</div>
             <div class="report-subtitle">Branch Manager Dashboard</div>
           </div>
@@ -1602,11 +1441,11 @@ const BranchManagerAppointments = () => {
           <div class="summary-stats">
             <div class="stat-item">
               <div class="stat-number">${filteredAppointments.length}</div>
-              <div class="stat-label">Total Appointments</div>
+              <div class="stat-label">Total</div>
             </div>
             <div class="stat-item">
               <div class="stat-number">₱${totalRevenue.toLocaleString()}</div>
-              <div class="stat-label">Total Revenue</div>
+              <div class="stat-label">Revenue</div>
             </div>
             <div class="stat-item">
               <div class="stat-number">${filteredAppointments.filter(apt => apt.status === 'scheduled').length}</div>
@@ -1642,16 +1481,16 @@ const BranchManagerAppointments = () => {
                   <td>
                     <div style="line-height: 1.3;">${row.services.split(', ').map(service => 
                       `<span class="service-tag">${service}</span>`
-                    ).join('')}</div>
+                    ).join(', ')}</div>
                   </td>
                   <td>
-                    <div class="stylist-info">${row.stylist}</div>
-                    <div class="stylist-type" style="font-size: 10px; color: #666; margin-top: 2px;">
-                      ${row.stylistType === 'specific' ? 'Specific Stylist' : 'Any Available'}
+                    <div>${row.stylist}</div>
+                    <div style="font-size: 9px; margin-top: 2px;">
+                      ${row.stylistType === 'specific' ? 'Specific' : 'Any Available'}
                     </div>
                   </td>
                   <td>
-                    <span class="status-badge status-${row.status.toLowerCase()}">${row.status}</span>
+                    <span class="status-badge">${row.status}</span>
                   </td>
                   <td class="revenue">${row.revenue}</td>
                 </tr>
@@ -1670,10 +1509,8 @@ const BranchManagerAppointments = () => {
           </div>
           
           <div class="report-footer">
-            <p><strong>Salon Management System - Professional Report</strong></p>
-            <p>This report was generated automatically by the Salon Management System</p>
-            <p>For questions or support, please contact your system administrator</p>
-            <p>Report generated on ${new Date().toLocaleString()} | Page 1 of 1</p>
+            <p><strong>Salon Management System</strong></p>
+            <p>Generated on ${new Date().toLocaleString()}</p>
           </div>
         </body>
       </html>
@@ -1730,7 +1567,7 @@ const BranchManagerAppointments = () => {
 
 
   return (
-    <DashboardLayout menuItems={menuItems} pageTitle="Appointments Overview">
+    <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Appointments Overview">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* === Summary Cards === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1814,193 +1651,329 @@ const BranchManagerAppointments = () => {
                 )}
               </div>
 
-          <div className="flex gap-2">
-                <Button 
-                  onClick={() => exportToExcel(filteredAppointments, "appointments_filtered.xlsx")} 
-                  className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] shadow-sm whitespace-nowrap"
-                >
-                  <FileText className="h-4 w-4"/> Export Excel
-            </Button>
-                <Button 
-                  type="button"
-                  onClick={() => {
-                    console.log('Button clicked!');
-                    printReport();
-                  }} 
-                  className="flex items-center gap-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm whitespace-nowrap"
-                >
-              <Printer className="h-4 w-4"/> Print
-            </Button>
-          </div>
         </div>
           </div>
         </Card>
 
         {/* === Filter Modal === */}
         {isFilterOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Show All Appointments</h2>
-                <Button
-                  onClick={() => setIsFilterOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </Button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Client</label>
-                  <input 
-                    type="text" 
-                    placeholder="Enter client name..." 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]" 
-                    value={query} 
-                    onChange={e => setQuery(e.target.value)}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Stylist</label>
-                  <select 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]" 
-                    value={stylistFilter} 
-                    onChange={e => setStylistFilter(e.target.value)}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300" onClick={() => setIsFilterOpen(false)}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Filter className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">Filter Appointments</h2>
+                      <p className="text-white/80 text-sm mt-1">Refine your search with multiple filters</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => setIsFilterOpen(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                    variant="ghost"
                   >
-                    {stylists.map(s => (
-                      <option key={s} value={s}>
-                        {s === "All" ? "All Stylists" : getStylistName(s)}
-                      </option>
-                    ))}
-              </select>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Active Filters Chips */}
+              {(query || statusFilter !== "All" || stylistFilter !== "All" || serviceFilter !== "All" || dateFrom || dateTo) && (
+                <div className="px-6 pt-4 pb-2 border-b border-gray-200">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium text-gray-500">Active Filters:</span>
+                    {query && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                        Search: "{query}"
+                        <button onClick={() => setQuery("")} className="hover:bg-blue-200 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                    {statusFilter !== "All" && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                        Status: {statusFilter}
+                        <button onClick={() => setStatusFilter("All")} className="hover:bg-green-200 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                    {stylistFilter !== "All" && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                        Stylist: {getStylistName(stylistFilter)}
+                        <button onClick={() => setStylistFilter("All")} className="hover:bg-purple-200 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                    {serviceFilter !== "All" && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
+                        Service: {getServiceName(serviceFilter)}
+                        <button onClick={() => setServiceFilter("All")} className="hover:bg-orange-200 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                    {(dateFrom || dateTo) && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">
+                        Date: {dateFrom || 'Any'} - {dateTo || 'Any'}
+                        <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="hover:bg-indigo-200 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Search */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                    <Search className="h-4 w-4 text-[#160B53]" />
+                    Search Client
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Type client name to search..." 
+                      className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] transition-all" 
+                      value={query} 
+                      onChange={e => setQuery(e.target.value)}
+                    />
+                  </div>
                 </div>
 
+                {/* Quick Date Presets */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Service</label>
-                  <select 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]" 
-                    value={serviceFilter} 
-                    onChange={e => setServiceFilter(e.target.value)}
-                  >
-                    {services.map(s => (
-                      <option key={s} value={s}>
-                        {s === "All" ? "All Services" : getServiceName(s)}
-                      </option>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                    <Calendar className="h-4 w-4 text-[#160B53]" />
+                    Quick Date Filters
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {[
+                      { 
+                        label: 'Today', 
+                        action: () => { 
+                          const today = new Date().toISOString().split('T')[0]; 
+                          setDateFrom(today); 
+                          setDateTo(today); 
+                        } 
+                      },
+                      { 
+                        label: 'This Week', 
+                        action: () => { 
+                          const today = new Date(); 
+                          const dayOfWeek = today.getDay(); 
+                          const weekStart = new Date(today); 
+                          weekStart.setDate(today.getDate() - dayOfWeek); 
+                          const weekEnd = new Date(weekStart); 
+                          weekEnd.setDate(weekStart.getDate() + 6); 
+                          setDateFrom(weekStart.toISOString().split('T')[0]); 
+                          setDateTo(weekEnd.toISOString().split('T')[0]); 
+                        } 
+                      },
+                      { 
+                        label: 'This Month', 
+                        action: () => { 
+                          const today = new Date(); 
+                          const monthStart = new Date(today.getFullYear(), today.getMonth(), 1); 
+                          const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0); 
+                          setDateFrom(monthStart.toISOString().split('T')[0]); 
+                          setDateTo(monthEnd.toISOString().split('T')[0]); 
+                        } 
+                      },
+                      { 
+                        label: 'All Dates', 
+                        action: () => { 
+                          setDateFrom(""); 
+                          setDateTo(""); 
+                        } 
+                      },
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        onClick={preset.action}
+                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-[#160B53] transition-all text-sm font-medium text-gray-700"
+                      >
+                        {preset.label}
+                      </button>
                     ))}
-              </select>
+                  </div>
                 </div>
-                
+
+                {/* Custom Date Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <select 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]" 
-                    value={statusFilter} 
-                    onChange={e => setStatusFilter(e.target.value)}
-                  >
-                <option value="All">All Status</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-              </select>
-              </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                    <Clock className="h-4 w-4 text-[#160B53]" />
+                    Custom Date Range
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">From</label>
+                      <label className="block text-xs text-gray-500 mb-1 font-medium">From Date</label>
                       <input 
                         type="date" 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]" 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] transition-all" 
                         value={dateFrom} 
                         onChange={e => setDateFrom(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">To</label>
+                      <label className="block text-xs text-gray-500 mb-1 font-medium">To Date</label>
                       <input 
                         type="date" 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]" 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] transition-all" 
                         value={dateTo} 
                         onChange={e => setDateTo(e.target.value)}
                       />
                     </div>
                   </div>
                 </div>
+
+                {/* Filters Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Status Filter */}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                      <CheckCircle className="h-4 w-4 text-[#160B53]" />
+                      Status
+                    </label>
+                    <select 
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] transition-all bg-white" 
+                      value={statusFilter} 
+                      onChange={e => setStatusFilter(e.target.value)}
+                    >
+                      <option value="All">All Status</option>
+                      <option value="scheduled">Scheduled</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+
+                  {/* Stylist Filter */}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                      <User className="h-4 w-4 text-[#160B53]" />
+                      Stylist
+                    </label>
+                    <select 
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] transition-all bg-white" 
+                      value={stylistFilter} 
+                      onChange={e => setStylistFilter(e.target.value)}
+                    >
+                      {stylists.map(s => (
+                        <option key={s} value={s}>
+                          {s === "All" ? "All Stylists" : getStylistName(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Service Filter */}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                      <Scissors className="h-4 w-4 text-[#160B53]" />
+                      Service
+                    </label>
+                    <select 
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] transition-all bg-white" 
+                      value={serviceFilter} 
+                      onChange={e => setServiceFilter(e.target.value)}
+                    >
+                      {services.map(s => (
+                        <option key={s} value={s}>
+                          {s === "All" ? "All Services" : getServiceName(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Results Preview */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">Results Preview</p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? 's' : ''} found
+                      </p>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {filteredAppointments.length}
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex justify-between gap-3 mt-6">
-              <Button
-                  className="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50"
-                onClick={clearAllFilters}
-              >
-                Reset
-              </Button>
-              <Button
-                  className="flex-1 bg-[#160B53] text-white hover:bg-[#12094A]"
-                onClick={() => setIsFilterOpen(false)}
-              >
-                  Apply Filters
-              </Button>
-            </div>
+              {/* Footer Actions */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-between gap-3">
+                  <Button
+                    onClick={clearAllFilters}
+                    className="flex items-center gap-2 border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-all"
+                    variant="outline"
+                  >
+                    <X className="h-4 w-4" />
+                    Clear All
+                  </Button>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => setIsFilterOpen(false)}
+                      className="px-6 border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-all"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => setIsFilterOpen(false)}
+                      className="px-6 bg-[#160B53] text-white hover:bg-[#12094A] transition-all shadow-md"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Apply Filters
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* === Charts === */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Appointment Trend */}
-          <Card className="p-4">
-             <div className="flex items-center gap-2 mb-2">
-               <Calendar className="h-5 w-5 text-[#160B53]"/>
-               <h3 className="text-sm font-semibold">Appointments Trend</h3>
-             </div>
-            <ResponsiveContainer width="100%" height={220}>
-               <LineChart data={appointmentTrendData}>
-                <CartesianGrid strokeDasharray="3 3"/>
-                 <XAxis 
-                   dataKey="date"
-                   tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                 />
-                <YAxis/>
-                 <Tooltip 
-                   labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { 
-                     weekday: 'long', 
-                     year: 'numeric', 
-                     month: 'long', 
-                     day: 'numeric' 
-                   })}
-                   formatter={(value) => [value, 'Appointments']}
-                 />
-                 <Line dataKey="appointments" stroke="#160B53" strokeWidth={2} name="Appointments"/>
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-
-          {/* Stylist Performance */}
-          <Card className="p-4">
-             <div className="flex items-center gap-2 mb-2">
-               <BarChart3 className="h-5 w-5 text-pink-600"/>
-               <h3 className="text-sm font-semibold">Stylist Performance</h3>
-             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={stylistPerformance} margin={{ top: 10, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3"/>
-                 <XAxis 
-                   dataKey="stylist"
-                   tickFormatter={(value) => value.length > 8 ? value.substring(0, 8) + '...' : value}
-                 />
-                <YAxis/>
-                 <Tooltip formatter={(value) => [value, 'Appointments']}/>
-                <Bar dataKey="appointments" fill="#7c3aed" radius={[6,6,0,0]} name="Appointments"/>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </div>
+        {/* === Action Tools Bar === */}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={() => exportToExcel(filteredAppointments, "appointments_filtered.xlsx")} 
+                className="flex items-center gap-2 bg-[#160B53] text-white hover:bg-[#12094A] shadow-sm whitespace-nowrap"
+              >
+                <FileDown className="h-4 w-4"/> Export Excel
+              </Button>
+              <Button 
+                onClick={() => exportCSV(filteredAppointments, "appointments.csv")}
+                className="flex items-center gap-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm whitespace-nowrap"
+              >
+                <FileText className="h-4 w-4"/> Export CSV
+              </Button>
+              <Button 
+                onClick={() => printReport()}
+                className="flex items-center gap-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm whitespace-nowrap"
+              >
+                <Printer className="h-4 w-4"/> Print Report
+              </Button>
+            </div>
+          </div>
+        </Card>
 
         {/* === Loading State === */}
         {appointmentsLoading && (
@@ -2219,24 +2192,35 @@ const BranchManagerAppointments = () => {
 
          {/* === Appointment Details Modal === */}
          {showDetailsModal && selectedAppointment && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDetailsModal(false)}>
-             <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+           <div 
+             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300" 
+             onClick={() => setShowDetailsModal(false)}
+           >
+             <div 
+               className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 mx-4" 
+               onClick={(e) => e.stopPropagation()}
+             >
                {/* Modal Header */}
-               <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6 rounded-t-lg">
+               <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
                  <div className="flex items-center justify-between">
-                   <div>
-                     <h2 className="text-2xl font-bold">Appointment Details</h2>
-                     <p className="text-white/80 mt-1">
-                       {selectedAppointment.appointmentDate ? 
-                         new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { 
-                           weekday: 'long',
-                           year: 'numeric',
-                           month: 'long',
-                           day: 'numeric'
-                         }) : 'Date not available'} at {selectedAppointment.appointmentTime || 'Time not available'}
-                     </p>
+                   <div className="flex items-center gap-4">
+                     <div className="p-2 bg-white/20 rounded-lg">
+                       <Calendar className="h-6 w-6" />
+                     </div>
+                     <div>
+                       <h2 className="text-2xl font-bold">Appointment Details</h2>
+                       <p className="text-white/80 text-sm mt-1">
+                         {selectedAppointment.appointmentDate ? 
+                           new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { 
+                             weekday: 'long',
+                             year: 'numeric',
+                             month: 'long',
+                             day: 'numeric'
+                           }) : 'Date not available'} at {selectedAppointment.appointmentTime || 'Time not available'}
+                       </p>
+                     </div>
                    </div>
-                   <div className="flex items-center space-x-4">
+                   <div className="flex items-center gap-3">
                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                        selectedAppointment.status === "completed"
                          ? "bg-green-100 text-green-800"
@@ -2248,12 +2232,13 @@ const BranchManagerAppointments = () => {
                      }`}>
                        {selectedAppointment.status ? selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1) : 'Unknown'}
                      </span>
-                            <Button
+                     <Button
                        onClick={() => setShowDetailsModal(false)}
-                       className="text-white hover:text-gray-200 p-2"
-                      >
-                       ✕
-                      </Button>
+                       variant="ghost"
+                       className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                     >
+                       <X className="h-5 w-5" />
+                     </Button>
                    </div>
                  </div>
                </div>
@@ -2492,11 +2477,140 @@ const BranchManagerAppointments = () => {
                </div>
 
                {/* Modal Footer */}
-               <div className="border-t border-gray-200 p-6 bg-gray-50 rounded-b-lg">
-                 <div className="flex justify-end space-x-3">
+               <div className="border-t border-gray-200 p-6 bg-gray-50">
+                 <div className="flex justify-between items-center">
+                   <div className="flex gap-2">
+                     <Button
+                       onClick={() => {
+                         // Print single appointment details
+                         const printWindow = window.open('', '_blank');
+                         if (!printWindow) {
+                           alert('Please allow pop-ups for this site to print.');
+                           return;
+                         }
+                         
+                        const printContent = `
+                          <!DOCTYPE html>
+                          <html>
+                          <head>
+                            <title>Appointment Details - ${selectedAppointment.id}</title>
+                            <style>
+                              @page { margin: 1cm; size: A4; }
+                              body { font-family: Arial, sans-serif; font-size: 11px; color: #000; }
+                              .header { text-align: center; margin-bottom: 15px; border-bottom: 1px solid #000; padding-bottom: 8px; }
+                              .header h1 { font-size: 16px; font-weight: bold; color: #000; margin: 5px 0; }
+                              .header p { font-size: 10px; color: #000; margin: 2px 0; }
+                              .section { margin-bottom: 12px; }
+                              .section-title { font-weight: bold; color: #000; margin-bottom: 6px; font-size: 12px; border-bottom: 1px solid #000; padding-bottom: 3px; }
+                              .info-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #ccc; }
+                              .info-label { font-weight: bold; color: #000; }
+                              .info-value { color: #000; }
+                              table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10px; }
+                              th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+                              th { background-color: #fff; color: #000; font-weight: bold; }
+                              .total-row { font-weight: bold; }
+                            </style>
+                          </head>
+                          <body>
+                            <div class="header">
+                              <h1>Appointment Details</h1>
+                              <p>Branch: ${branchData?.name || 'Unknown Branch'}</p>
+                              <p>Generated: ${new Date().toLocaleString()}</p>
+                            </div>
+                            
+                            <div class="section">
+                              <div class="section-title">Client Information</div>
+                              <div class="info-row">
+                                <span class="info-label">Name:</span>
+                                <span class="info-value">${selectedAppointment.clientName || selectedAppointment.clientInfo?.name || 'Unknown'}</span>
+                              </div>
+                              ${selectedAppointment.clientInfo?.phone || selectedAppointment.clientPhone ? `
+                              <div class="info-row">
+                                <span class="info-label">Phone:</span>
+                                <span class="info-value">${selectedAppointment.clientInfo?.phone || selectedAppointment.clientPhone}</span>
+                              </div>
+                              ` : ''}
+                              ${selectedAppointment.clientInfo?.email || selectedAppointment.clientEmail ? `
+                              <div class="info-row">
+                                <span class="info-label">Email:</span>
+                                <span class="info-value">${selectedAppointment.clientInfo?.email || selectedAppointment.clientEmail}</span>
+                              </div>
+                              ` : ''}
+                            </div>
+                            
+                            <div class="section">
+                              <div class="section-title">Appointment Details</div>
+                              <div class="info-row">
+                                <span class="info-label">Date:</span>
+                                <span class="info-value">${selectedAppointment.appointmentDate ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</span>
+                              </div>
+                              <div class="info-row">
+                                <span class="info-label">Time:</span>
+                                <span class="info-value">${selectedAppointment.appointmentTime || 'N/A'}</span>
+                              </div>
+                              <div class="info-row">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value">${selectedAppointment.status ? selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1) : 'Unknown'}</span>
+                              </div>
+                            </div>
+                            
+                            <div class="section">
+                              <div class="section-title">Services & Pricing</div>
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>Service</th>
+                                    <th>Stylist</th>
+                                    <th>Price</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  ${selectedAppointment.serviceStylistPairs && selectedAppointment.serviceStylistPairs.length > 0 ? 
+                                    selectedAppointment.serviceStylistPairs.map(pair => `
+                                      <tr>
+                                        <td>${pair.serviceId ? getServiceName(pair.serviceId) : 'Unknown Service'}</td>
+                                        <td>${pair.stylistId ? (pair.stylistId === 'any_available' ? 'Any Available' : getStylistName(pair.stylistId)) : 'Unassigned'}</td>
+                                        <td>₱${pair.serviceId ? getServicePrice(pair.serviceId).toLocaleString() : '0'}</td>
+                                      </tr>
+                                    `).join('') : 
+                                    '<tr><td colspan="3">No services</td></tr>'
+                                  }
+                                  <tr class="total-row">
+                                    <td colspan="2">Total:</td>
+                                    <td>₱${selectedAppointment.serviceStylistPairs ? selectedAppointment.serviceStylistPairs.reduce((sum, pair) => sum + (pair.serviceId ? getServicePrice(pair.serviceId) : 0), 0).toLocaleString() : '0'}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                            
+                            ${selectedAppointment.notes ? `
+                            <div class="section">
+                              <div class="section-title">Notes</div>
+                              <p style="color: #000; margin-top: 5px;">${selectedAppointment.notes}</p>
+                            </div>
+                            ` : ''}
+                          </body>
+                          </html>
+                        `;
+                         
+                         printWindow.document.write(printContent);
+                         printWindow.document.close();
+                         printWindow.focus();
+                         
+                         setTimeout(() => {
+                           printWindow.print();
+                           printWindow.close();
+                         }, 250);
+                       }}
+                       className="flex items-center gap-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                     >
+                       <Printer className="h-4 w-4"/> Print Details
+                     </Button>
+                   </div>
                    <Button
                      onClick={() => setShowDetailsModal(false)}
-                     className="bg-gray-500 text-white hover:bg-gray-600"
+                     variant="outline"
+                     className="border-gray-300 text-gray-700 hover:bg-gray-100"
                    >
                      Close
                    </Button>

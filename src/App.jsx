@@ -26,6 +26,7 @@ import DashboardRouter from "./pages/shared/DashboardRouter";
 import UserManagement from "./pages/01_SystemAdmin/UserManagement";
 import BranchManagement from "./pages/01_SystemAdmin/BranchManagement";
 import MasterProducts from "./pages/01_SystemAdmin/MasterProducts";
+import Suppliers from "./pages/01_SystemAdmin/Suppliers";
 import AppointmentSeeder from "./pages/01_SystemAdmin/AppointmentSeeder";
 import ProfilePage from "./pages/shared/ProfilePage";
 
@@ -41,12 +42,16 @@ import BranchManagerTransactions from "./pages/04_BranchManager/Transactions";
 import BranchLoyaltySettings from "./pages/04_BranchManager/BranchLoyaltySettings";
 import BranchManagerClientManagement from "./pages/04_BranchManager/ClientManagement";
 import BranchManagerClientProfile from "./pages/04_BranchManager/ClientProfile";
+import StylistPortfolios from "./pages/04_BranchManager/StylistPortfolios";
+import BranchManagerSettings from "./pages/04_BranchManager/Settings";
+import BranchManagerPurchaseOrders from "./pages/04_BranchManager/PurchaseOrders";
+import Inventory from "./pages/04_BranchManager/Inventory";
+import BranchManagerDeposits from "./pages/04_BranchManager/Deposits";
 
 // APPOINTMENT PAGES
 import ClientAppointments from "./pages/02_Client/ClientAppointments";
 import ReceptionistAppointments from "./pages/05_Receptionist/ReceptionistAppointments";
 import StylistAppointments from "./pages/07_Stylist/StylistAppointments";
-import BranchAdminAppointments from "./pages/03_BranchAdmin/BranchAdminAppointments";
 import OperationalManagerAppointments from "./pages/02_OperationalManager/OperationalManagerAppointments";
 import SystemAdminAppointments from "./pages/01_SystemAdmin/AppointmentManagement";
 import ServiceManagement from "./pages/01_SystemAdmin/ServiceManagement";
@@ -78,15 +83,12 @@ import MyProfile from "./pages/08_Client/MyProfile";
 // CRM PAGES - Operational Manager
 import ClientReports from "./pages/02_OperationalManager/ClientReports";
 import LoyaltySummary from "./pages/02_OperationalManager/LoyaltySummary";
+import OperationalManagerPurchaseOrders from "./pages/02_OperationalManager/PurchaseOrders";
+import OperationalManagerDeposits from "./pages/02_OperationalManager/Deposits";
 
 // NEW BRANCH MANAGEMENT PAGES
-import BranchSettings from "./pages/03_BranchAdmin/BranchSettings";
-import StaffManagement from "./pages/03_BranchAdmin/StaffManagement";
 import BranchMonitoring from "./pages/02_OperationalManager/BranchMonitoring";
 import BranchDetailsManagement from "./pages/01_SystemAdmin/BranchDetailsManagement";
-import ServiceConfiguration from "./pages/03_BranchAdmin/ServiceConfiguration";
-import HolidayManagement from "./pages/03_BranchAdmin/HolidayManagement";
-import BranchProducts from "./pages/03_BranchAdmin/BranchProducts";
 
 // INVENTORY CONTROLLER PAGES
 import InventoryControllerDashboard from "./pages/06_InventoryController/Dashboard";
@@ -187,6 +189,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <MasterProducts />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/suppliers"
+        element={
+          <AdminRoute>
+            <Suppliers />
           </AdminRoute>
         }
       />
@@ -397,15 +407,6 @@ function AppRoutes() {
       />
       
       <Route
-        path="/branch-appointments"
-        element={
-          <AdminRoute>
-            <BranchAdminAppointments />
-          </AdminRoute>
-        }
-      />
-      
-      <Route
         path="/appointment-reports"
         element={
           <ProtectedRoute>
@@ -432,8 +433,19 @@ function AppRoutes() {
         }
       />
       
+      {/* Branch Manager Transactions - Must come before System Admin route */}
       <Route
         path="/transactions"
+        element={
+          <StaffRoute>
+            <BranchManagerTransactions />
+          </StaffRoute>
+        }
+      />
+      
+      {/* System Admin Transactions - Changed to avoid conflict */}
+      <Route
+        path="/admin/transactions"
         element={
           <AdminRoute>
             <Transactions />
@@ -460,19 +472,12 @@ function AppRoutes() {
         }
       />
 
-      {/* Inventory Routes */}
+      {/* Inventory Routes - Branch Manager */}
       <Route
         path="/inventory"
         element={
           <StaffRoute>
-            <div className="min-h-screen bg-gray-50 p-6">
-              <div className="max-w-7xl mx-auto">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Inventory Management</h1>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-600">Inventory management page - Coming soon!</p>
-                </div>
-              </div>
-            </div>
+            <Inventory />
           </StaffRoute>
         }
       />
@@ -495,35 +500,6 @@ function AppRoutes() {
       />
 
       {/* NEW BRANCH MANAGEMENT ROUTES */}
-      {/* Branch Settings - Branch Admin */}
-      <Route
-        path="/branch-settings"
-        element={
-          <StaffRoute>
-            <BranchSettings />
-          </StaffRoute>
-        }
-      />
-
-      {/* Staff Management - Branch Admin */}
-      <Route
-        path="/staff"
-        element={
-          <StaffRoute>
-            <StaffManagement />
-          </StaffRoute>
-        }
-      />
-
-      {/* Branch Products - Branch Admin */}
-      <Route
-        path="/branch-products"
-        element={
-          <StaffRoute>
-            <BranchProducts />
-          </StaffRoute>
-        }
-      />
 
       {/* Branch Monitoring - Operational Manager */}
       <Route
@@ -531,6 +507,26 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <BranchMonitoring />
+          </StaffRoute>
+        }
+      />
+
+      {/* Purchase Orders Approval - Operational Manager */}
+      <Route
+        path="/operational-manager/purchase-orders"
+        element={
+          <StaffRoute>
+            <OperationalManagerPurchaseOrders />
+          </StaffRoute>
+        }
+      />
+
+      {/* Deposit Reviews - Operational Manager */}
+      <Route
+        path="/operational-manager/deposits"
+        element={
+          <StaffRoute>
+            <OperationalManagerDeposits />
           </StaffRoute>
         }
       />
@@ -666,25 +662,6 @@ function AppRoutes() {
         }
       />
 
-      {/* Service Configuration - Branch Admin */}
-      <Route
-        path="/service-config"
-        element={
-          <StaffRoute>
-            <ServiceConfiguration />
-          </StaffRoute>
-        }
-      />
-
-      {/* Holiday Management - Branch Admin */}
-      <Route
-        path="/holiday-management"
-        element={
-          <StaffRoute>
-            <HolidayManagement />
-          </StaffRoute>
-        }
-      />
 
       {/* Unauthorized Page */}
       <Route
@@ -695,7 +672,7 @@ function AppRoutes() {
           </StaffRoute>
         }
       />
-     <Route
+      <Route
         path="/staff/details"
         element={
           <StaffRoute>
@@ -704,18 +681,44 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/transactions"
-        element={
-          <StaffRoute>
-            <BranchManagerTransactions />
-          </StaffRoute>
-        }
-      />
-      <Route
         path="/loyalty-settings"
         element={
           <StaffRoute>
             <BranchLoyaltySettings />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/stylist-portfolios"
+        element={
+          <StaffRoute>
+            <StylistPortfolios />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <StaffRoute>
+            <BranchManagerSettings />
+          </StaffRoute>
+        }
+      />
+      {/* Branch Manager Standalone Purchase Orders */}
+      <Route
+        path="/branch-manager/purchase-orders"
+        element={
+          <StaffRoute>
+            <BranchManagerPurchaseOrders />
+          </StaffRoute>
+        }
+      />
+      {/* Branch Manager Deposits */}
+      <Route
+        path="/branch-manager/deposits"
+        element={
+          <StaffRoute>
+            <BranchManagerDeposits />
           </StaffRoute>
         }
       />

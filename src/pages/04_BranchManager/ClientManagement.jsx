@@ -22,23 +22,11 @@ import {
   Package,
   BarChart3
 } from 'lucide-react';
+import { branchManagerMenuItems } from './menuItems';
 
 const ClientManagement = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
-
-  const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointments', label: 'Appointments', icon: Calendar },
-    { path: '/staff', label: 'Staff', icon: Users },
-    { path: '/schedule', label: 'Schedule', icon: Calendar },
-    { path: '/inventory', label: 'Inventory', icon: Package },
-    { path: '/transactions', label: 'Transactions', icon: Receipt },
-    { path: '/clients', label: 'Clients', icon: Users },
-    { path: '/loyalty-settings', label: 'Loyalty Settings', icon: Award },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
-    { path: '/profile', label: 'Profile', icon: UserCog },
-  ];
 
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
@@ -165,7 +153,7 @@ const ClientManagement = () => {
   };
 
   return (
-    <DashboardLayout menuItems={menuItems} pageTitle="Client Management">
+    <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Client Management">
       <div className="p-6">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

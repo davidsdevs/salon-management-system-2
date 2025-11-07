@@ -17,6 +17,7 @@ import {
   FileText,
   BarChart3
 } from 'lucide-react';
+import { branchManagerMenuItems } from './menuItems';
 
 const BranchLoyaltySettings = () => {
   const { userData } = useAuth();
@@ -31,16 +32,6 @@ const BranchLoyaltySettings = () => {
     enabled: true,
     amountPerPoint: 100
   });
-
-  const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/branch-appointments', label: 'Appointments', icon: Calendar },
-    { path: '/staff', label: 'Staff Management', icon: Users },
-    { path: '/pos-billing', label: 'POS Billing', icon: DollarSign },
-    { path: '/transactions', label: 'Transactions', icon: FileText },
-    { path: '/loyalty-settings', label: 'Loyalty Settings', icon: Award },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
-  ];
 
   useEffect(() => {
     loadBranchData();
@@ -92,7 +83,7 @@ const BranchLoyaltySettings = () => {
 
   if (loading) {
     return (
-      <DashboardLayout menuItems={menuItems} pageTitle="Loyalty Settings">
+      <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Loyalty Settings">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#160B53]"></div>
         </div>

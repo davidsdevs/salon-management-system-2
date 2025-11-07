@@ -22,12 +22,14 @@ import {
   MoreVertical,
   Home,
   Building2,
+  Building,
   Settings,
   BarChart3,
   UserCog,
   Eye,
   Scissors,
-  Package2
+  Package2,
+  DollarSign
 } from 'lucide-react';
 
 const AppointmentManagement = () => {
@@ -344,6 +346,8 @@ const AppointmentManagement = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package2 },
+    { path: '/suppliers', label: 'Suppliers', icon: Building },
+    { path: '/admin/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

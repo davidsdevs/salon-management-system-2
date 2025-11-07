@@ -1,179 +1,179 @@
 // src/pages/06_InventoryController/ExpiryTracker.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../shared/DashboardLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { SearchInput } from '../ui/search-input';
-import Modal from '../ui/modal';
 import {
   Calendar,
   Search,
   Filter,
   Eye,
-  Edit,
-  Plus,
-  Download,
-  Upload,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
   XCircle,
   Clock,
   Package,
-  Building,
   FileText,
   Bell,
-  AlertCircle,
   TrendingDown,
   ShoppingCart,
-  ArrowRight,
-  Copy,
-  Printer,
   Trash2,
-  Clock3,
-  CalendarDays,
-  AlertCircle as AlertCircleIcon
+  X,
+  Home,
+  TrendingUp,
+  ArrowRightLeft,
+  QrCode,
+  BarChart3,
+  ClipboardList,
+  UserCog,
+  Truck
 } from 'lucide-react';
-import { format, differenceInDays, isAfter, isBefore, addDays } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
+import { inventoryService } from '../../services/inventoryService';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 const ExpiryTracker = () => {
   const { userData } = useAuth();
   
+  const menuItems = [
+    { path: '/inventory/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/inventory/products', label: 'Products', icon: Package },
+    { path: '/inventory/stocks', label: 'Stocks', icon: TrendingUp },
+    { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
+    { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
+    { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
+    { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
+    { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },
+    { path: '/inventory/cost-analysis', label: 'Cost Analysis', icon: TrendingDown },
+    { path: '/inventory/inventory-audit', label: 'Inventory Audit', icon: ClipboardList },
+    { path: '/inventory/expiry-tracker', label: 'Expiry Tracker', icon: Calendar },
+    { path: '/inventory/profile', label: 'Profile', icon: UserCog },
+  ];
+  
   // Data states
-  const [products, setProducts] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [productsMap, setProductsMap] = useState({}); // { productId: productName }
+  const [usersMap, setUsersMap] = useState({}); // { userId: userName }
   
   // UI states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('expiryDate');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [selectedDaysAhead, setSelectedDaysAhead] = useState(30);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  
-  // Filter states
-  const [filters, setFilters] = useState({
-    status: 'all',
-    category: 'all',
-    expiryRange: 'all',
-    daysAhead: 30
-  });
+  const [selectedBatch, setSelectedBatch] = useState(null);
 
-  // Mock product data with expiry information
-  const mockProducts = [
-    {
-      id: 'prod1',
-      name: 'Olaplex No.3 Hair Perfector',
-      brand: 'Olaplex',
-      category: 'Hair Care',
-      currentStock: 15,
-      expiryDate: new Date('2024-03-15'),
-      batchNumber: 'BATCH-001',
-      shelfLife: 24,
-      supplier: 'Olaplex Philippines',
-      branchId: 'branch1',
-      branchName: 'Harbor Point Ayala',
-      location: 'Shelf A-1',
-      unitCost: 1400,
-      totalValue: 21000,
-      status: 'Good',
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-15')
-    },
-    {
-      id: 'prod2',
-      name: 'L\'Oréal Hair Color',
-      brand: 'L\'Oréal',
-      category: 'Hair Color',
-      currentStock: 8,
-      expiryDate: new Date('2024-02-28'),
-      batchNumber: 'BATCH-002',
-      shelfLife: 12,
-      supplier: 'L\'Oréal Philippines',
-      branchId: 'branch1',
-      branchName: 'Harbor Point Ayala',
-      location: 'Shelf B-2',
-      unitCost: 800,
-      totalValue: 6400,
-      status: 'Expiring Soon',
-      createdAt: new Date('2024-01-10'),
-      updatedAt: new Date('2024-01-10')
-    },
-    {
-      id: 'prod3',
-      name: 'Kerastase Shampoo',
-      brand: 'Kerastase',
-      category: 'Hair Care',
-      currentStock: 12,
-      expiryDate: new Date('2024-01-20'),
-      batchNumber: 'BATCH-003',
-      shelfLife: 18,
-      supplier: 'Kerastase Philippines',
-      branchId: 'branch2',
-      branchName: 'SM Mall of Asia',
-      location: 'Shelf C-1',
-      unitCost: 1200,
-      totalValue: 14400,
-      status: 'Critical',
-      createdAt: new Date('2024-01-08'),
-      updatedAt: new Date('2024-01-08')
-    },
-    {
-      id: 'prod4',
-      name: 'Wella Hair Color',
-      brand: 'Wella',
-      category: 'Hair Color',
-      currentStock: 5,
-      expiryDate: new Date('2023-12-31'),
-      batchNumber: 'BATCH-004',
-      shelfLife: 12,
-      supplier: 'Wella Philippines',
-      branchId: 'branch3',
-      branchName: 'Greenbelt 5',
-      location: 'Shelf D-2',
-      unitCost: 900,
-      totalValue: 4500,
-      status: 'Expired',
-      createdAt: new Date('2023-12-01'),
-      updatedAt: new Date('2023-12-01')
+  // Load batches on mount
+  useEffect(() => {
+    if (userData?.branchId) {
+      loadBatches();
+      // Auto-update expiration status every time batches are loaded
+      updateExpirationStatus();
     }
-  ];
+  }, [userData?.branchId]);
 
-  // Load products
-  const loadProducts = async () => {
+  // Load product names - returns map directly
+  const loadProductsMap = async () => {
+    try {
+      const productsRef = collection(db, 'products');
+      const productsSnapshot = await getDocs(productsRef);
+      const products = {};
+      productsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        products[doc.id] = data.name || 'Unknown Product';
+      });
+      setProductsMap(products);
+      return products;
+    } catch (err) {
+      console.error('Error loading products:', err);
+      return {};
+    }
+  };
+
+  // Load user names - returns map directly
+  const loadUsersMap = async () => {
+    try {
+      const usersRef = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersRef);
+      const users = {};
+      usersSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const userName = (data.firstName && data.lastName 
+          ? `${data.firstName} ${data.lastName}`.trim() 
+          : data.name || data.email || 'Unknown User');
+        users[doc.id] = userName;
+      });
+      setUsersMap(users);
+      return users;
+    } catch (err) {
+      console.error('Error loading users:', err);
+      return {};
+    }
+  };
+
+  const loadBatches = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // For now, use mock data
-      setProducts(mockProducts);
-      
+
+      if (!userData?.branchId) {
+        setError('Branch ID not found');
+        setLoading(false);
+        return;
+      }
+
+      // Load products and users first and get their maps
+      const productsMapData = await loadProductsMap();
+      const usersMapData = await loadUsersMap();
+
+      // Only show batches for this Inventory Controller's branch (no branch filtering needed)
+      const batchesResult = await inventoryService.getBranchBatches(userData.branchId); // Automatically filtered to user's branch only
+      if (!batchesResult.success) {
+        throw new Error(batchesResult.message || 'Failed to load batches');
+      }
+
+      // Enrich batches with product names and user names
+      const enrichedBatches = batchesResult.batches.map(batch => ({
+        ...batch,
+        productName: batch.productName || productsMapData[batch.productId] || 'Unknown Product',
+        receivedByName: batch.receivedBy ? (usersMapData[batch.receivedBy] || batch.receivedBy) : null
+      }));
+
+      setBatches(enrichedBatches);
     } catch (err) {
-      console.error('Error loading products:', err);
+      console.error('Error loading batches:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load products on mount
-  useEffect(() => {
-    loadProducts();
-  }, []);
+  const updateExpirationStatus = async () => {
+    if (!userData?.branchId) return;
+    try {
+      // Only update batches for this Inventory Controller's branch
+      await inventoryService.updateBatchExpirationStatus(userData.branchId);
+    } catch (err) {
+      console.error('Error updating expiration status:', err);
+    }
+  };
 
-  // Get unique categories
-  const categories = [...new Set(products.map(p => p.category))].filter(Boolean);
-
-  // Calculate expiry status
-  const getExpiryStatus = (expiryDate) => {
+  // Calculate expiry status for a batch
+  const getExpiryStatus = (expirationDate) => {
+    if (!expirationDate) return 'No Expiry';
+    
+    const expiry = expirationDate instanceof Date ? expirationDate : new Date(expirationDate);
     const today = new Date();
-    const daysUntilExpiry = differenceInDays(expiryDate, today);
+    today.setHours(0, 0, 0, 0);
+    expiry.setHours(0, 0, 0, 0);
+    
+    const daysUntilExpiry = differenceInDays(expiry, today);
     
     if (daysUntilExpiry < 0) return 'Expired';
     if (daysUntilExpiry <= 7) return 'Critical';
@@ -181,115 +181,132 @@ const ExpiryTracker = () => {
     return 'Good';
   };
 
-  // Filter and sort products
-  const filteredProducts = products
-    .filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.batchNumber.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesCategory = filters.category === 'all' || product.category === filters.category;
-      const matchesStatus = filters.status === 'all' || product.status === filters.status;
-      
-      const matchesExpiryRange = filters.expiryRange === 'all' || 
-        (filters.expiryRange === 'expired' && product.status === 'Expired') ||
-        (filters.expiryRange === 'critical' && product.status === 'Critical') ||
-        (filters.expiryRange === 'expiring' && product.status === 'Expiring Soon') ||
-        (filters.expiryRange === 'good' && product.status === 'Good');
-      
-      const matchesDaysAhead = filters.daysAhead === 'all' || 
-        differenceInDays(product.expiryDate, new Date()) <= filters.daysAhead;
-      
-      return matchesSearch && matchesCategory && matchesStatus && matchesExpiryRange && matchesDaysAhead;
-    })
-    .sort((a, b) => {
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
-      
-      if (sortBy === 'expiryDate' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
-        aValue = new Date(aValue);
-        bValue = new Date(bValue);
+  // Filter batches
+  const filteredBatches = useMemo(() => {
+    let filtered = batches.filter(batch => {
+      // Filter by search term
+      const matchesSearch = 
+        batch.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        batch.batchNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        batch.purchaseOrderId?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Filter by status
+      const status = getExpiryStatus(batch.expirationDate);
+      const matchesStatus = selectedStatus === 'all' || 
+        (selectedStatus === 'active' && batch.status === 'active') ||
+        (selectedStatus === 'expired' && (batch.status === 'expired' || status === 'Expired')) ||
+        (selectedStatus === 'depleted' && batch.status === 'depleted') ||
+        (selectedStatus === 'critical' && status === 'Critical') ||
+        (selectedStatus === 'expiring_soon' && status === 'Expiring Soon') ||
+        (selectedStatus === 'good' && status === 'Good');
+
+      // Filter by days ahead (only for active batches with expiration dates)
+      let matchesDaysAhead = true;
+      if (selectedDaysAhead !== 'all' && batch.expirationDate && batch.status === 'active') {
+        const daysLeft = differenceInDays(batch.expirationDate, new Date());
+        matchesDaysAhead = daysLeft >= 0 && daysLeft <= selectedDaysAhead;
       }
+
+      return matchesSearch && matchesStatus && matchesDaysAhead && batch.remainingQuantity > 0;
+    });
+
+    // Sort by expiration date (soonest first)
+    filtered.sort((a, b) => {
+      if (!a.expirationDate && !b.expirationDate) return 0;
+      if (!a.expirationDate) return 1;
+      if (!b.expirationDate) return -1;
       
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
+      const aDate = a.expirationDate instanceof Date ? a.expirationDate : new Date(a.expirationDate);
+      const bDate = b.expirationDate instanceof Date ? b.expirationDate : new Date(b.expirationDate);
+      return aDate.getTime() - bDate.getTime();
+    });
+
+    return filtered;
+  }, [batches, searchTerm, selectedStatus, selectedDaysAhead]);
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const activeBatches = batches.filter(b => b.status === 'active' && b.remainingQuantity > 0);
+    const expiredBatches = batches.filter(b => b.status === 'expired' || (b.expirationDate && differenceInDays(new Date(b.expirationDate), new Date()) < 0));
+    
+    let criticalCount = 0;
+    let expiringSoonCount = 0;
+    let goodCount = 0;
+    let totalValue = 0;
+    let atRiskValue = 0;
+
+    activeBatches.forEach(batch => {
+      if (!batch.expirationDate) return;
+      
+      const status = getExpiryStatus(batch.expirationDate);
+      const value = (batch.remainingQuantity || 0) * (batch.unitCost || 0);
+      totalValue += value;
+
+      if (status === 'Critical') {
+        criticalCount++;
+        atRiskValue += value;
+      } else if (status === 'Expiring Soon') {
+        expiringSoonCount++;
+        atRiskValue += value;
+      } else if (status === 'Good') {
+        goodCount++;
       }
     });
 
-  // Handle product details
-  const handleViewDetails = (product) => {
-    setSelectedProduct(product);
-    setIsDetailsModalOpen(true);
-  };
-
-  // Handle create product
-  const handleCreateProduct = () => {
-    setIsCreateModalOpen(true);
-  };
-
-  // Handle form submission
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Handle form submission logic here
-    console.log('Form submitted');
-    setIsCreateModalOpen(false);
-  };
+    return {
+      totalBatches: activeBatches.length,
+      goodBatches: goodCount,
+      expiringSoon: expiringSoonCount,
+      criticalBatches: criticalCount,
+      expiredBatches: expiredBatches.length,
+      totalValue: totalValue,
+      atRiskValue: atRiskValue
+    };
+  }, [batches]);
 
   // Get status color
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Good': return 'text-green-600 bg-green-100';
-      case 'Expiring Soon': return 'text-yellow-600 bg-yellow-100';
-      case 'Critical': return 'text-orange-600 bg-orange-100';
-      case 'Expired': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'Good': return 'text-green-600 bg-green-100 border-green-200';
+      case 'Expiring Soon': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
+      case 'Critical': return 'text-orange-600 bg-orange-100 border-orange-200';
+      case 'Expired': return 'text-red-600 bg-red-100 border-red-200';
+      case 'No Expiry': return 'text-gray-600 bg-gray-100 border-gray-200';
+      default: return 'text-gray-600 bg-gray-100 border-gray-200';
     }
   };
 
   // Get status icon
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'Good': return <CheckCircle className="h-4 w-4" />;
-      case 'Expiring Soon': return <Clock className="h-4 w-4" />;
-      case 'Critical': return <AlertTriangle className="h-4 w-4" />;
-      case 'Expired': return <XCircle className="h-4 w-4" />;
-      default: return <Clock className="h-4 w-4" />;
+      case 'Good': return <CheckCircle className="h-3 w-3" />;
+      case 'Expiring Soon': return <Clock className="h-3 w-3" />;
+      case 'Critical': return <AlertTriangle className="h-3 w-3" />;
+      case 'Expired': return <XCircle className="h-3 w-3" />;
+      default: return <Package className="h-3 w-3" />;
     }
   };
 
-  // Calculate statistics
-  const stats = {
-    totalProducts: products.length,
-    goodProducts: products.filter(p => p.status === 'Good').length,
-    expiringSoon: products.filter(p => p.status === 'Expiring Soon').length,
-    criticalProducts: products.filter(p => p.status === 'Critical').length,
-    expiredProducts: products.filter(p => p.status === 'Expired').length,
-    totalValue: products.reduce((sum, p) => sum + p.totalValue, 0),
-    expiringValue: products.filter(p => p.status === 'Expiring Soon' || p.status === 'Critical').reduce((sum, p) => sum + p.totalValue, 0)
-  };
-
-  if (loading) {
+  if (loading && batches.length === 0) {
     return (
-      <DashboardLayout>
+      <DashboardLayout menuItems={menuItems} pageTitle="Batch Expiration Tracker">
         <div className="flex items-center justify-center h-64">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-          <span className="ml-2 text-gray-600">Loading expiry data...</span>
+          <RefreshCw className="h-8 w-8 animate-spin text-[#160B53]" />
+          <span className="ml-2 text-gray-600">Loading batch expiration data...</span>
         </div>
       </DashboardLayout>
     );
   }
 
-  if (error) {
+  if (error && !userData?.branchId) {
     return (
-      <DashboardLayout>
+      <DashboardLayout menuItems={menuItems} pageTitle="Batch Expiration Tracker">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Expiry Data</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Batch Data</h3>
             <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={loadProducts} className="flex items-center gap-2">
+            <Button onClick={loadBatches} className="flex items-center gap-2 mx-auto">
               <RefreshCw className="h-4 w-4" />
               Try Again
             </Button>
@@ -300,29 +317,34 @@ const ExpiryTracker = () => {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout menuItems={menuItems} pageTitle="Batch Expiration Tracker">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Expiry Tracker</h1>
-            <p className="text-gray-600">Monitor product expiration dates and manage inventory</p>
+            <h1 className="text-2xl font-bold text-gray-900">Batch Expiration Tracker</h1>
+            <p className="text-gray-600">Monitor product batches and expiration dates</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Import
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-            <Button onClick={handleCreateProduct} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Add Product
+            <Button variant="outline" onClick={loadBatches} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
             </Button>
           </div>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <Card className="p-4 bg-red-50 border-red-200">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <p className="text-red-800">{error}</p>
+              <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -330,8 +352,8 @@ const ExpiryTracker = () => {
             <div className="flex items-center">
               <Package className="h-8 w-8 text-blue-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Total Products</p>
-                <p className="text-xl font-bold text-gray-900">{stats.totalProducts}</p>
+                <p className="text-sm font-medium text-gray-600">Total Batches</p>
+                <p className="text-xl font-bold text-gray-900">{stats.totalBatches}</p>
               </div>
             </div>
           </Card>
@@ -341,7 +363,7 @@ const ExpiryTracker = () => {
               <CheckCircle className="h-8 w-8 text-green-600" />
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-600">Good</p>
-                <p className="text-xl font-bold text-gray-900">{stats.goodProducts}</p>
+                <p className="text-xl font-bold text-gray-900">{stats.goodBatches}</p>
               </div>
             </div>
           </Card>
@@ -356,12 +378,12 @@ const ExpiryTracker = () => {
             </div>
           </Card>
           
-          <Card className="p4">
+          <Card className="p-4">
             <div className="flex items-center">
               <AlertTriangle className="h-8 w-8 text-orange-600" />
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-600">Critical</p>
-                <p className="text-xl font-bold text-gray-900">{stats.criticalProducts}</p>
+                <p className="text-xl font-bold text-gray-900">{stats.criticalBatches}</p>
               </div>
             </div>
           </Card>
@@ -371,17 +393,17 @@ const ExpiryTracker = () => {
               <XCircle className="h-8 w-8 text-red-600" />
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-600">Expired</p>
-                <p className="text-xl font-bold text-gray-900">{stats.expiredProducts}</p>
+                <p className="text-xl font-bold text-gray-900">{stats.expiredBatches}</p>
               </div>
             </div>
           </Card>
           
           <Card className="p-4">
             <div className="flex items-center">
-              <AlertCircleIcon className="h-8 w-8 text-purple-600" />
+              <TrendingDown className="h-8 w-8 text-purple-600" />
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-600">At Risk Value</p>
-                <p className="text-xl font-bold text-gray-900">₱{stats.expiringValue.toLocaleString()}</p>
+                <p className="text-xl font-bold text-gray-900">₱{stats.atRiskValue.toLocaleString()}</p>
               </div>
             </div>
           </Card>
@@ -390,52 +412,48 @@ const ExpiryTracker = () => {
         {/* Search and Filters */}
         <Card className="p-6">
           <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <SearchInput
-                placeholder="Search by product name, brand, or batch number..."
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search by product name, batch number, or PO ID..."
                 value={searchTerm}
-                onChange={setSearchTerm}
-                className="w-full"
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10"
               />
             </div>
             <div className="flex gap-3">
               <select
-                value={filters.status}
-                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
               >
                 <option value="all">All Status</option>
-                <option value="Good">Good</option>
-                <option value="Expiring Soon">Expiring Soon</option>
-                <option value="Critical">Critical</option>
-                <option value="Expired">Expired</option>
+                <option value="active">Active</option>
+                <option value="good">Good (30+ days)</option>
+                <option value="expiring_soon">Expiring Soon (8-30 days)</option>
+                <option value="critical">Critical (0-7 days)</option>
+                <option value="expired">Expired</option>
+                <option value="depleted">Depleted</option>
               </select>
               <select
-                value={filters.category}
-                onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={selectedDaysAhead}
+                onChange={(e) => setSelectedDaysAhead(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
               >
-                <option value="all">All Categories</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
+                <option value="all">All Time</option>
+                <option value="7">Next 7 Days</option>
+                <option value="30">Next 30 Days</option>
+                <option value="60">Next 60 Days</option>
+                <option value="90">Next 90 Days</option>
               </select>
               <Button
                 variant="outline"
-                onClick={() => setIsFilterModalOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <Filter className="h-4 w-4" />
-                More Filters
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setFilters({
-                  status: 'all',
-                  category: 'all',
-                  expiryRange: 'all',
-                  daysAhead: 30
-                })}
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedStatus('all');
+                  setSelectedDaysAhead(30);
+                }}
                 className="flex items-center gap-2"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -445,7 +463,7 @@ const ExpiryTracker = () => {
           </div>
         </Card>
 
-        {/* Products Table */}
+        {/* Batches Table */}
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -458,16 +476,19 @@ const ExpiryTracker = () => {
                     Batch Number
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Expiry Date
+                    Purchase Order
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quantity
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Expiration Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Days Left
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stock
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Value
@@ -478,317 +499,228 @@ const ExpiryTracker = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredProducts.map((product) => {
-                  const daysLeft = differenceInDays(product.expiryDate, new Date());
-                  return (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                          <div className="text-sm text-gray-500">{product.brand} • {product.category}</div>
-                          <div className="text-xs text-gray-400">{product.branchName}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{product.batchNumber}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{format(new Date(product.expiryDate), 'MMM dd, yyyy')}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`text-sm font-medium ${daysLeft < 0 ? 'text-red-600' : daysLeft <= 7 ? 'text-orange-600' : daysLeft <= 30 ? 'text-yellow-600' : 'text-green-600'}`}>
-                          {daysLeft < 0 ? 'Expired' : `${daysLeft} days`}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
-                          {getStatusIcon(product.status)}
-                          {product.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{product.currentStock} units</div>
-                        <div className="text-xs text-gray-500">{product.location}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">₱{product.totalValue.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">₱{product.unitCost}/unit</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-2">
+                {filteredBatches.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
+                      {batches.length === 0 
+                        ? 'No batches found. Batches will be created when purchase orders are marked as delivered.'
+                        : 'No batches match your filters. Try adjusting your search or filters.'
+                      }
+                    </td>
+                  </tr>
+                ) : (
+                  filteredBatches.map((batch) => {
+                    const status = getExpiryStatus(batch.expirationDate);
+                    const daysLeft = batch.expirationDate 
+                      ? differenceInDays(batch.expirationDate, new Date())
+                      : null;
+                    const batchValue = (batch.remainingQuantity || 0) * (batch.unitCost || 0);
+                    
+                    return (
+                      <tr key={batch.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">{batch.productName || productsMap[batch.productId] || 'Unknown Product'}</div>
+                            <div className="text-xs text-gray-500 mt-1">ID: {batch.productId}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{batch.batchNumber || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{batch.purchaseOrderId || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {batch.remainingQuantity || 0} / {batch.quantity || 0}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {batch.expirationDate 
+                              ? format(new Date(batch.expirationDate), 'MMM dd, yyyy')
+                              : 'No Expiry'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className={`text-sm font-medium ${
+                            daysLeft === null ? 'text-gray-600' :
+                            daysLeft < 0 ? 'text-red-600' : 
+                            daysLeft <= 7 ? 'text-orange-600' : 
+                            daysLeft <= 30 ? 'text-yellow-600' : 
+                            'text-green-600'
+                          }`}>
+                            {daysLeft === null ? 'N/A' : daysLeft < 0 ? 'Expired' : `${daysLeft} days`}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(status)}`}>
+                            {getStatusIcon(status)}
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">₱{batchValue.toLocaleString()}</div>
+                          <div className="text-xs text-gray-500">₱{(batch.unitCost || 0).toLocaleString()}/unit</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleViewDetails(product)}
+                            onClick={() => {
+                              setSelectedBatch(batch);
+                              setIsDetailsModalOpen(true);
+                            }}
                             className="flex items-center gap-1"
                           >
                             <Eye className="h-3 w-3" />
                             View
                           </Button>
-                          {product.status === 'Expired' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-1 text-red-600"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                              Dispose
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </Card>
 
-        {/* Empty State */}
-        {filteredProducts.length === 0 && (
-          <Card className="p-12 text-center">
-            <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Products Found</h3>
-            <p className="text-gray-600 mb-4">
-              {searchTerm || Object.values(filters).some(f => f !== 'all')
-                ? 'Try adjusting your search or filters'
-                : 'No products with expiry tracking'
-              }
-            </p>
-            <Button onClick={handleCreateProduct} className="flex items-center gap-2 mx-auto">
-              <Plus className="h-4 w-4" />
-              Add Product
-            </Button>
-          </Card>
-        )}
-
-        {/* Product Details Modal */}
-        {isDetailsModalOpen && selectedProduct && (
-          <Modal
-            isOpen={isDetailsModalOpen}
-            onClose={() => {
-              setIsDetailsModalOpen(false);
-              setSelectedProduct(null);
-            }}
-            title="Product Expiry Details"
-            size="lg"
-          >
-            <div className="space-y-6">
-              {/* Product Header */}
-              <div className="flex gap-6">
-                <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Package className="h-16 w-16 text-gray-400" />
+        {/* Batch Details Modal */}
+        {isDetailsModalOpen && selectedBatch && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Package className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Batch Details</h2>
+                      <p className="text-white/80 text-sm mt-1">{selectedBatch.batchNumber}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setIsDetailsModalOpen(false);
+                      setSelectedBatch(null);
+                    }}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between mb-2">
-                    <h2 className="text-xl font-bold text-gray-900">{selectedProduct.name}</h2>
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedProduct.status)}`}>
-                      {getStatusIcon(selectedProduct.status)}
-                      {selectedProduct.status}
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                  {/* Batch Header */}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{selectedBatch.productName || productsMap[selectedBatch.productId] || 'Unknown Product'}</h3>
+                      <p className="text-gray-600">Batch: {selectedBatch.batchNumber || 'N/A'}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(getExpiryStatus(selectedBatch.expirationDate))}`}>
+                      {getStatusIcon(getExpiryStatus(selectedBatch.expirationDate))}
+                      {getExpiryStatus(selectedBatch.expirationDate)}
                     </span>
                   </div>
-                  <p className="text-lg text-gray-600 mb-2">{selectedProduct.brand}</p>
-                  <p className="text-sm text-gray-500">{selectedProduct.category}</p>
+
+                  {/* Batch Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Product Name</label>
+                        <p className="text-gray-900 font-semibold">{selectedBatch.productName || productsMap[selectedBatch.productId] || 'Unknown Product'}</p>
+                        <p className="text-xs text-gray-500 mt-1">ID: {selectedBatch.productId}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Purchase Order</label>
+                        <p className="text-gray-900">{selectedBatch.purchaseOrderId || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Received Date</label>
+                        <p className="text-gray-900">
+                          {selectedBatch.receivedDate 
+                            ? format(new Date(selectedBatch.receivedDate), 'MMM dd, yyyy')
+                            : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Received By</label>
+                        <p className="text-gray-900">
+                          {selectedBatch.receivedByName || 
+                           (selectedBatch.receivedBy ? (usersMap[selectedBatch.receivedBy] || selectedBatch.receivedBy) : 'Unknown')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Expiration Date</label>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {selectedBatch.expirationDate 
+                            ? format(new Date(selectedBatch.expirationDate), 'MMM dd, yyyy')
+                            : 'No Expiry Date'}
+                        </p>
+                        {selectedBatch.expirationDate && (
+                          <p className={`text-sm mt-1 ${
+                            differenceInDays(new Date(selectedBatch.expirationDate), new Date()) < 0 
+                              ? 'text-red-600' 
+                              : differenceInDays(new Date(selectedBatch.expirationDate), new Date()) <= 7
+                              ? 'text-orange-600'
+                              : 'text-gray-600'
+                          }`}>
+                            {differenceInDays(new Date(selectedBatch.expirationDate), new Date()) < 0 
+                              ? 'Expired' 
+                              : `${differenceInDays(new Date(selectedBatch.expirationDate), new Date())} days remaining`}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Quantity</label>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {selectedBatch.remainingQuantity || 0} / {selectedBatch.quantity || 0} units
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {((selectedBatch.remainingQuantity || 0) / (selectedBatch.quantity || 1) * 100).toFixed(1)}% remaining
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Unit Cost</label>
+                        <p className="text-gray-900">₱{(selectedBatch.unitCost || 0).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Total Value</label>
+                        <p className="text-2xl font-bold text-[#160B53]">
+                          ₱{((selectedBatch.remainingQuantity || 0) * (selectedBatch.unitCost || 0)).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Expiry Information */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Expiry Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Expiry Date</label>
-                    <p className="text-lg font-semibold text-gray-900">{format(new Date(selectedProduct.expiryDate), 'MMM dd, yyyy')}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Days Left</label>
-                    <p className={`text-lg font-semibold ${differenceInDays(selectedProduct.expiryDate, new Date()) < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                      {differenceInDays(selectedProduct.expiryDate, new Date()) < 0 ? 'Expired' : `${differenceInDays(selectedProduct.expiryDate, new Date())} days`}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Batch Number</label>
-                    <p className="text-gray-900">{selectedProduct.batchNumber}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Shelf Life</label>
-                    <p className="text-gray-900">{selectedProduct.shelfLife} months</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stock Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Current Stock</label>
-                    <p className="text-2xl font-bold text-gray-900">{selectedProduct.currentStock} units</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Unit Cost</label>
-                    <p className="text-lg font-semibold text-gray-900">₱{selectedProduct.unitCost.toLocaleString()}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Total Value</label>
-                    <p className="text-lg font-semibold text-gray-900">₱{selectedProduct.totalValue.toLocaleString()}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Branch</label>
-                    <p className="text-gray-900">{selectedProduct.branchName}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Location</label>
-                    <p className="text-gray-900">{selectedProduct.location}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Supplier</label>
-                    <p className="text-gray-900">{selectedProduct.supplier}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3">
-                {selectedProduct.status === 'Expired' && (
-                  <Button className="flex items-center gap-2 bg-red-600 hover:bg-red-700">
-                    <Trash2 className="h-4 w-4" />
-                    Dispose Product
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsDetailsModalOpen(false);
+                      setSelectedBatch(null);
+                    }}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Close
                   </Button>
-                )}
-                {(selectedProduct.status === 'Critical' || selectedProduct.status === 'Expiring Soon') && (
-                  <Button className="flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4" />
-                    Create Sale
-                  </Button>
-                )}
-                <Button variant="outline" className="flex items-center gap-2">
-                  <Edit className="h-4 w-4" />
-                  Update Expiry
-                </Button>
+                </div>
               </div>
             </div>
-          </Modal>
-        )}
-
-        {/* Create Product Modal */}
-        {isCreateModalOpen && (
-          <Modal
-            isOpen={isCreateModalOpen}
-            onClose={() => setIsCreateModalOpen(false)}
-            title="Add Product for Expiry Tracking"
-            size="md"
-          >
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Product *</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                  <option value="">Select Product</option>
-                  {/* Product options would be populated here */}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Batch Number *</label>
-                <Input
-                  type="text"
-                  placeholder="Enter batch number"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date *</label>
-                <Input
-                  type="date"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Shelf Life (months)</label>
-                <Input
-                  type="number"
-                  placeholder="Enter shelf life in months"
-                />
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  Add Product
-                </Button>
-              </div>
-            </form>
-          </Modal>
-        )}
-
-        {/* Advanced Filters Modal */}
-        {isFilterModalOpen && (
-          <Modal
-            isOpen={isFilterModalOpen}
-            onClose={() => setIsFilterModalOpen(false)}
-            title="Advanced Filters"
-            size="md"
-          >
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Range</label>
-                <select
-                  value={filters.expiryRange}
-                  onChange={(e) => setFilters(prev => ({ ...prev, expiryRange: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Ranges</option>
-                  <option value="expired">Expired</option>
-                  <option value="critical">Critical (0-7 days)</option>
-                  <option value="expiring">Expiring Soon (8-30 days)</option>
-                  <option value="good">Good (30+ days)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Days Ahead</label>
-                <select
-                  value={filters.daysAhead}
-                  onChange={(e) => setFilters(prev => ({ ...prev, daysAhead: parseInt(e.target.value) }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All</option>
-                  <option value="7">7 days</option>
-                  <option value="30">30 days</option>
-                  <option value="60">60 days</option>
-                  <option value="90">90 days</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setFilters({
-                  status: 'all',
-                  category: 'all',
-                  expiryRange: 'all',
-                  daysAhead: 30
-                })}>
-                  Reset
-                </Button>
-                <Button onClick={() => setIsFilterModalOpen(false)}>
-                  Apply Filters
-                </Button>
-              </div>
-            </div>
-          </Modal>
+          </div>
         )}
       </div>
     </DashboardLayout>

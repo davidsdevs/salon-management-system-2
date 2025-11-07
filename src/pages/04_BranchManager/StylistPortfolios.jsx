@@ -41,6 +41,7 @@ import {
   AlertCircle,
   Search,
 } from "lucide-react";
+import { branchManagerMenuItems } from "./menuItems";
 
 const StylistPortfolios = () => {
   const { userData } = useAuth();
@@ -48,7 +49,7 @@ const StylistPortfolios = () => {
   const [loading, setLoading] = useState(true);
   const [stylists, setStylists] = useState({});
   const [selectedStylist, setSelectedStylist] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("all"); // Changed default to "all"
   const [previewImage, setPreviewImage] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -78,19 +79,6 @@ const StylistPortfolios = () => {
     approved: portfolios.filter(p => p.status === "active").length,
     rejected: portfolios.filter(p => p.status === "rejected").length,
   };
-
-  const menuItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home },
-    { path: "/appointments", label: "Appointments", icon: Calendar },
-    { path: "/staff", label: "Staff", icon: Users },
-    { path: "/schedule", label: "Schedule", icon: Calendar },
-    { path: "/inventory", label: "Inventory", icon: Package },
-    { path: "/transactions", label: "Transactions", icon: Receipt },
-    { path: "/stylist-portfolios", label: "Stylist Portfolios", icon: ImageIcon },
-    { path: "/settings", label: "Settings", icon: Settings },
-    { path: "/reports", label: "Reports", icon: BarChart3 },
-    { path: "/profile", label: "Profile", icon: UserCog },
-  ];
 
   // Fetch stylists for the branch
   useEffect(() => {
@@ -204,16 +192,25 @@ const StylistPortfolios = () => {
       // Manual filtering by status AND verify stylist belongs to branch
       const beforeFilterCount = allPortfolios.length;
       allPortfolios = allPortfolios.filter((portfolio) => {
-        // Check if status matches
-        if (portfolio.status !== statusFilter) {
-          console.log(`  ❌ Portfolio ${portfolio.id} rejected: status "${portfolio.status}" !== "${statusFilter}"`);
-          return false;
-        }
-        
         // Verify the stylist ID belongs to this branch
         if (!stylistIds.includes(portfolio.stylistId)) {
           console.log(`  ❌ Portfolio ${portfolio.id} rejected: stylist ${portfolio.stylistId} not in branch`);
           return false;
+        }
+        
+        // Status filtering logic
+        if (statusFilter === "all") {
+          // Show all portfolios EXCEPT rejected (rejected only shown when filter is explicitly set)
+          if (portfolio.status === "rejected") {
+            console.log(`  ❌ Portfolio ${portfolio.id} rejected: status is "rejected" and filter is "all"`);
+            return false;
+          }
+        } else {
+          // Filter by specific status
+          if (portfolio.status !== statusFilter) {
+            console.log(`  ❌ Portfolio ${portfolio.id} rejected: status "${portfolio.status}" !== "${statusFilter}"`);
+            return false;
+          }
         }
         
         console.log(`  ✅ Portfolio ${portfolio.id} passed all filters`);
@@ -222,14 +219,24 @@ const StylistPortfolios = () => {
 
       console.log(`🔄 After filtering: ${allPortfolios.length} of ${beforeFilterCount} portfolios remain`);
 
-      // Manual sorting by createdAt (newest first) in JavaScript
+      // Custom sorting: pending first, then approved, then rejected, then by createdAt (newest first)
+      const statusOrder = { pending: 1, active: 2, approved: 2, rejected: 3 };
       allPortfolios.sort((a, b) => {
+        // First, sort by status priority
+        const aStatusOrder = statusOrder[a.status] || 99;
+        const bStatusOrder = statusOrder[b.status] || 99;
+        
+        if (aStatusOrder !== bStatusOrder) {
+          return aStatusOrder - bStatusOrder;
+        }
+        
+        // If same status priority, sort by createdAt (newest first)
         const aTime = a.createdAt?.seconds || 0;
         const bTime = b.createdAt?.seconds || 0;
         return bTime - aTime;
       });
 
-      console.log("📅 Sorted portfolios by createdAt (newest first)");
+      console.log("📅 Sorted portfolios: pending → approved → rejected, then by createdAt (newest first)");
 
       // Paginate
       const startIndex = (pageNum - 1) * itemsPerPage;
@@ -316,7 +323,7 @@ const StylistPortfolios = () => {
   };
 
   return (
-    <DashboardLayout menuItems={menuItems} pageTitle="Stylist Portfolios">
+    <DashboardLayout menuItems={branchManagerMenuItems} pageTitle="Stylist Portfolios">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -432,6 +439,7 @@ const StylistPortfolios = () => {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
+                <option value="all">All (Pending + Approved)</option>
                 <option value="pending">Pending</option>
                 <option value="active">Approved</option>
                 <option value="rejected">Rejected</option>
@@ -459,9 +467,11 @@ const StylistPortfolios = () => {
             <p className="text-gray-600">
               {searchTerm 
                 ? `No portfolios match "${searchTerm}"`
-                : statusFilter === "pending" 
-                  ? "There are no pending portfolios waiting for approval."
-                  : `No ${statusFilter} portfolios found.`}
+                : statusFilter === "all"
+                  ? "There are no portfolios to display."
+                  : statusFilter === "pending" 
+                    ? "There are no pending portfolios waiting for approval."
+                    : `No ${statusFilter === "active" ? "approved" : statusFilter} portfolios found.`}
             </p>
           </Card>
         ) : (
@@ -595,73 +605,84 @@ const StylistPortfolios = () => {
         {/* Image Preview Modal */}
         {previewImage && (
           <div
-            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 p-4"
             onClick={() => setPreviewImage(null)}
           >
             <div
-              className="relative max-w-4xl w-full bg-white rounded-lg overflow-hidden"
+              className="relative max-w-4xl w-full bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col transform transition-all duration-300 scale-100"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Close Button */}
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="absolute top-4 right-4 bg-white/90 p-2 rounded-full hover:bg-white transition-colors z-10"
-              >
-                <X className="h-6 w-6 text-gray-700" />
-              </button>
-
-              {/* Image */}
-              <div className="max-h-[70vh] overflow-auto">
-                <img
-                  src={previewImage.imageUrl}
-                  alt={previewImage.title}
-                  className="w-full h-auto"
-                />
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#160B53] to-[#12094A] text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <ImageIcon className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">{previewImage.title || "Untitled Portfolio"}</h2>
+                      <p className="text-white/80 text-sm mt-1">
+                        {stylists[previewImage.stylistId]?.fullName || "Unknown Stylist"}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPreviewImage(null)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
 
-              {/* Info */}
-              <div className="p-6 space-y-4 border-t">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {previewImage.title || "Untitled"}
-                  </h2>
-                  <p className="text-gray-600 flex items-center mt-1">
-                    <User className="h-4 w-4 mr-1" />
-                    {stylists[previewImage.stylistId]?.fullName || "Unknown Stylist"}
-                  </p>
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto">
+                {/* Image */}
+                <div className="max-h-[70vh] overflow-auto">
+                  <img
+                    src={previewImage.imageUrl}
+                    alt={previewImage.title}
+                    className="w-full h-auto"
+                  />
                 </div>
 
-                {previewImage.description && (
-                  <div>
-                    <p className="text-gray-700">{previewImage.description}</p>
-                  </div>
-                )}
+                {/* Info */}
+                <div className="p-6 space-y-4 border-t border-gray-200">
+                  {previewImage.description && (
+                    <div>
+                      <p className="text-gray-700">{previewImage.description}</p>
+                    </div>
+                  )}
 
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center">
-                    <Tag className="h-4 w-4 mr-1" />
-                    {previewImage.category || "Uncategorized"}
-                  </div>
-                  <div className="flex items-center">
-                    <CalendarIcon className="h-4 w-4 mr-1" />
-                    {formatDate(previewImage.createdAt)}
-                  </div>
-                  <div className="flex items-center">
-                    <ImageIcon className="h-4 w-4 mr-1" />
-                    {previewImage.width} × {previewImage.height}
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center">
+                      <Tag className="h-4 w-4 mr-1" />
+                      {previewImage.category || "Uncategorized"}
+                    </div>
+                    <div className="flex items-center">
+                      <CalendarIcon className="h-4 w-4 mr-1" />
+                      {formatDate(previewImage.createdAt)}
+                    </div>
+                    <div className="flex items-center">
+                      <ImageIcon className="h-4 w-4 mr-1" />
+                      {previewImage.width} × {previewImage.height}
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Action Buttons in Modal */}
-                {previewImage.status === "pending" && (
-                  <div className="flex gap-3 pt-2">
+              {/* Modal Footer */}
+              {previewImage.status === "pending" && (
+                <div className="border-t border-gray-200 p-6 bg-gray-50">
+                  <div className="flex gap-3">
                     <Button
                       onClick={() => {
                         handleApprove(previewImage.id);
                         setPreviewImage(null);
                       }}
                       disabled={processingId === previewImage.id}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white transition-colors"
                     >
                       <CheckCircle className="h-5 w-5 mr-2" />
                       Approve Portfolio
@@ -672,14 +693,14 @@ const StylistPortfolios = () => {
                         setPreviewImage(null);
                       }}
                       disabled={processingId === previewImage.id}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white transition-colors"
                     >
                       <XCircle className="h-5 w-5 mr-2" />
                       Reject Portfolio
                     </Button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}

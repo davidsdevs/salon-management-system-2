@@ -28,6 +28,7 @@ import {
   Eye,
   Package2,
   Building2,
+  Building,
   Upload,
   Image as ImageIcon,
   XCircle

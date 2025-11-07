@@ -18,7 +18,9 @@ import {
   Home,
   Calendar,
   BarChart3,
-  MapPin
+  MapPin,
+  ShoppingCart,
+  DollarSign
 } from 'lucide-react';
 
 const ClientReports = () => {
@@ -31,6 +33,8 @@ const ClientReports = () => {
     { path: '/operational-manager/branches', label: 'Branch Monitoring', icon: MapPin },
     { path: '/operational-manager/clients', label: 'Client Reports', icon: Users },
     { path: '/operational-manager/loyalty-summary', label: 'Loyalty Summary', icon: Award },
+    { path: '/operational-manager/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/operational-manager/deposits', label: 'Deposit Reviews', icon: DollarSign },
     { path: '/operational-manager/reports', label: 'Analytics', icon: BarChart3 },
   ];
 

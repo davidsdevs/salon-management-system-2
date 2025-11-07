@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import DashboardLayout from '../shared/DashboardLayout';
 import UserForm from '../../components/user/UserForm';
 import { appointmentService } from '../../services/appointmentService';
-import { Users, Calendar, Package, DollarSign, User, Home, Building2, Settings, BarChart3, UserCog, Scissors, Package2, RefreshCw } from 'lucide-react';
+import { Users, Calendar, Package, DollarSign, User, Home, Building2, Building, Settings, BarChart3, UserCog, Scissors, Package2, RefreshCw } from 'lucide-react';
 
 const SystemAdminDashboard = () => {
   const { userData } = useAuth();
@@ -48,6 +48,8 @@ const SystemAdminDashboard = () => {
     { path: '/branch-management', label: 'Branches', icon: Building2 },
     { path: '/service-management', label: 'Services', icon: Scissors },
     { path: '/master-products', label: 'Master Products', icon: Package2 },
+    { path: '/suppliers', label: 'Suppliers', icon: Building },
+    { path: '/admin/transactions', label: 'Transactions', icon: DollarSign },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 
