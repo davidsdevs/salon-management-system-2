@@ -170,7 +170,8 @@ const PurchaseOrders = () => {
             category: productData.category,
             brand: productData.brand,
             unitCost: productData.unitCost || 0,
-            supplier: productData.supplier, // Supplier ID
+            suppliers: productData.suppliers || (productData.supplier ? [productData.supplier] : []), // Suppliers array
+            supplier: productData.supplier, // Keep for backward compatibility
             imageUrl: productData.imageUrl,
             description: productData.description,
             sku: productData.sku,
@@ -232,10 +233,17 @@ const PurchaseOrders = () => {
   // Debounce search terms
   const debouncedProductSearchTerm = useDebounce(productSearchTerm, 300);
 
-  // When supplier is selected, filter products
+  // When supplier is selected, filter products (suppliers is now an array)
   useEffect(() => {
     if (selectedSupplierId && branchProducts.length > 0) {
-      const filtered = branchProducts.filter(product => product.supplier === selectedSupplierId);
+      const filtered = branchProducts.filter(product => {
+        // Check if suppliers is an array and contains the selected supplier ID
+        if (Array.isArray(product.suppliers)) {
+          return product.suppliers.includes(selectedSupplierId);
+        }
+        // Fallback for old data structure (single supplier)
+        return product.supplier === selectedSupplierId;
+      });
       setSupplierProducts(filtered);
     } else {
       setSupplierProducts([]);

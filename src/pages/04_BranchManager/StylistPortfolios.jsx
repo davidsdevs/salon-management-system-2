@@ -58,6 +58,9 @@ const StylistPortfolios = () => {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [portfolioToReject, setPortfolioToReject] = useState(null);
+  const [rejectionRemark, setRejectionRemark] = useState("");
   const itemsPerPage = 12;
 
   // Filter portfolios based on search term
@@ -287,19 +290,36 @@ const StylistPortfolios = () => {
     }
   };
 
-  const handleReject = async (portfolioId) => {
+  const handleRejectClick = (portfolioId) => {
+    setPortfolioToReject(portfolioId);
+    setRejectionRemark("");
+    setRejectModalOpen(true);
+  };
+
+  const handleReject = async () => {
+    if (!portfolioToReject) return;
+    
+    if (!rejectionRemark.trim()) {
+      setError("Please provide a rejection remark");
+      return;
+    }
+
     try {
-      setProcessingId(portfolioId);
+      setProcessingId(portfolioToReject);
       setError(null);
       setSuccessMessage(null);
-      const portfolioRef = doc(db, "portfolio", portfolioId);
+      const portfolioRef = doc(db, "portfolio", portfolioToReject);
       await updateDoc(portfolioRef, {
         status: "rejected",
         rejectedAt: Timestamp.now(),
         rejectedBy: userData.uid,
+        rejectionRemark: rejectionRemark.trim(),
       });
       
       setSuccessMessage("Portfolio rejected successfully");
+      setRejectModalOpen(false);
+      setPortfolioToReject(null);
+      setRejectionRemark("");
       fetchPortfolios(currentPage);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error) {
@@ -538,6 +558,13 @@ const StylistPortfolios = () => {
                       </p>
                     )}
 
+                    {portfolio.status === "rejected" && portfolio.rejectionRemark && (
+                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                        <p className="font-semibold text-red-800 mb-1">Rejection Reason:</p>
+                        <p className="text-red-700">{portfolio.rejectionRemark}</p>
+                      </div>
+                    )}
+
                     <div className="flex items-center text-xs text-gray-500">
                       <CalendarIcon className="h-3 w-3 mr-1" />
                       {formatDate(portfolio.createdAt)}
@@ -555,7 +582,7 @@ const StylistPortfolios = () => {
                           Approve
                         </Button>
                         <Button
-                          onClick={() => handleReject(portfolio.id)}
+                          onClick={() => handleRejectClick(portfolio.id)}
                           disabled={processingId === portfolio.id}
                           className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                         >
@@ -669,6 +696,13 @@ const StylistPortfolios = () => {
                       {previewImage.width} × {previewImage.height}
                     </div>
                   </div>
+
+                  {previewImage.status === "rejected" && previewImage.rejectionRemark && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
+                      <p className="font-semibold text-red-800 mb-1">Rejection Reason:</p>
+                      <p className="text-red-700 text-sm">{previewImage.rejectionRemark}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -689,7 +723,7 @@ const StylistPortfolios = () => {
                     </Button>
                     <Button
                       onClick={() => {
-                        handleReject(previewImage.id);
+                        handleRejectClick(previewImage.id);
                         setPreviewImage(null);
                       }}
                       disabled={processingId === previewImage.id}
@@ -701,6 +735,88 @@ const StylistPortfolios = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Rejection Remark Modal */}
+        {rejectModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 p-4"
+            onClick={() => {
+              setRejectModalOpen(false);
+              setPortfolioToReject(null);
+              setRejectionRemark("");
+            }}
+          >
+            <div
+              className="relative max-w-md w-full bg-white rounded-xl shadow-2xl overflow-hidden transform transition-all duration-300 scale-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <XCircle className="h-6 w-6" />
+                    <h2 className="text-xl font-bold">Reject Portfolio</h2>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setRejectModalOpen(false);
+                      setPortfolioToReject(null);
+                      setRejectionRemark("");
+                    }}
+                    className="text-white/80 hover:text-white transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 space-y-4">
+                <p className="text-gray-700">
+                  Please provide a reason for rejecting this portfolio. The stylist will see this remark.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rejection Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rejectionRemark}
+                    onChange={(e) => setRejectionRemark(e.target.value)}
+                    placeholder="Enter the reason for rejection..."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50">
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      setRejectModalOpen(false);
+                      setPortfolioToReject(null);
+                      setRejectionRemark("");
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleReject}
+                    disabled={!rejectionRemark.trim() || processingId === portfolioToReject}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white transition-colors"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject Portfolio
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}

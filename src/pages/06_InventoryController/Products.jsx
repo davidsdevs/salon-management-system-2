@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { SearchInput } from '../ui/search-input';
 import Modal from '../ui/modal';
+import ImportModal from '../../components/ImportModal';
 import { productService } from '../../services/productService';
 import {
   Package,
@@ -35,9 +36,12 @@ import {
   ShoppingCart,
   Truck,
   ClipboardList,
-  UserCog
+  UserCog,
+  PackageCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 const Products = () => {
   const { userData } = useAuth();
@@ -49,6 +53,7 @@ const Products = () => {
     { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
     { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
     { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/deliveries', label: 'Deliveries', icon: PackageCheck },
     { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
     { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
     { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },
@@ -60,6 +65,7 @@ const Products = () => {
   
   // Data states
   const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]); // For mapping supplier IDs to names
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -72,6 +78,7 @@ const Products = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -81,6 +88,25 @@ const Products = () => {
     priceRange: { min: '', max: '' },
     commissionRange: { min: '', max: '' }
   });
+
+  // Load suppliers
+  const loadSuppliers = async () => {
+    try {
+      const suppliersRef = collection(db, 'suppliers');
+      const snapshot = await getDocs(suppliersRef);
+      const suppliersList = [];
+      snapshot.forEach((doc) => {
+        suppliersList.push({
+          id: doc.id,
+          name: doc.data().name || 'Unknown Supplier',
+          ...doc.data()
+        });
+      });
+      setSuppliers(suppliersList);
+    } catch (err) {
+      console.error('Error loading suppliers:', err);
+    }
+  };
 
   // Load products
   const loadProducts = async () => {
@@ -102,16 +128,23 @@ const Products = () => {
     }
   };
 
-  // Load products on mount
+  // Load products and suppliers on mount
   useEffect(() => {
+    loadSuppliers();
     loadProducts();
   }, []);
 
   // Get unique categories
   const categories = [...new Set(products.map(p => p.category))].filter(Boolean);
   
-  // Get unique suppliers
-  const suppliers = [...new Set(products.map(p => p.supplier))].filter(Boolean);
+  // Get unique supplier IDs from products (for filter dropdown)
+  // Get unique supplier IDs from products (handling both array and single supplier)
+  const uniqueSupplierIds = [...new Set(products.flatMap(p => {
+    if (Array.isArray(p.suppliers)) {
+      return p.suppliers;
+    }
+    return p.supplier ? [p.supplier] : [];
+  }))].filter(Boolean);
 
   // Filter and sort products
   const filteredProducts = products
@@ -122,7 +155,14 @@ const Products = () => {
       
       const matchesCategory = filters.category === 'all' || product.category === filters.category;
       const matchesStatus = filters.status === 'all' || product.status === filters.status;
-      const matchesSupplier = filters.supplier === 'all' || product.supplier === filters.supplier;
+      const matchesSupplier = filters.supplier === 'all' || (() => {
+        // Check if suppliers is an array and contains the filter supplier ID
+        if (Array.isArray(product.suppliers)) {
+          return product.suppliers.includes(filters.supplier);
+        }
+        // Fallback for old data structure (single supplier)
+        return product.supplier === filters.supplier;
+      })();
       
       const matchesPriceRange = (!filters.priceRange.min || product.otcPrice >= parseFloat(filters.priceRange.min)) &&
                                (!filters.priceRange.max || product.otcPrice <= parseFloat(filters.priceRange.max));
@@ -164,6 +204,117 @@ const Products = () => {
       commissionRange: { min: '', max: '' }
     });
     setSearchTerm('');
+  };
+
+  // Export products to CSV
+  const exportProducts = () => {
+    if (!filteredProducts.length) {
+      alert('No products to export');
+      return;
+    }
+
+    const headers = [
+      'Name', 'Brand', 'Category', 'Description', 'UPC', 'SKU',
+      'OTC Price', 'Salon Use Price', 'Unit Cost', 'Commission Percentage',
+      'Status', 'Variants', 'Shelf Life', 'Suppliers'
+    ];
+
+    const csvRows = [
+      headers.join(','),
+      ...filteredProducts.map(product => {
+        const suppliers = Array.isArray(product.suppliers) 
+          ? product.suppliers.join('; ')
+          : (product.supplier || '');
+        
+        return [
+          `"${(product.name || '').replace(/"/g, '""')}"`,
+          `"${(product.brand || '').replace(/"/g, '""')}"`,
+          `"${(product.category || '').replace(/"/g, '""')}"`,
+          `"${(product.description || '').replace(/"/g, '""')}"`,
+          `"${(product.upc || '').replace(/"/g, '""')}"`,
+          `"${(product.sku || '').replace(/"/g, '""')}"`,
+          product.otcPrice || 0,
+          product.salonUsePrice || 0,
+          product.unitCost || 0,
+          product.commissionPercentage || 0,
+          `"${(product.status || '').replace(/"/g, '""')}"`,
+          `"${(product.variants || '').replace(/"/g, '""')}"`,
+          `"${(product.shelfLife || '').replace(/"/g, '""')}"`,
+          `"${suppliers.replace(/"/g, '""')}"`
+        ].join(',');
+      })
+    ];
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `products_export_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Handle import
+  const handleImport = async (data) => {
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+
+      for (const row of data) {
+        try {
+          // Map CSV columns to product data structure
+          const productData = {
+            name: row.Name || row.name || '',
+            brand: row.Brand || row.brand || '',
+            category: row.Category || row.category || '',
+            description: row.Description || row.description || '',
+            upc: row.UPC || row.upc || '',
+            sku: row.SKU || row.sku || '',
+            otcPrice: parseFloat(row['OTC Price'] || row.otcPrice || 0),
+            salonUsePrice: parseFloat(row['Salon Use Price'] || row.salonUsePrice || 0),
+            unitCost: parseFloat(row['Unit Cost'] || row.unitCost || 0),
+            commissionPercentage: parseFloat(row['Commission Percentage'] || row.commissionPercentage || 0),
+            status: row.Status || row.status || 'Active',
+            variants: row.Variants || row.variants || '',
+            shelfLife: row['Shelf Life'] || row.shelfLife || '',
+            suppliers: row.Suppliers ? row.Suppliers.split(';').map(s => s.trim()).filter(Boolean) : []
+          };
+
+          // Validate required fields
+          if (!productData.name) {
+            throw new Error('Name is required');
+          }
+
+          // Create product
+          const result = await productService.createProduct(productData);
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            errors.push(`Row ${data.indexOf(row) + 2}: ${result.message || 'Failed to create'}`);
+          }
+        } catch (err) {
+          errorCount++;
+          errors.push(`Row ${data.indexOf(row) + 2}: ${err.message}`);
+        }
+      }
+
+      // Reload products
+      await loadProducts();
+
+      if (errorCount > 0) {
+        return {
+          success: false,
+          error: `Imported ${successCount} products. ${errorCount} errors:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... and ${errors.length - 5} more` : ''}`
+        };
+      }
+
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   };
 
   // Get status color
@@ -225,11 +376,19 @@ const Products = () => {
             <p className="text-gray-600">Manage your product inventory and details</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              className="flex items-center gap-2"
+              onClick={() => setIsImportModalOpen(true)}
+            >
               <Upload className="h-4 w-4" />
               Import
             </Button>
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              className="flex items-center gap-2"
+              onClick={exportProducts}
+            >
               <Download className="h-4 w-4" />
               Export
             </Button>
@@ -308,9 +467,6 @@ const Products = () => {
                     Category
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Supplier
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     UPC
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -365,9 +521,6 @@ const Products = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{product.category || 'N/A'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{product.supplier || 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{product.upc || 'N/A'}</div>
@@ -564,8 +717,8 @@ const Products = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Suppliers</option>
-                  {suppliers.map(supplier => (
-                    <option key={supplier} value={supplier}>{supplier}</option>
+                  {suppliers.filter(s => uniqueSupplierIds.includes(s.id)).map(supplier => (
+                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
                   ))}
                 </select>
               </div>
@@ -629,6 +782,46 @@ const Products = () => {
             </div>
           </Modal>
         )}
+
+        {/* Import Modal */}
+        <ImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onImport={handleImport}
+          templateColumns={[
+            'Name', 'Brand', 'Category', 'Description', 'UPC', 'SKU',
+            'OTC Price', 'Salon Use Price', 'Unit Cost', 'Commission Percentage',
+            'Status', 'Variants', 'Shelf Life', 'Suppliers'
+          ]}
+          templateName="products"
+          sampleData={[
+            {
+              Name: 'Professional Shampoo',
+              Brand: 'L\'Oreal',
+              Category: 'Hair Care',
+              Description: 'Professional salon shampoo',
+              UPC: '123456789012',
+              SKU: 'PRD-LOR-SHA-1234',
+              'OTC Price': '850',
+              'Salon Use Price': '650',
+              'Unit Cost': '450',
+              'Commission Percentage': '15',
+              Status: 'Active',
+              Variants: '500ml',
+              'Shelf Life': '24 months',
+              Suppliers: 'Supplier1; Supplier2'
+            }
+          ]}
+          validationRules={{
+            Name: { required: true },
+            Brand: { required: true },
+            Category: { required: true },
+            'OTC Price': { type: 'number' },
+            'Salon Use Price': { type: 'number' },
+            'Unit Cost': { type: 'number' }
+          }}
+          title="Import Products"
+        />
       </div>
     </DashboardLayout>
   );

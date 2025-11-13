@@ -35,9 +35,14 @@ import {
   Heart,
   Gift,
   Phone,
-  Mail
+  Mail,
+  Type,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { branchManagerMenuItems } from './menuItems';
+import ContentManagementSystem from './ContentManagementSystem';
 
 const BranchManagerSettings = () => {
   const { userData } = useAuth();
@@ -56,6 +61,19 @@ const BranchManagerSettings = () => {
         'Contact information',
         'Operating hours configuration',
         'Branch status management'
+      ]
+    },
+    {
+      id: 'content-management',
+      title: 'Content Management System',
+      description: 'Manage your landing page content in real-time',
+      icon: Type,
+      color: 'bg-green-100 text-green-600',
+      features: [
+        'Edit hero section content',
+        'Manage testimonials',
+        'Update call-to-action sections',
+        'Real-time preview and updates'
       ]
     },
     {
@@ -99,6 +117,8 @@ const BranchManagerSettings = () => {
     switch (activeFeature) {
       case 'branch-settings':
         return <BranchSettingsComponent onBack={handleBackToSettings} />;
+      case 'content-management':
+        return <ContentManagementSystem onBack={handleBackToSettings} />;
       case 'branch-products':
         return <BranchProductsComponent onBack={handleBackToSettings} />;
       case 'service-configuration':
@@ -1957,7 +1977,13 @@ const BranchProductsComponent = ({ onBack }) => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [brandFilter, setBrandFilter] = useState('All');
+  const [supplierFilter, setSupplierFilter] = useState('All');
   const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableBrands, setAvailableBrands] = useState([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState([]);
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [productToAdd, setProductToAdd] = useState(null);
@@ -2018,9 +2044,13 @@ const BranchProductsComponent = ({ onBack }) => {
       
       setBranchProducts(branchProductsList);
       
-      // Extract categories from branch products
+      // Extract categories, brands, and suppliers from branch products
       const categories = extractCategories(branchProductsList);
+      const brands = extractBrands(branchProductsList);
+      const suppliers = extractSuppliers(branchProductsList);
       setAvailableCategories(categories);
+      setAvailableBrands(brands);
+      setAvailableSuppliers(suppliers);
     } catch (error) {
       console.error('Error loading branch products:', error);
       setError('Failed to load branch products');
@@ -2090,17 +2120,104 @@ const BranchProductsComponent = ({ onBack }) => {
     return Array.from(categories).sort();
   };
 
+  // Extract unique brands from products
+  const extractBrands = (products) => {
+    const brands = new Set();
+    products.forEach(product => {
+      if (product.brand && product.brand.trim() !== '') {
+        brands.add(product.brand);
+      }
+    });
+    return Array.from(brands).sort();
+  };
+
+  // Extract unique suppliers from products
+  const extractSuppliers = (products) => {
+    const suppliers = new Set();
+    products.forEach(product => {
+      if (product.supplier && product.supplier.trim() !== '') {
+        suppliers.add(product.supplier);
+      }
+    });
+    return Array.from(suppliers).sort();
+  };
+
+  // Filter products
   const filteredProducts = branchProducts.filter(product => {
     const productName = product.name || '';
     const productBrand = product.brand || '';
+    const productDescription = product.description || '';
+    const productSupplier = product.supplier || '';
     const searchTermLower = searchTerm.toLowerCase();
     
     const matchesSearch = productName.toLowerCase().includes(searchTermLower) ||
-                         productBrand.toLowerCase().includes(searchTermLower);
+                         productBrand.toLowerCase().includes(searchTermLower) ||
+                         productDescription.toLowerCase().includes(searchTermLower) ||
+                         productSupplier.toLowerCase().includes(searchTermLower);
     const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
+    const matchesBrand = brandFilter === 'All' || product.brand === brandFilter;
+    const matchesSupplier = supplierFilter === 'All' || product.supplier === supplierFilter;
 
-    return matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory && matchesBrand && matchesSupplier;
   });
+
+  // Sort products
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (!sortColumn) return 0;
+
+    let aValue, bValue;
+
+    switch (sortColumn) {
+      case 'name':
+        aValue = (a.name || '').toLowerCase();
+        bValue = (b.name || '').toLowerCase();
+        break;
+      case 'brand':
+        aValue = (a.brand || '').toLowerCase();
+        bValue = (b.brand || '').toLowerCase();
+        break;
+      case 'category':
+        aValue = (a.category || '').toLowerCase();
+        bValue = (b.category || '').toLowerCase();
+        break;
+      case 'otcPrice':
+        aValue = a.otcPrice || 0;
+        bValue = b.otcPrice || 0;
+        break;
+      case 'salonUsePrice':
+        aValue = a.salonUsePrice || 0;
+        bValue = b.salonUsePrice || 0;
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Handle column sort
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sort icon for column
+  const getSortIcon = (column) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ChevronUp className="h-4 w-4 text-[#160B53]" />
+      : <ChevronDown className="h-4 w-4 text-[#160B53]" />;
+  };
 
   if (loading) {
     return (
@@ -2189,46 +2306,83 @@ const BranchProductsComponent = ({ onBack }) => {
 
       {/* Filter and Actions */}
       <Card className="p-4">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+        <div className="space-y-4">
           {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative">
             <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
             <Search className="absolute left-3 top-8 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder="Search by name, brand, description, or supplier..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
             />
           </div>
           
-          {/* Category Filter */}
-          <div className="min-w-[100px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-            <select
-              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-[#160B53] focus:border-[#160B53]"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="All">All Categories</option>
-              {availableCategories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
+          {/* Filter Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Category Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+              <select
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="All">All Categories</option>
+                {availableCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Brand Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Brand</label>
+              <select
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+              >
+                <option value="All">All Brands</option>
+                {availableBrands.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Supplier Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
+              <select
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
+                value={supplierFilter}
+                onChange={(e) => setSupplierFilter(e.target.value)}
+              >
+                <option value="All">All Suppliers</option>
+                {availableSuppliers.map((supplier) => (
+                  <option key={supplier} value={supplier}>
+                    {supplier}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </Card>
 
       {/* Products List */}
-      {filteredProducts.length === 0 ? (
+      {sortedProducts.length === 0 ? (
         <Card className="p-8 text-center">
           <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
           <p className="text-gray-600 mb-4">
-            {searchTerm || categoryFilter !== 'All' 
+            {searchTerm || categoryFilter !== 'All' || brandFilter !== 'All' || supplierFilter !== 'All'
               ? 'No products match your current filters.' 
               : 'No products are configured for this branch yet.'
             }
@@ -2242,68 +2396,123 @@ const BranchProductsComponent = ({ onBack }) => {
           </Button>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map(product => (
-            <Card key={product.id} className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="h-12 w-12 rounded-lg overflow-hidden">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="h-12 w-12 object-cover"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 bg-gray-200 flex items-center justify-center">
-                        <Package className="h-6 w-6 text-gray-400" />
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Product Name
+                      {getSortIcon('name')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={() => handleSort('brand')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Brand
+                      {getSortIcon('brand')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={() => handleSort('category')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Category
+                      {getSortIcon('category')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={() => handleSort('otcPrice')}
+                  >
+                    <div className="flex items-center gap-2">
+                      OTC Price
+                      {getSortIcon('otcPrice')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={() => handleSort('salonUsePrice')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Salon Use Price
+                      {getSortIcon('salonUsePrice')}
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sortedProducts.map(product => (
+                  <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="h-12 w-12 rounded-lg overflow-hidden">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="h-12 w-12 object-cover"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 bg-gray-200 flex items-center justify-center">
+                            <Package className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{product.name || 'Unnamed Product'}</h3>
-                    <p className="text-sm text-gray-600">{product.brand || 'Unknown Brand'}</p>
-                    <p className="text-xs text-gray-500">{product.category || 'Uncategorized'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="text-sm font-medium text-green-600">Available</span>
-                </div>
-              </div>
-              
-              <div className="space-y-2 mb-4">
-                <p className="text-sm text-gray-600">{product.description}</p>
-                
-                <div className="flex items-center text-sm text-gray-600">
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  OTC: ₱{product.otcPrice}
-                </div>
-                
-                <div className="flex items-center text-sm text-gray-600">
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Salon: ₱{product.salonUsePrice}
-                </div>
-              </div>
-              
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setProductToRemove(product);
-                    setShowRemoveConfirmModal(true);
-                  }}
-                  className="flex-1 text-red-600 hover:text-red-700 hover:border-red-300"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Remove
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-gray-900">{product.name || 'Unnamed Product'}</div>
+                      {product.description && (
+                        <div className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{product.brand || 'Unknown Brand'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{product.category || 'Uncategorized'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">₱{product.otcPrice?.toLocaleString() || '0'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">₱{product.salonUsePrice?.toLocaleString() || '0'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="text-sm font-medium text-green-600">Available</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setProductToRemove(product);
+                          setShowRemoveConfirmModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-700 hover:border-red-300"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* Add Product Modal */}

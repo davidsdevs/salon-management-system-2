@@ -10,6 +10,8 @@ import {
   UserCog,
   ShoppingCart,
   DollarSign,
+  Megaphone,
+  UserCheck,
 } from "lucide-react";
 
 /**
@@ -25,6 +27,8 @@ export const branchManagerMenuItems = [
   { path: "/transactions", label: "Transactions", icon: Receipt },
   { path: "/branch-manager/purchase-orders", label: "Purchase Orders", icon: ShoppingCart },
   { path: "/branch-manager/deposits", label: "Bank Deposits", icon: DollarSign },
+  { path: "/branch-manager/promotions", label: "Promotions", icon: Megaphone },
+  { path: "/branch-manager/clients", label: "Clients", icon: UserCheck },
   { path: "/stylist-portfolios", label: "Stylist Portfolios", icon: ImageIcon },
   { path: "/settings", label: "Settings", icon: Settings },
   { path: "/reports", label: "Reports", icon: BarChart3 },

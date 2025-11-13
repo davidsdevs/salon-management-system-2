@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../shared/DashboardLayout';
 import { Card } from '../ui/card';
@@ -57,10 +58,6 @@ const BranchManagerTransactions = () => {
   const [sortBy, setSortBy] = useState('dateDesc'); // dateDesc, dateAsc, amountDesc, amountAsc, clientAsc
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
-  // Bulk selection
-  const [selectedTransactions, setSelectedTransactions] = useState(new Set());
-  const [selectAll, setSelectAll] = useState(false);
-  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50); // Increased default for big data
@@ -78,6 +75,10 @@ const BranchManagerTransactions = () => {
   const [branchName, setBranchName] = useState(null);
   const [createdByName, setCreatedByName] = useState(null);
   const [appointmentInfo, setAppointmentInfo] = useState(null);
+  
+  // Print refs
+  const printReportRef = useRef();
+  const printReceiptRef = useRef();
 
 
 
@@ -406,9 +407,10 @@ const BranchManagerTransactions = () => {
   };
 
   // Pagination calculations
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const startIndex = useMemo(() => (currentPage - 1) * itemsPerPage, [currentPage, itemsPerPage]);
+  const endIndex = useMemo(() => startIndex + itemsPerPage, [startIndex, itemsPerPage]);
+  
   const paginatedTransactions = useMemo(() => {
     return filteredTransactions.slice(startIndex, endIndex);
   }, [filteredTransactions, startIndex, endIndex]);
@@ -424,8 +426,6 @@ const BranchManagerTransactions = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-    setSelectedTransactions(new Set());
-    setSelectAll(false);
   }, [searchTerm, typeFilter, statusFilter, dateRange, paymentMethodFilter, stylistFilter, serviceFilter, clientFilter, amountRange, sortBy]);
 
   // Clear all filters
@@ -457,38 +457,6 @@ const BranchManagerTransactions = () => {
     return count;
   }, [typeFilter, statusFilter, dateRange, paymentMethodFilter, stylistFilter, serviceFilter, clientFilter, amountRange]);
 
-  // Bulk selection handlers
-  const toggleSelectAll = () => {
-    if (selectAll) {
-      setSelectedTransactions(new Set());
-      setSelectAll(false);
-    } else {
-      const allIds = new Set(paginatedTransactions.map(t => t.id));
-      setSelectedTransactions(allIds);
-      setSelectAll(true);
-    }
-  };
-
-  const toggleSelectTransaction = (transactionId) => {
-    const newSelected = new Set(selectedTransactions);
-    if (newSelected.has(transactionId)) {
-      newSelected.delete(transactionId);
-    } else {
-      newSelected.add(transactionId);
-    }
-    setSelectedTransactions(newSelected);
-    setSelectAll(newSelected.size === paginatedTransactions.length);
-  };
-
-  // Bulk export selected transactions
-  const bulkExport = () => {
-    if (selectedTransactions.size === 0) {
-      alert('Please select at least one transaction to export.');
-      return;
-    }
-    const selected = filteredTransactions.filter(t => selectedTransactions.has(t.id));
-    exportToExcel(selected, `selected_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
 
 
   // Status badge component
@@ -630,6 +598,44 @@ const BranchManagerTransactions = () => {
     }
   };
 
+  // React-to-print handler for transaction report (MUST be before early returns)
+  const handlePrintReport = useReactToPrint({
+    content: () => printReportRef.current,
+    documentTitle: 'Transaction Report',
+    onBeforeGetContent: async () => {
+      // Fetch branch name before printing
+      if (userData?.branchId) {
+        try {
+          const { branchService } = await import('../../services/branchService');
+          const branchInfo = await branchService.getBranch(userData.branchId, 'branchManager', userData.uid);
+          if (branchInfo?.name) setBranchName(branchInfo.name);
+        } catch (err) {
+          console.warn('Could not fetch branch name:', err);
+        }
+      }
+    }
+  });
+
+  // React-to-print handler for receipt (MUST be before early returns)
+  const handlePrintReceipt = useReactToPrint({
+    content: () => printReceiptRef.current,
+    documentTitle: `Receipt-${selectedTransaction?.id || 'Receipt'}`,
+    onBeforeGetContent: async () => {
+      // Fetch branch info before printing
+      if (userData?.branchId && selectedTransaction) {
+        try {
+          const { branchService } = await import('../../services/branchService');
+          const branchInfo = await branchService.getBranch(userData.branchId, 'branchManager', userData.uid);
+          if (branchInfo) {
+            setBranchName(branchInfo.name || 'Branch');
+          }
+        } catch (err) {
+          console.warn('Could not fetch branch info:', err);
+        }
+      }
+    }
+  });
+
   if (loading) {
     return (
       <DashboardLayout menuItems={branchManagerMenuItems}>
@@ -748,326 +754,18 @@ const BranchManagerTransactions = () => {
   };
 
   // Print transaction report
-  const printTransactionReport = async () => {
-    try {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        alert('Please allow pop-ups for this site to print.');
-        return;
-      }
-
-      // Fetch branch name
-      let branchName = 'Branch';
-      if (userData?.branchId) {
-        try {
-          const { branchService } = await import('../../services/branchService');
-          const branchInfo = await branchService.getBranch(userData.branchId, 'branchManager', userData.uid);
-          if (branchInfo?.name) branchName = branchInfo.name;
-        } catch (err) {
-          console.warn('Could not fetch branch name:', err);
-        }
-      }
-
-      const printContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Transaction Report</title>
-            <style>
-              @page { margin: 1cm; }
-              body { font-family: Arial, sans-serif; font-size: 12px; }
-              .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #160B53; padding-bottom: 10px; }
-              .header h1 { color: #160B53; margin: 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-              th { background-color: #160B53; color: white; font-weight: bold; }
-              tr:nth-child(even) { background-color: #f9f9f9; }
-              .summary { margin-top: 20px; padding: 10px; background-color: #f0f0f0; }
-              .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #666; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>Transaction Report</h1>
-              <p><strong>${branchName}</strong></p>
-              <p>Generated on ${new Date().toLocaleString()}</p>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Transaction ID</th>
-                  <th>Client</th>
-                  <th>Total</th>
-                  <th>Payment Method</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${paginatedTransactions.map(t => {
-                  const clientInfo = t.clientInfo || {};
-                  return `
-                    <tr>
-                      <td>${t.id || 'N/A'}</td>
-                      <td>${clientInfo.name || t.clientName || 'N/A'}</td>
-                      <td>₱${(t.total || t.totalAmount || 0).toLocaleString()}</td>
-                      <td>${t.paymentMethod || 'N/A'}</td>
-                      <td>${t.status || 'N/A'}</td>
-                      <td>${formatDate(t.createdAt)}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-            <div class="summary">
-              <p><strong>Summary:</strong></p>
-              <p>Total Transactions: ${paginatedTransactions.length}</p>
-              <p>Total Revenue: ₱${paginatedTransactions.reduce((sum, t) => sum + (t.total || t.totalAmount || 0), 0).toLocaleString()}</p>
-            </div>
-            <div class="footer">
-              <p>This report was generated by Salon Management System</p>
-            </div>
-          </body>
-        </html>
-      `;
-
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    } catch (error) {
-      console.error('Error printing report:', error);
-      alert('Failed to print report. Please try again.');
-    }
+  const printTransactionReport = () => {
+    handlePrintReport();
   };
 
   // Reprint receipt for individual transaction
   const reprintReceipt = async (transaction) => {
     try {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        alert('Please allow pop-ups for this site to print.');
-        return;
-      }
-
-      // Fetch branch and client data
-      let branchName = 'Branch';
-      let branchAddress = '';
-      let branchPhone = '';
-      
-      if (userData?.branchId) {
-        try {
-          const { branchService } = await import('../../services/branchService');
-          const branchInfo = await branchService.getBranch(userData.branchId, 'branchManager', userData.uid);
-          if (branchInfo) {
-            branchName = branchInfo.name || 'Branch';
-            branchAddress = branchInfo.address || '';
-            branchPhone = branchInfo.contactNumber || '';
-          }
-        } catch (err) {
-          console.warn('Could not fetch branch info:', err);
-        }
-      }
-
-      const clientInfo = transaction.clientInfo || {};
-      const services = transaction.services || [];
-      const products = transaction.products || [];
-
-      const receiptContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Receipt - ${transaction.id}</title>
-            <style>
-              @page {
-                margin: 0;
-                size: 48mm 58mm;
-              }
-              * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-              }
-              body {
-                font-family: 'Courier New', monospace;
-                font-size: 9px;
-                width: 48mm;
-                max-width: 48mm;
-                margin: 0;
-                padding: 2mm;
-                line-height: 1.2;
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 3mm;
-                padding-bottom: 2mm;
-                border-bottom: 1px dashed #000;
-              }
-              .header h2 {
-                margin: 0;
-                font-size: 11px;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-              }
-              .header p {
-                margin: 1px 0;
-                font-size: 7px;
-              }
-              .info {
-                margin: 2mm 0;
-                font-size: 8px;
-              }
-              .info p {
-                margin: 1px 0;
-              }
-              .divider {
-                border-top: 1px dashed #000;
-                margin: 2mm 0;
-              }
-              .items {
-                margin: 2mm 0;
-              }
-              .item-row {
-                display: flex;
-                justify-content: space-between;
-                margin: 1px 0;
-                font-size: 8px;
-              }
-              .item-name {
-                flex: 1;
-                word-break: break-word;
-              }
-              .item-price {
-                text-align: right;
-                margin-left: 2mm;
-                white-space: nowrap;
-              }
-              .item-detail {
-                font-size: 7px;
-                color: #666;
-                margin-left: 2mm;
-                margin-bottom: 1px;
-              }
-              .total {
-                margin-top: 3mm;
-                padding-top: 2mm;
-                border-top: 2px solid #000;
-              }
-              .total-row {
-                display: flex;
-                justify-content: space-between;
-                margin: 1px 0;
-                font-size: 8px;
-              }
-              .total-final {
-                font-weight: bold;
-                font-size: 10px;
-                margin-top: 2px;
-                padding-top: 2px;
-                border-top: 1px solid #000;
-              }
-              .footer {
-                text-align: center;
-                margin-top: 3mm;
-                padding-top: 2mm;
-                border-top: 1px dashed #000;
-                font-size: 7px;
-                color: #666;
-              }
-              .footer p {
-                margin: 1px 0;
-              }
-              @media print {
-                body {
-                  width: 48mm;
-                  max-width: 48mm;
-                }
-                @page {
-                  margin: 0;
-                  size: 48mm 58mm;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>${branchName}</h2>
-              ${branchAddress ? `<p>${branchAddress}</p>` : ''}
-              ${branchPhone ? `<p>${branchPhone}</p>` : ''}
-              <div class="divider"></div>
-              <p><strong>RECEIPT</strong></p>
-              <p>ID: ${(transaction.id || 'N/A').substring(0, 12)}</p>
-              <p>${formatDate(transaction.createdAt)}</p>
-            </div>
-            
-            <div class="info">
-              <p><strong>Client:</strong> ${(clientInfo.name || transaction.clientName || 'Walk-in').substring(0, 25)}</p>
-              ${clientInfo.phone ? `<p>Tel: ${clientInfo.phone}</p>` : ''}
-            </div>
-            
-            <div class="divider"></div>
-            
-            <div class="items">
-              ${services.map(s => {
-                const serviceName = (s.serviceName || s.name || 'Service').substring(0, 20);
-                return `
-                  <div class="item-row">
-                    <span class="item-name">${serviceName}</span>
-                    <span class="item-price">₱${(s.price || 0).toLocaleString()}</span>
-                  </div>
-                  ${s.stylistName ? `<div class="item-detail">Stylist: ${s.stylistName.substring(0, 18)}</div>` : ''}
-                `;
-              }).join('')}
-              ${products.map(p => {
-                const productName = (p.name || 'Product').substring(0, 18);
-                return `
-                  <div class="item-row">
-                    <span class="item-name">${productName} x${p.quantity || 1}</span>
-                    <span class="item-price">₱${((p.price || 0) * (p.quantity || 1)).toLocaleString()}</span>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-            
-            <div class="total">
-              ${transaction.subtotal ? `<div class="total-row"><span>Subtotal:</span><span>₱${transaction.subtotal.toLocaleString()}</span></div>` : ''}
-              ${transaction.discount > 0 ? `<div class="total-row"><span>Discount:</span><span>-₱${transaction.discount.toLocaleString()}</span></div>` : ''}
-              ${transaction.tax > 0 ? `<div class="total-row"><span>Tax:</span><span>₱${transaction.tax.toLocaleString()}</span></div>` : ''}
-              <div class="total-row total-final">
-                <span>TOTAL:</span>
-                <span>₱${(transaction.total || transaction.totalAmount || 0).toLocaleString()}</span>
-              </div>
-              <div class="total-row" style="margin-top: 2px;">
-                <span>Payment:</span>
-                <span>${transaction.paymentMethod || 'Cash'}</span>
-              </div>
-              ${transaction.loyaltyEarned > 0 ? `<div class="total-row"><span>Points:</span><span>${transaction.loyaltyEarned}</span></div>` : ''}
-            </div>
-            
-            <div class="divider"></div>
-            
-            <div class="footer">
-              <p>Thank you!</p>
-              <p>REPRINT</p>
-              <p>${new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-            </div>
-          </body>
-        </html>
-      `;
-
-      printWindow.document.write(receiptContent);
-      printWindow.document.close();
-      printWindow.focus();
-      
+      setSelectedTransaction(transaction);
+      // Small delay to ensure state is set before printing
       setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
+        handlePrintReceipt();
+      }, 100);
     } catch (error) {
       console.error('Error reprinting receipt:', error);
       alert('Failed to reprint receipt. Please try again.');
@@ -1126,14 +824,6 @@ const BranchManagerTransactions = () => {
               >
                 <Download className="h-4 w-4" /> Export All
               </Button>
-              {selectedTransactions.size > 0 && (
-                <Button
-                  onClick={bulkExport}
-                  className="flex items-center gap-2 bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
-                >
-                  <Download className="h-4 w-4" /> Export Selected ({selectedTransactions.size})
-                </Button>
-              )}
               <Button
                 onClick={printTransactionReport}
                 variant="outline"
@@ -1156,7 +846,7 @@ const BranchManagerTransactions = () => {
               </Button>
             </div>
             
-            {/* Center: Search and Sort */}
+            {/* Center: Search, Stylist Filter, and Sort */}
             <div className="flex-1 flex flex-col sm:flex-row gap-3">
               {/* Search Input */}
               <div className="relative flex-1 min-w-[200px]">
@@ -1169,6 +859,27 @@ const BranchManagerTransactions = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
                 />
+              </div>
+              
+              {/* Stylist Filter Dropdown */}
+              <div className="min-w-[180px]">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Stylist</label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <select
+                    value={stylistFilter}
+                    onChange={(e) => setStylistFilter(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53] appearance-none bg-white"
+                  >
+                    {stylists.length > 1 ? (
+                      stylists.map(stylist => (
+                        <option key={stylist} value={stylist}>{stylist}</option>
+                      ))
+                    ) : (
+                      <option value="All">No stylists found</option>
+                    )}
+                  </select>
+                </div>
               </div>
               
               {/* Sort Dropdown */}
@@ -1298,47 +1009,34 @@ const BranchManagerTransactions = () => {
                 </span>
               )}
             </div>
-            {selectedTransactions.size > 0 && (
-              <div className="text-blue-600 font-medium">
-                {selectedTransactions.size} selected
-              </div>
-            )}
           </div>
         </Card>
 
         {/* === Transactions Table === */}
-        <Card>
+        <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0 z-10">
+            <table className="w-full">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectAll}
-                      onChange={toggleSelectAll}
-                      className="rounded border-gray-300 text-[#160B53] focus:ring-[#160B53]"
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Transaction ID
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Client Info
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Services
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Products
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Financial
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status & Dates
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -1346,7 +1044,7 @@ const BranchManagerTransactions = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {paginatedTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-4 py-12 text-center">
+                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                       <div className="flex flex-col items-center justify-center">
                         <Receipt className="h-12 w-12 text-gray-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions found</h3>
@@ -1376,16 +1074,8 @@ const BranchManagerTransactions = () => {
                     const products = transaction.products || [];
                     
                     return (
-                      <tr key={transaction.id} className={`hover:bg-gray-50 ${selectedTransactions.has(transaction.id) ? 'bg-blue-50' : ''}`}>
-                          <td className="px-4 py-4">
-                            <input
-                              type="checkbox"
-                              checked={selectedTransactions.has(transaction.id)}
-                              onChange={() => toggleSelectTransaction(transaction.id)}
-                              className="rounded border-gray-300 text-[#160B53] focus:ring-[#160B53]"
-                            />
-                          </td>
-                          <td className="px-4 py-4">
+                      <tr key={transaction.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0">
                                 <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -1407,9 +1097,9 @@ const BranchManagerTransactions = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className="px-6 py-4">
                             <div className="space-y-1">
-                              <div className="font-medium text-gray-900">
+                              <div className="text-sm font-medium text-gray-900">
                                 {clientInfo.name || transaction.clientName || 'N/A'}
                               </div>
                               <div className="text-xs text-gray-600">
@@ -1423,36 +1113,36 @@ const BranchManagerTransactions = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className="px-6 py-4">
                             {services.length > 0 ? (
                               <div className="space-y-1">
                                 {services.map((service, idx) => (
-                                  <div key={idx} className="text-xs">
+                                  <div key={idx} className="text-sm">
                                     <div className="font-medium text-gray-900">
                                       {service.serviceName || service.name || 'N/A'}
                                     </div>
-                                    <div className="text-gray-600">
+                                    <div className="text-xs text-gray-600">
                                       Stylist: {service.stylistName || 'N/A'}
                                     </div>
-                                    <div className="text-gray-500">
+                                    <div className="text-xs text-gray-500">
                                       ₱{service.price?.toLocaleString() || '0.00'}
                                     </div>
                                   </div>
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-gray-400 text-xs">No services</span>
+                              <span className="text-gray-400 text-sm">No services</span>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className="px-6 py-4">
                             {products.length > 0 ? (
                               <div className="space-y-1">
                                 {products.slice(0, 2).map((product, idx) => (
-                                  <div key={idx} className="text-xs">
+                                  <div key={idx} className="text-sm">
                                     <div className="font-medium text-gray-900">
                                       {product.name || 'N/A'}
                                     </div>
-                                    <div className="text-gray-600">
+                                    <div className="text-xs text-gray-600">
                                       Qty: {product.quantity || 0} × ₱{product.price?.toLocaleString() || '0.00'}
                                     </div>
                                   </div>
@@ -1464,13 +1154,13 @@ const BranchManagerTransactions = () => {
                                 )}
                               </div>
                             ) : (
-                              <span className="text-gray-400 text-xs">No products</span>
+                              <span className="text-gray-400 text-sm">No products</span>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <div className="space-y-1">
-                              <div className="font-semibold text-[#160B53]">
-                                Total: ₱{transaction.total?.toLocaleString() || transaction.totalAmount?.toLocaleString() || '0.00'}
+                              <div className="text-sm font-medium text-gray-900">
+                                ₱{transaction.total?.toLocaleString() || transaction.totalAmount?.toLocaleString() || '0.00'}
                               </div>
                               <div className="text-xs text-gray-600">
                                 Subtotal: ₱{transaction.subtotal?.toLocaleString() || '0.00'}
@@ -1484,15 +1174,15 @@ const BranchManagerTransactions = () => {
                                 </div>
                               )}
                               <div className="text-xs text-gray-500">
-                                Payment: {transaction.paymentMethod || 'N/A'}
+                                {transaction.paymentMethod || 'N/A'}
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <div className="space-y-1">
                               <StatusBadge status={transaction.status || 'pending'} />
                               <div className="text-xs text-gray-500">
-                                Created: {formatDate(transaction.createdAt)}
+                                {formatDate(transaction.createdAt)}
                               </div>
                               {transaction.updatedAt && (
                                 <div className="text-xs text-gray-500">
@@ -1501,13 +1191,13 @@ const BranchManagerTransactions = () => {
                               )}
                               {transaction.loyaltyEarned > 0 && (
                                 <div className="text-xs text-purple-600">
-                                  Loyalty: {transaction.loyaltyEarned} pts
+                                  {transaction.loyaltyEarned} pts
                                 </div>
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-center text-sm font-medium">
-                            <div className="flex justify-center space-x-1">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1515,10 +1205,10 @@ const BranchManagerTransactions = () => {
                                   e.stopPropagation();
                                   openTransactionModal(transaction);
                                 }}
-                                className="text-blue-600 hover:text-blue-800 border-blue-200 hover:bg-blue-50"
-                                title="View Details"
+                                className="flex items-center gap-1"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-3 w-3" />
+                                View
                               </Button>
                               <Button
                                 variant="outline"
@@ -1527,10 +1217,10 @@ const BranchManagerTransactions = () => {
                                   e.stopPropagation();
                                   reprintReceipt(transaction);
                                 }}
-                                className="text-green-600 hover:text-green-800 border-green-200 hover:bg-green-50"
-                                title="Reprint Receipt"
+                                className="flex items-center gap-1"
                               >
-                                <Printer className="h-4 w-4" />
+                                <Printer className="h-3 w-3" />
+                                Print
                               </Button>
                             </div>
                           </td>
@@ -2137,6 +1827,202 @@ const BranchManagerTransactions = () => {
           </div>
         </Modal>
       </div>
+      {/* Hidden Print Components */}
+      {/* Transaction Report Print Component */}
+      {paginatedTransactions && paginatedTransactions.length > 0 && (
+        <div style={{ display: 'none' }}>
+          <div ref={printReportRef} style={{ padding: '20px', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+          <style>{`
+            @page { margin: 1cm; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #160B53; padding-bottom: 10px; }
+            .header h1 { color: #160B53; margin: 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #160B53; color: white; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .summary { margin-top: 20px; padding: 10px; background-color: #f0f0f0; }
+            .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #666; }
+          `}</style>
+          <div className="header">
+            <h1>Transaction Report</h1>
+            <p><strong>{branchName || 'Branch'}</strong></p>
+            <p>Generated on {new Date().toLocaleString()}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Client</th>
+                <th>Total</th>
+                <th>Payment Method</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedTransactions.map(t => {
+                const clientInfo = t.clientInfo || {};
+                return (
+                  <tr key={t.id}>
+                    <td>{t.id || 'N/A'}</td>
+                    <td>{clientInfo.name || t.clientName || 'N/A'}</td>
+                    <td>₱{(t.total || t.totalAmount || 0).toLocaleString()}</td>
+                    <td>{t.paymentMethod || 'N/A'}</td>
+                    <td>{t.status || 'N/A'}</td>
+                    <td>{formatDate(t.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="summary">
+            <p><strong>Summary:</strong></p>
+            <p>Total Transactions: {paginatedTransactions.length}</p>
+            <p>Total Revenue: ₱{paginatedTransactions.reduce((sum, t) => sum + (t.total || t.totalAmount || 0), 0).toLocaleString()}</p>
+          </div>
+          <div className="footer">
+            <p>This report was generated by Salon Management System</p>
+          </div>
+        </div>
+        </div>
+      )}
+
+      {/* Receipt Print Component */}
+      {selectedTransaction && (
+        <div style={{ display: 'none' }}>
+          <div ref={printReceiptRef} style={{ 
+            fontFamily: "'Courier New', monospace",
+            fontSize: '9px',
+            width: '48mm',
+            maxWidth: '48mm',
+            margin: '0',
+            padding: '2mm',
+            lineHeight: '1.2'
+          }}>
+            <style>{`
+              @page {
+                margin: 0;
+                size: 48mm 58mm;
+              }
+              @media print {
+                body {
+                  width: 48mm;
+                  max-width: 48mm;
+                }
+                @page {
+                  margin: 0;
+                  size: 48mm 58mm;
+                }
+              }
+            `}</style>
+            {(() => {
+              const transaction = selectedTransaction;
+              const clientInfo = transaction.clientInfo || {};
+              const services = transaction.services || [];
+              const products = transaction.products || [];
+              const currentBranchName = branchName || 'Branch';
+              
+              return (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: '3mm', paddingBottom: '2mm', borderBottom: '1px dashed #000' }}>
+                    <h2 style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {currentBranchName}
+                    </h2>
+                    <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }}></div>
+                    <p style={{ margin: '1px 0', fontSize: '7px' }}><strong>RECEIPT</strong></p>
+                    <p style={{ margin: '1px 0', fontSize: '7px' }}>ID: {(transaction.id || 'N/A').substring(0, 12)}</p>
+                    <p style={{ margin: '1px 0', fontSize: '7px' }}>{formatDate(transaction.createdAt)}</p>
+                  </div>
+                  
+                  <div style={{ margin: '2mm 0', fontSize: '8px' }}>
+                    <p style={{ margin: '1px 0' }}><strong>Client:</strong> {(clientInfo.name || transaction.clientName || 'Walk-in').substring(0, 25)}</p>
+                    {clientInfo.phone && <p style={{ margin: '1px 0' }}>Tel: {clientInfo.phone}</p>}
+                  </div>
+                  
+                  <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }}></div>
+                  
+                  <div style={{ margin: '2mm 0' }}>
+                    {services.map((s, idx) => {
+                      const serviceName = (s.serviceName || s.name || 'Service').substring(0, 20);
+                      return (
+                        <div key={idx}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px' }}>
+                            <span style={{ flex: 1, wordBreak: 'break-word' }}>{serviceName}</span>
+                            <span style={{ textAlign: 'right', marginLeft: '2mm', whiteSpace: 'nowrap' }}>
+                              ₱{(s.price || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          {s.stylistName && (
+                            <div style={{ fontSize: '7px', color: '#666', marginLeft: '2mm', marginBottom: '1px' }}>
+                              Stylist: {s.stylistName.substring(0, 18)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {products.map((p, idx) => {
+                      const productName = (p.name || 'Product').substring(0, 18);
+                      return (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px' }}>
+                          <span style={{ flex: 1, wordBreak: 'break-word' }}>{productName} x{p.quantity || 1}</span>
+                          <span style={{ textAlign: 'right', marginLeft: '2mm', whiteSpace: 'nowrap' }}>
+                            ₱{((p.price || 0) * (p.quantity || 1)).toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <div style={{ marginTop: '3mm', paddingTop: '2mm', borderTop: '2px solid #000' }}>
+                    {transaction.subtotal && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px' }}>
+                        <span>Subtotal:</span>
+                        <span>₱{transaction.subtotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {transaction.discount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px' }}>
+                        <span>Discount:</span>
+                        <span>-₱{transaction.discount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {transaction.tax > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px' }}>
+                        <span>Tax:</span>
+                        <span>₱{transaction.tax.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '10px', fontWeight: 'bold', marginTop: '2px', paddingTop: '2px', borderTop: '1px solid #000' }}>
+                      <span>TOTAL:</span>
+                      <span>₱{(transaction.total || transaction.totalAmount || 0).toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px', marginTop: '2px' }}>
+                      <span>Payment:</span>
+                      <span>{transaction.paymentMethod || 'Cash'}</span>
+                    </div>
+                    {transaction.loyaltyEarned > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '8px' }}>
+                        <span>Points:</span>
+                        <span>{transaction.loyaltyEarned}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }}></div>
+                  
+                  <div style={{ textAlign: 'center', marginTop: '3mm', paddingTop: '2mm', borderTop: '1px dashed #000', fontSize: '7px', color: '#666' }}>
+                    <p style={{ margin: '1px 0' }}>Thank you!</p>
+                    <p style={{ margin: '1px 0' }}>REPRINT</p>
+                    <p style={{ margin: '1px 0' }}>
+                      {new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

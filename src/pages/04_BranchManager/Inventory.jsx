@@ -28,6 +28,7 @@ import {
   Building,
   FileText,
   ArrowRight,
+  ArrowUpDown,
   Minus,
   Trash2,
   Loader2,
@@ -45,6 +46,9 @@ import {
   Calendar
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { transactionApiService } from '../../services/transactionApiService';
+import { openaiService } from '../../services/openaiService';
+import { Sparkles, Loader2 as Loader2Icon } from 'lucide-react';
 
 // Debounce hook for search
 const useDebounce = (value, delay) => {
@@ -67,7 +71,7 @@ const Inventory = () => {
   const { userData } = useAuth();
   
   // Tab state
-  const [activeTab, setActiveTab] = useState('products'); // 'products', 'reports', 'purchaseOrders', 'analytics'
+  const [activeTab, setActiveTab] = useState('products'); // 'products', 'reports', 'purchaseOrders', 'analytics', 'productSales'
   
   // ========== ANALYTICS TAB STATE ==========
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -105,6 +109,18 @@ const Inventory = () => {
   const [supplierProducts, setSupplierProducts] = useState([]);
   const [loadingPO, setLoadingPO] = useState(true);
   const [errorPO, setErrorPO] = useState(null);
+
+  // ========== PRODUCT SALES TAB STATE ==========
+  const [productSales, setProductSales] = useState([]);
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [salesDateRange, setSalesDateRange] = useState('30'); // days
+  const [salesSearchTerm, setSalesSearchTerm] = useState('');
+  const [salesSortBy, setSalesSortBy] = useState('revenue'); // 'revenue', 'quantity', 'name'
+  const [salesSortOrder, setSalesSortOrder] = useState('desc'); // 'asc', 'desc'
+  
+  // AI Insights for Product Sales
+  const [productSalesInsights, setProductSalesInsights] = useState(null);
+  const [loadingProductAI, setLoadingProductAI] = useState(false);
   
   // Purchase Orders UI states
   const [searchTermPO, setSearchTermPO] = useState('');
@@ -171,7 +187,8 @@ const Inventory = () => {
             salonUsePrice: productData.salonUsePrice || 0,
             description: productData.description || '',
             imageUrl: productData.imageUrl || '',
-            supplier: productData.supplier || '',
+            suppliers: productData.suppliers || (productData.supplier ? [productData.supplier] : []), // Suppliers array
+            supplier: productData.supplier || '', // Keep for backward compatibility
             status: productData.status || 'Active',
             variants: productData.variants || '',
             shelfLife: productData.shelfLife || '',
@@ -214,13 +231,107 @@ const Inventory = () => {
     }
   };
 
+  // Load product sales data
+  const loadProductSales = async () => {
+    if (!userData?.branchId) return;
+    
+    try {
+      setLoadingSales(true);
+      
+      // Calculate date range
+      const days = parseInt(salesDateRange) || 30;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      // Load transactions for this branch
+      const transactions = await transactionApiService.getBranchTransactions(
+        userData.branchId,
+        userData.roles?.[0] || 'Branch Manager',
+        {
+          startDate: startDate.toISOString(),
+          endDate: new Date().toISOString(),
+          status: 'completed'
+        }
+      );
+      
+      // Aggregate product sales
+      const salesMap = {};
+      
+      transactions.forEach(transaction => {
+        if (transaction.products && Array.isArray(transaction.products)) {
+          transaction.products.forEach(product => {
+            const productId = product.productId || product.id;
+            const productName = product.name || product.productName || 'Unknown Product';
+            const quantity = product.quantity || 0;
+            const price = product.price || product.unitPrice || 0;
+            const revenue = quantity * price;
+            
+            if (!salesMap[productId]) {
+              salesMap[productId] = {
+                productId: productId,
+                productName: productName,
+                totalQuantity: 0,
+                totalRevenue: 0,
+                transactionCount: 0,
+                averagePrice: 0
+              };
+            }
+            
+            salesMap[productId].totalQuantity += quantity;
+            salesMap[productId].totalRevenue += revenue;
+            salesMap[productId].transactionCount += 1;
+          });
+        }
+      });
+      
+      // Convert to array and calculate averages
+      const salesArray = Object.values(salesMap).map(sale => ({
+        ...sale,
+        averagePrice: sale.totalQuantity > 0 ? sale.totalRevenue / sale.totalQuantity : 0
+      }));
+      
+      setProductSales(salesArray);
+    } catch (err) {
+      console.error('Error loading product sales:', err);
+      setError(err.message || 'Failed to load product sales');
+    } finally {
+      setLoadingSales(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'products') {
       loadProducts();
     } else if (activeTab === 'purchaseOrders') {
       loadPurchaseOrdersData();
+    } else if (activeTab === 'productSales') {
+      loadProductSales();
     }
-  }, [userData?.branchId, activeTab]);
+  }, [userData?.branchId, activeTab, salesDateRange]);
+
+  // Load AI insights for product sales when data is available
+  useEffect(() => {
+    if (activeTab === 'productSales' && productSales.length > 0 && openaiService.isConfigured()) {
+      loadProductSalesAIInsights();
+    }
+  }, [activeTab, productSales]);
+
+  // Load AI insights for product sales
+  const loadProductSalesAIInsights = async () => {
+    if (!openaiService.isConfigured() || productSales.length === 0) return;
+    
+    try {
+      setLoadingProductAI(true);
+      const insights = await openaiService.generateProductSalesInsights(productSales);
+      if (insights) {
+        setProductSalesInsights(insights);
+      }
+    } catch (error) {
+      console.error('Error loading product sales AI insights:', error);
+    } finally {
+      setLoadingProductAI(false);
+    }
+  };
 
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -476,10 +587,17 @@ const Inventory = () => {
     }
   };
 
-  // When supplier is selected, filter products
+  // When supplier is selected, filter products (suppliers is now an array)
   useEffect(() => {
     if (selectedSupplierId && branchProductsForPO.length > 0) {
-      const filtered = branchProductsForPO.filter(product => product.supplier === selectedSupplierId);
+      const filtered = branchProductsForPO.filter(product => {
+        // Check if suppliers is an array and contains the selected supplier ID
+        if (Array.isArray(product.suppliers)) {
+          return product.suppliers.includes(selectedSupplierId);
+        }
+        // Fallback for old data structure (single supplier)
+        return product.supplier === selectedSupplierId;
+      });
       setSupplierProducts(filtered);
     } else {
       setSupplierProducts([]);
@@ -1162,6 +1280,19 @@ const Inventory = () => {
                 <div className="flex items-center gap-2">
                   <Activity className="h-5 w-5" />
                   <span>Business Analytics</span>
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('productSales')}
+                className={`py-4 px-1 font-medium text-sm border-b-2 transition-colors ${
+                  activeTab === 'productSales'
+                    ? 'border-[#160B53] text-[#160B53]'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  <span>Product Sales</span>
                 </div>
               </button>
             </div>
@@ -2220,6 +2351,309 @@ const Inventory = () => {
                   </div>
                 )}
               </>
+            )}
+          </>
+        )}
+
+        {/* PRODUCT SALES TAB */}
+        {activeTab === 'productSales' && (
+          <>
+            {/* Header with Date Range and Search */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Product Sales</h1>
+                <p className="text-gray-600">Track sales performance of each product for business decisions</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  value={salesDateRange}
+                  onChange={(e) => setSalesDateRange(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
+                >
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="60">Last 60 days</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="180">Last 6 months</option>
+                  <option value="365">Last year</option>
+                </select>
+                <Button
+                  variant="outline"
+                  onClick={loadProductSales}
+                  className="flex items-center gap-2"
+                  disabled={loadingSales}
+                >
+                  <RefreshCw className={`h-4 w-4 ${loadingSales ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Search and Sort */}
+            <Card className="p-6">
+              <div className="flex flex-col lg:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search products by name..."
+                    value={salesSearchTerm}
+                    onChange={(e) => setSalesSearchTerm(e.target.value)}
+                    className="w-full pl-10"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <select
+                    value={salesSortBy}
+                    onChange={(e) => setSalesSortBy(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#160B53] focus:border-[#160B53]"
+                  >
+                    <option value="revenue">Sort by Revenue</option>
+                    <option value="quantity">Sort by Quantity</option>
+                    <option value="name">Sort by Name</option>
+                  </select>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSalesSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="flex items-center gap-2"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    {salesSortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            {/* AI Insights for Product Sales */}
+            {openaiService.isConfigured() && (
+              <Card className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Sparkles className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">AI-Powered Product Insights</h3>
+                      <p className="text-sm text-gray-600">Actionable recommendations based on sales data</p>
+                    </div>
+                  </div>
+                  {loadingProductAI && (
+                    <Loader2Icon className="h-5 w-5 animate-spin text-purple-600" />
+                  )}
+                </div>
+                
+                {productSalesInsights && !loadingProductAI ? (
+                  <div className="space-y-4">
+                    {productSalesInsights.insights && productSalesInsights.insights.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Key Insights</h4>
+                        <ul className="space-y-1">
+                          {productSalesInsights.insights.map((insight, idx) => (
+                            <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                              <span className="text-purple-600 mt-1">•</span>
+                              <span>{typeof insight === 'string' ? insight : insight}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {productSalesInsights.recommendations && productSalesInsights.recommendations.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Inventory Recommendations</h4>
+                        <ul className="space-y-1">
+                          {productSalesInsights.recommendations.map((rec, idx) => (
+                            <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                              <span className="text-blue-600 mt-1">→</span>
+                              <span>{typeof rec === 'string' ? rec : rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {productSalesInsights.opportunities && productSalesInsights.opportunities.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Promotion Opportunities</h4>
+                        <ul className="space-y-1">
+                          {productSalesInsights.opportunities.map((opp, idx) => (
+                            <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                              <span className="text-green-600 mt-1">★</span>
+                              <span>{typeof opp === 'string' ? opp : opp}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : !loadingProductAI && productSales.length > 0 && (
+                  <Button
+                    onClick={loadProductSalesAIInsights}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Generate AI Insights
+                  </Button>
+                )}
+              </Card>
+            )}
+
+            {/* Sales Statistics */}
+            {productSales.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="p-4">
+                  <div className="flex items-center">
+                    <Package className="h-8 w-8 text-blue-600" />
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-600">Products Sold</p>
+                      <p className="text-xl font-bold text-gray-900">{productSales.length}</p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="flex items-center">
+                    <TrendingUp className="h-8 w-8 text-green-600" />
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        ₱{productSales.reduce((sum, sale) => sum + sale.totalRevenue, 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="flex items-center">
+                    <Target className="h-8 w-8 text-purple-600" />
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-600">Total Units</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {productSales.reduce((sum, sale) => sum + sale.totalQuantity, 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="flex items-center">
+                    <DollarSign className="h-8 w-8 text-orange-600" />
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-600">Avg Price</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        ₱{productSales.length > 0 
+                          ? (productSales.reduce((sum, sale) => sum + sale.averagePrice, 0) / productSales.length).toFixed(2)
+                          : '0.00'}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* Product Sales Table */}
+            {loadingSales ? (
+              <Card className="p-12 text-center">
+                <RefreshCw className="h-8 w-8 animate-spin text-[#160B53] mx-auto mb-4" />
+                <p className="text-gray-600">Loading product sales data...</p>
+              </Card>
+            ) : productSales.length > 0 ? (
+              <Card className="overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Product Name
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Quantity Sold
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Transactions
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Average Price
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Total Revenue
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {productSales
+                        .filter(sale => 
+                          sale.productName.toLowerCase().includes(salesSearchTerm.toLowerCase())
+                        )
+                        .sort((a, b) => {
+                          let aValue, bValue;
+                          if (salesSortBy === 'revenue') {
+                            aValue = a.totalRevenue;
+                            bValue = b.totalRevenue;
+                          } else if (salesSortBy === 'quantity') {
+                            aValue = a.totalQuantity;
+                            bValue = b.totalQuantity;
+                          } else {
+                            aValue = a.productName.toLowerCase();
+                            bValue = b.productName.toLowerCase();
+                          }
+                          
+                          if (salesSortOrder === 'asc') {
+                            return aValue > bValue ? 1 : -1;
+                          } else {
+                            return aValue < bValue ? 1 : -1;
+                          }
+                        })
+                        .map((sale) => (
+                          <tr key={sale.productId} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{sale.productName}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <div className="text-sm text-gray-900 font-semibold">{sale.totalQuantity.toLocaleString()}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <div className="text-sm text-gray-600">{sale.transactionCount}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="text-sm text-gray-900">₱{sale.averagePrice.toFixed(2)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="text-sm font-bold text-green-600">₱{sale.totalRevenue.toLocaleString()}</div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                    {productSales.length > 0 && (
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            Total
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-gray-900">
+                            {productSales.reduce((sum, sale) => sum + sale.totalQuantity, 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-gray-900">
+                            {productSales.reduce((sum, sale) => sum + sale.transactionCount, 0)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                            -
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-green-600">
+                            ₱{productSales.reduce((sum, sale) => sum + sale.totalRevenue, 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-12 text-center">
+                <TrendingUp className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Sales Data</h3>
+                <p className="text-gray-600">
+                  No product sales found for the selected period. Sales data will appear here once products are sold.
+                </p>
+              </Card>
             )}
           </>
         )}

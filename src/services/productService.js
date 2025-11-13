@@ -139,14 +139,14 @@ class ProductService {
     }
   }
 
-  // Get products by supplier
-  async getProductsBySupplier(supplier) {
+  // Get products by supplier (suppliers is now an array)
+  async getProductsBySupplier(supplierId) {
     try {
       const productsRef = collection(db, this.collectionName);
+      // Query products where the supplier ID is in the suppliers array
       const q = query(
         productsRef, 
-        where('supplier', '==', supplier),
-        orderBy('createdAt', 'desc')
+        where('suppliers', 'array-contains', supplierId)
       );
       const querySnapshot = await getDocs(q);
       
@@ -158,6 +158,13 @@ class ProductService {
           createdAt: doc.data().createdAt?.toDate?.() || new Date(),
           updatedAt: doc.data().updatedAt?.toDate?.() || new Date()
         });
+      });
+
+      // Sort by createdAt descending
+      products.sort((a, b) => {
+        const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+        const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+        return bDate - aDate;
       });
 
       return {

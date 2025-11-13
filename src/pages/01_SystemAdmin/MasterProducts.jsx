@@ -31,7 +31,11 @@ import {
   BarChart3,
   UserCog,
   Scissors,
-  Package2
+  Package2,
+  QrCode,
+  Sparkles,
+  Copy,
+  ScanLine
 } from 'lucide-react';
 
 const MasterProducts = () => {
@@ -75,12 +79,13 @@ const MasterProducts = () => {
     name: '',
     category: '',
     brand: '',
-    supplier: '',
+    suppliers: [], // Changed to array for multiple suppliers
     description: '',
     unitCost: 0,
     salonUsePrice: 0,
     otcPrice: 0,
     variants: '',
+    sku: '',
     upc: '',
     shelfLife: '',
     imageUrl: '',
@@ -128,9 +133,9 @@ const MasterProducts = () => {
         }
         break;
       
-      case 'supplier':
-        if (!value || !value.trim()) {
-          error = 'Please select a supplier';
+      case 'suppliers':
+        if (!value || (Array.isArray(value) && value.length === 0)) {
+          error = 'Please select at least one supplier';
         }
         break;
       
@@ -302,14 +307,20 @@ const MasterProducts = () => {
   const categories = ['All', ...new Set(products.map(p => p.category).filter(Boolean))];
   const brands = ['All', ...new Set(products.map(p => p.brand).filter(Boolean))];
   
-  // Get supplier names for filter dropdown (from products)
-  const supplierNames = ['All', ...new Set(products.map(p => {
-    // If supplier is an ID, try to find the supplier name
+  // Get supplier names for filter dropdown (from products) - handle both array and single supplier
+  const supplierNames = ['All', ...new Set(products.flatMap(p => {
+    if (Array.isArray(p.suppliers) && p.suppliers.length > 0) {
+      return p.suppliers.map(supplierId => {
+        const supplierDoc = suppliers.find(s => s.id === supplierId);
+        return supplierDoc ? supplierDoc.name : supplierId;
+      });
+    }
+    // Fallback for old single supplier structure
     if (p.supplier) {
       const supplierDoc = suppliers.find(s => s.id === p.supplier);
       return supplierDoc ? supplierDoc.name : p.supplier;
     }
-    return null;
+    return [];
   }).filter(Boolean))];
 
   // Pagination calculations
@@ -330,12 +341,13 @@ const MasterProducts = () => {
       name: '',
       category: '',
       brand: '',
-      supplier: '',
+      suppliers: [],
       description: '',
       unitCost: 0,
       salonUsePrice: 0,
       otcPrice: 0,
       variants: '',
+      sku: '',
       upc: '',
       shelfLife: '',
       imageUrl: '',
@@ -348,16 +360,25 @@ const MasterProducts = () => {
   };
 
   const openEditModal = (product) => {
+    // Handle both old format (single supplier) and new format (suppliers array)
+    let suppliersArray = [];
+    if (Array.isArray(product.suppliers)) {
+      suppliersArray = product.suppliers;
+    } else if (product.supplier) {
+      suppliersArray = [product.supplier];
+    }
+    
     setFormData({
       name: product.name || '',
       category: product.category || '',
       brand: product.brand || '',
-      supplier: product.supplier || '',
+      suppliers: suppliersArray,
       description: product.description || '',
       unitCost: product.unitCost || 0,
       salonUsePrice: product.salonUsePrice || 0,
       otcPrice: product.otcPrice || 0,
       variants: product.variants || '',
+      sku: product.sku || '',
       upc: product.upc || '',
       shelfLife: product.shelfLife || '',
       imageUrl: product.imageUrl || '',
@@ -378,16 +399,26 @@ const MasterProducts = () => {
       createdAtType: typeof product.createdAt,
       updatedAtType: typeof product.updatedAt
     });
+    
+    // Handle both old format (single supplier) and new format (suppliers array)
+    let suppliersArray = [];
+    if (Array.isArray(product.suppliers)) {
+      suppliersArray = product.suppliers;
+    } else if (product.supplier) {
+      suppliersArray = [product.supplier];
+    }
+    
     setFormData({
       name: product.name || '',
       category: product.category || '',
       brand: product.brand || '',
-      supplier: product.supplier || '',
+      suppliers: suppliersArray,
       description: product.description || '',
       unitCost: product.unitCost || 0,
       salonUsePrice: product.salonUsePrice || 0,
       otcPrice: product.otcPrice || 0,
       variants: product.variants || '',
+      sku: product.sku || '',
       upc: product.upc || '',
       shelfLife: product.shelfLife || '',
       imageUrl: product.imageUrl || '',
@@ -414,12 +445,13 @@ const MasterProducts = () => {
       name: '',
       category: '',
       brand: '',
-      supplier: '',
+      suppliers: [],
       description: '',
       unitCost: 0,
       salonUsePrice: 0,
       otcPrice: 0,
       variants: '',
+      sku: '',
       upc: '',
       shelfLife: '',
       imageUrl: '',
@@ -439,26 +471,64 @@ const MasterProducts = () => {
 
   // Form handlers
   const handleInputChange = (e) => {
-    const { name, value, type } = e.target;
-    const newValue = type === 'number' ? parseFloat(value) || 0 : value;
+    const { name, value, type, checked } = e.target;
     
-    setFormData(prev => ({
-      ...prev,
-      [name]: newValue
-    }));
+    // Handle checkbox for suppliers
+    if (name === 'supplierCheckbox') {
+      const supplierId = value;
+      setFormData(prev => {
+        const currentSuppliers = prev.suppliers || [];
+        let newSuppliers;
+        if (checked) {
+          // Add supplier if checked
+          newSuppliers = [...currentSuppliers, supplierId];
+        } else {
+          // Remove supplier if unchecked
+          newSuppliers = currentSuppliers.filter(id => id !== supplierId);
+        }
+        return {
+          ...prev,
+          suppliers: newSuppliers
+        };
+      });
+      
+      // Mark field as touched
+      setTouched(prev => ({
+        ...prev,
+        suppliers: true
+      }));
+      
+      // Validate field in real-time
+      const currentSuppliers = formData.suppliers || [];
+      const newSuppliers = checked 
+        ? [...currentSuppliers, supplierId]
+        : currentSuppliers.filter(id => id !== supplierId);
+      const error = validateField('suppliers', newSuppliers);
+      setErrors(prev => ({
+        ...prev,
+        suppliers: error
+      }));
+    } else {
+      const newValue = type === 'number' ? parseFloat(value) || 0 : value;
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: newValue
+      }));
 
-    // Mark field as touched
-    setTouched(prev => ({
-      ...prev,
-      [name]: true
-    }));
+      // Mark field as touched
+      setTouched(prev => ({
+        ...prev,
+        [name]: true
+      }));
 
-    // Validate field in real-time
-    const error = validateField(name, newValue);
-    setErrors(prev => ({
-      ...prev,
-      [name]: error
-    }));
+      // Validate field in real-time
+      const error = validateField(name, newValue);
+      setErrors(prev => ({
+        ...prev,
+        [name]: error
+      }));
+    }
   };
 
   const handleBlur = (e) => {
@@ -480,6 +550,74 @@ const MasterProducts = () => {
         setImagePreview(e.target.result);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  // Generate SKU automatically based on product info
+  const generateSKU = () => {
+    const categoryAbbr = formData.category 
+      ? formData.category.substring(0, 3).toUpperCase().replace(/\s/g, '') 
+      : 'PRD';
+    const brandAbbr = formData.brand 
+      ? formData.brand.substring(0, 3).toUpperCase().replace(/\s/g, '') 
+      : 'BRD';
+    const nameAbbr = formData.name 
+      ? formData.name.substring(0, 3).toUpperCase().replace(/\s/g, '') 
+      : 'PRD';
+    const timestamp = Date.now().toString().slice(-4); // Last 4 digits of timestamp
+    
+    const sku = `${categoryAbbr}-${brandAbbr}-${nameAbbr}-${timestamp}`;
+    setFormData(prev => ({ ...prev, sku }));
+    
+    // Mark as touched and clear error
+    setTouched(prev => ({ ...prev, sku: true }));
+    setErrors(prev => ({ ...prev, sku: '' }));
+  };
+
+  // Generate random 12-digit UPC code
+  const generateUPC = () => {
+    // Generate a valid 12-digit UPC code
+    // First 11 digits are random, last digit is check digit
+    let upc = '';
+    for (let i = 0; i < 11; i++) {
+      upc += Math.floor(Math.random() * 10).toString();
+    }
+    
+    // Calculate check digit (UPC-A check digit algorithm)
+    let sum = 0;
+    for (let i = 0; i < 11; i++) {
+      const digit = parseInt(upc[i]);
+      sum += (i % 2 === 0 ? digit * 3 : digit);
+    }
+    const checkDigit = (10 - (sum % 10)) % 10;
+    upc += checkDigit.toString();
+    
+    setFormData(prev => ({ ...prev, upc }));
+    
+    // Mark as touched and clear error
+    setTouched(prev => ({ ...prev, upc: true }));
+    setErrors(prev => ({ ...prev, upc: '' }));
+  };
+
+  // Copy to clipboard helper
+  const copyToClipboard = async (text, fieldName) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setSuccess(`${fieldName} copied to clipboard!`);
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  // Handle barcode scanner input (UPC field)
+  // Barcode scanners typically send Enter key after scanning
+  const handleUPCKeyDown = (e) => {
+    // If Enter is pressed and field has 12 digits, treat as barcode scan
+    if (e.key === 'Enter' && formData.upc.length === 12) {
+      e.preventDefault();
+      // Validate and move to next field or submit
+      handleBlur({ target: { name: 'upc' } });
     }
   };
 
@@ -535,7 +673,8 @@ const MasterProducts = () => {
 
       const productData = {
         ...formData,
-        imageUrl
+        imageUrl,
+        suppliers: Array.isArray(formData.suppliers) ? formData.suppliers : (formData.suppliers ? [formData.suppliers] : [])
       };
 
       console.log('📦 Creating product with data:', productData);
@@ -584,7 +723,8 @@ const MasterProducts = () => {
 
       const productData = {
         ...formData,
-        imageUrl
+        imageUrl,
+        suppliers: Array.isArray(formData.suppliers) ? formData.suppliers : (formData.suppliers ? [formData.suppliers] : [])
       };
 
       console.log('📦 Updating product with data:', productData);
@@ -1189,6 +1329,11 @@ const MasterProducts = () => {
                             }`}>
                               {formData.status}
                             </span>
+                            {formData.sku && (
+                              <span className="text-sm text-gray-600">
+                                SKU: {formData.sku}
+                              </span>
+                            )}
                             <span className="text-sm text-gray-600">
                               UPC: {formData.upc}
                             </span>
@@ -1224,11 +1369,19 @@ const MasterProducts = () => {
                             <span className="text-sm text-gray-900">{formData.brand}</span>
                             </div>
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                              <span className="text-sm font-medium text-gray-600">Supplier</span>
+                              <span className="text-sm font-medium text-gray-600">Suppliers</span>
                             <span className="text-sm text-gray-900">
                               {(() => {
-                                const supplierDoc = suppliers.find(s => s.id === formData.supplier);
-                                return supplierDoc ? supplierDoc.name : formData.supplier || 'N/A';
+                                if (!formData.suppliers || formData.suppliers.length === 0) {
+                                  return 'N/A';
+                                }
+                                const supplierNames = formData.suppliers
+                                  .map(supplierId => {
+                                    const supplierDoc = suppliers.find(s => s.id === supplierId);
+                                    return supplierDoc ? supplierDoc.name : supplierId;
+                                  })
+                                  .filter(Boolean);
+                                return supplierNames.length > 0 ? supplierNames.join(', ') : 'N/A';
                               })()}
                             </span>
                             </div>
@@ -1371,32 +1524,60 @@ const MasterProducts = () => {
                             )}
                           </div>
 
-                          <div>
+                          <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Supplier <span className="text-red-500">*</span>
+                              Suppliers <span className="text-red-500">*</span>
+                              <span className="text-xs text-gray-500 ml-2">(Select all suppliers that have this product)</span>
                             </label>
-                            <select
-                              name="supplier"
-                              value={formData.supplier}
-                              onChange={handleInputChange}
-                              onBlur={handleBlur}
-                              required
-                              disabled={modalMode === 'view'}
-                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 ${
-                                errors.supplier && touched.supplier 
-                                  ? 'border-red-500' 
-                                  : 'border-gray-300'
-                              }`}
-                            >
-                              <option value="">Select a supplier</option>
-                              {suppliers.map(supplier => (
-                                <option key={supplier.id} value={supplier.id}>
-                                  {supplier.name}
-                                </option>
-                              ))}
-                            </select>
-                            {errors.supplier && touched.supplier && (
-                              <p className="mt-1 text-sm text-red-600">{errors.supplier}</p>
+                            <div className={`border rounded-md p-4 max-h-60 overflow-y-auto ${
+                              errors.suppliers && touched.suppliers 
+                                ? 'border-red-500' 
+                                : 'border-gray-300'
+                            }`}>
+                              {suppliers.length === 0 ? (
+                                <p className="text-sm text-gray-500">No suppliers available. Please add suppliers first.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {suppliers.map(supplier => {
+                                    const isChecked = formData.suppliers?.includes(supplier.id) || false;
+                                    return (
+                                      <label
+                                        key={supplier.id}
+                                        className={`flex items-center p-2 rounded-md cursor-pointer transition-colors ${
+                                          isChecked 
+                                            ? 'bg-blue-50 border border-blue-200' 
+                                            : 'hover:bg-gray-50'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          name="supplierCheckbox"
+                                          value={supplier.id}
+                                          checked={isChecked}
+                                          onChange={handleInputChange}
+                                          onBlur={() => handleBlur({ target: { name: 'suppliers' } })}
+                                          disabled={modalMode === 'view'}
+                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                        />
+                                        <span className="ml-3 text-sm text-gray-900">
+                                          {supplier.name}
+                                          {supplier.contactPerson && (
+                                            <span className="text-gray-500 ml-2">({supplier.contactPerson})</span>
+                                          )}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                            {errors.suppliers && touched.suppliers && (
+                              <p className="mt-1 text-sm text-red-600">{errors.suppliers}</p>
+                            )}
+                            {formData.suppliers && formData.suppliers.length > 0 && (
+                              <p className="mt-2 text-xs text-gray-600">
+                                Selected: {formData.suppliers.length} supplier{formData.suppliers.length !== 1 ? 's' : ''}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -1412,25 +1593,130 @@ const MasterProducts = () => {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              UPC Code <span className="text-red-500">*</span>
+                              SKU <span className="text-gray-500 text-xs">(Stock Keeping Unit)</span>
                             </label>
-                            <input
-                              type="text"
-                              name="upc"
-                              value={formData.upc}
-                              onChange={handleInputChange}
-                              onBlur={handleBlur}
-                              required
-                              disabled={modalMode === 'view'}
-                              placeholder="12-digit Universal Product Code"
-                              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 font-mono ${
-                                errors.upc && touched.upc 
-                                  ? 'border-red-500' 
-                                  : 'border-gray-300'
-                              }`}
-                            />
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                name="sku"
+                                value={formData.sku}
+                                onChange={handleInputChange}
+                                onBlur={handleBlur}
+                                disabled={modalMode === 'view'}
+                                placeholder="e.g., HAI-OLA-NO3-1234"
+                                className={`flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 font-mono ${
+                                  errors.sku && touched.sku 
+                                    ? 'border-red-500' 
+                                    : 'border-gray-300'
+                                }`}
+                              />
+                              {modalMode !== 'view' && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={generateSKU}
+                                  className="flex items-center gap-1 whitespace-nowrap"
+                                  title="Auto-generate SKU"
+                                >
+                                  <Sparkles className="h-4 w-4" />
+                                  Generate
+                                </Button>
+                              )}
+                              {formData.sku && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(formData.sku, 'SKU')}
+                                  className="flex items-center gap-1"
+                                  title="Copy SKU"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                            {errors.sku && touched.sku && (
+                              <p className="mt-1 text-sm text-red-600">{errors.sku}</p>
+                            )}
+                            {formData.sku && (
+                              <p className="mt-1 text-xs text-gray-500">Format: CAT-BRAND-NAME-TIME</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              UPC Code <span className="text-red-500">*</span>
+                              <span className="text-xs text-gray-500 ml-2">(Barcode - Scan or Enter)</span>
+                            </label>
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <ScanLine className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <input
+                                  type="text"
+                                  name="upc"
+                                  value={formData.upc}
+                                  onChange={handleInputChange}
+                                  onBlur={handleBlur}
+                                  onKeyDown={handleUPCKeyDown}
+                                  required
+                                  disabled={modalMode === 'view'}
+                                  placeholder="Scan barcode or enter 12 digits"
+                                  maxLength="12"
+                                  autoComplete="off"
+                                  className={`w-full pl-10 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 font-mono text-center text-lg tracking-widest ${
+                                    errors.upc && touched.upc 
+                                      ? 'border-red-500' 
+                                      : 'border-gray-300'
+                                  }`}
+                                />
+                                {formData.upc.length === 12 && (
+                                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                  </div>
+                                )}
+                              </div>
+                              {modalMode !== 'view' && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={generateUPC}
+                                    className="flex items-center gap-1 whitespace-nowrap"
+                                    title="Generate random UPC"
+                                  >
+                                    <QrCode className="h-4 w-4" />
+                                    Generate
+                                  </Button>
+                                  {formData.upc && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => copyToClipboard(formData.upc, 'UPC')}
+                                      className="flex items-center gap-1"
+                                      title="Copy UPC"
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                             {errors.upc && touched.upc && (
                               <p className="mt-1 text-sm text-red-600">{errors.upc}</p>
+                            )}
+                            {formData.upc.length > 0 && formData.upc.length < 12 && (
+                              <p className="mt-1 text-xs text-gray-500">
+                                {12 - formData.upc.length} digits remaining
+                              </p>
+                            )}
+                            {formData.upc.length === 12 && (
+                              <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Valid 12-digit UPC code
+                              </p>
                             )}
                           </div>
 

@@ -1,92 +1,52 @@
 import { useState, useEffect } from "react"
-import { Filter } from "lucide-react"
+import { Filter, Loader2 } from "lucide-react"
 import { SearchInput, ConsistentCard, ConsistentCardContent, Button } from "../ui"
+import { productService } from "../../services/productService"
 
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [isVisible, setIsVisible] = useState(false)
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const productsPerPage = 8
 
+  // Load products from Firestore
   useEffect(() => {
-    setIsVisible(true)
+    const loadProducts = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const result = await productService.getAllProducts()
+        
+        if (result.success) {
+          // Filter to only show Active products for public page
+          const activeProducts = result.products.filter(
+            product => product.status === 'Active' || !product.status
+          )
+          setProducts(activeProducts)
+        } else {
+          setError(result.message || 'Failed to load products')
+        }
+      } catch (err) {
+        console.error('Error loading products:', err)
+        setError('Failed to load products. Please try again later.')
+      } finally {
+        setLoading(false)
+        setIsVisible(true)
+      }
+    }
+
+    loadProducts()
   }, [])
-  const products = [
-    {
-      id: 1,
-      category: "Hair Care",
-      brand: "L'OREAL PROFESSIONAL",
-      name: "L'Oreal Professional Serie Expert Absolut Repair Shampoo",
-      description: "Reconstructing shampoo for damaged hair",
-      price: "₱1,250",
-      originalPrice: "₱1,600",
-      image: "/l-oreal-professional-shampoo-bottle.png",
-    },
-    {
-      id: 2,
-      category: "Styling Products",
-      brand: "WELLA PROFESSIONALS",
-      name: "Wella Professionals EIMI Dynamic Fix Hair Spray",
-      description: "45-second crafting spray for flexible hold",
-      price: "₱890",
-      image: "/wella-hair-spray-bottle.png",
-    },
-    {
-      id: 3,
-      category: "Hair Color",
-      brand: "MATRIX",
-      name: "Matrix SoColor Beauty Hair Color",
-      description: "Professional permanent hair color",
-      price: "₱650",
-      originalPrice: "₱750",
-      image: "/matrix-hair-color-tube.png",
-    },
-    {
-      id: 4,
-      category: "Treatments",
-      brand: "SCHWARZKOPF",
-      name: "Schwarzkopf BC Bonacure Repair Rescue Treatment",
-      description: "Deep nourishing treatment for damaged hair",
-      price: "₱1,450",
-      image: "/schwarzkopf-hair-treatment-jar.png",
-    },
-    {
-      id: 5,
-      category: "Hair Care",
-      brand: "BIOMOD",
-      name: "Biomod Hair Care Treatment Booster",
-      description: "Professional hair dryer with intelligent heat control",
-      price: "₱24,990",
-      image: "/hair-dryer.png",
-    },
-    {
-      id: 6,
-      category: "Hair Care",
-      brand: "L'OREAL PROFESSIONAL",
-      name: "L'Oreal Professional Serie Expert Absolut Repair Shampoo",
-      description: "Reconstructing shampoo for damaged hair",
-      price: "₱1,250",
-      originalPrice: "₱1,600",
-      image: "/l-oreal-professional-repair-shampoo.png",
-    },
-    {
-      id: 7,
-      category: "Styling Products",
-      brand: "WELLA PROFESSIONALS",
-      name: "Wella Professionals EIMI Dynamic Fix Hair Spray",
-      description: "45-second crafting spray for flexible hold",
-      price: "₱890",
-      image: "/wella-styling-spray.png",
-    },
-    {
-      id: 8,
-      category: "Styling Products",
-      brand: "WELLA PROFESSIONALS",
-      name: "Wella Professionals EIMI Dynamic Fix Hair Spray",
-      description: "45-second crafting spray for flexible hold",
-      price: "₱890",
-      image: "/wella-professional-hair-spray.png",
-    },
-  ]
+
+  // Format price for display
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return "Price not available"
+    return `₱${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 
   const getCategoryColor = (category) => {
     const colors = {
@@ -100,14 +60,33 @@ export default function ProductsPage() {
 
   // Filter products based on search term and category
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = 
+      (product.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (product.category?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (product.description?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
     const matchesCategory = selectedCategory === "All" || product.category === selectedCategory
     return matchesSearch && matchesCategory
   })
 
-  const categories = ["All", ...new Set(products.map(product => product.category))]
+  // Get unique categories from products
+  const categories = ["All", ...new Set(products.map(product => product.category).filter(Boolean))]
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedCategory])
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage)
+  const startIndex = (currentPage - 1) * productsPerPage
+  const endIndex = startIndex + productsPerPage
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex)
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
     <>
@@ -155,85 +134,131 @@ export default function ProductsPage() {
           </div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-[#160B53]" />
+            <span className="ml-3 text-gray-600">Loading products...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="text-center py-20">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+        )}
+
         {/* Products Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {filteredProducts.map((product, index) => (
-            <ConsistentCard
-              key={product.id}
-              shadowVariant="custom"
-              hoverable={false}
-            >
-              {/* Product Image */}
-              <div className="relative h-48 bg-gray-100 overflow-hidden">
-                <img
-                  src={product.image || "/placeholder.svg"}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-                {/* Category Tag */}
-                <div
-                  className={`absolute top-3 left-3 text-white px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(product.category)}`}
-                >
-                  {product.category}
-                </div>
-                
+        {!loading && !error && (
+          <>
+            {paginatedProducts.length === 0 ? (
+              <div className="text-center py-20">
+                <p className="text-gray-600 text-lg">No products found.</p>
+                {searchTerm && (
+                  <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
+                )}
               </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {paginatedProducts.map((product) => (
+                  <ConsistentCard
+                    key={product.id}
+                    shadowVariant="custom"
+                    hoverable={false}
+                  >
+                    {/* Product Image */}
+                    <div className="relative h-48 bg-gray-100 overflow-hidden">
+                      <img
+                        src={product.imageUrl || "/placeholder.svg"}
+                        alt={product.name || "Product"}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = "/placeholder.svg"
+                        }}
+                      />
+                      {/* Category Tag */}
+                      {product.category && (
+                        <div
+                          className={`absolute top-3 left-3 text-white px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(product.category)}`}
+                        >
+                          {product.category}
+                        </div>
+                      )}
+                    </div>
 
-              {/* Product Info */}
-              <ConsistentCardContent className="p-4">
-                <p className="text-xs uppercase tracking-wide mb-1 text-gray-500">
-                  {product.brand}
-                </p>
-                <h3 className="font-semibold mb-2 line-clamp-2 text-gray-900">
-                  {product.name}
-                </h3>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
+                    {/* Product Info */}
+                    <ConsistentCardContent className="p-4">
+                      {product.brand && (
+                        <p className="text-xs uppercase tracking-wide mb-1 text-gray-500">
+                          {product.brand}
+                        </p>
+                      )}
+                      <h3 className="font-semibold mb-2 line-clamp-2 text-gray-900">
+                        {product.name || "Unnamed Product"}
+                      </h3>
+                      {product.description && (
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
+                      )}
 
-                {/* Price */}
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-[#160B53]">
-                    {product.price}
-                  </span>
-                  {product.originalPrice && (
-                    <span className="text-sm text-gray-500 line-through">{product.originalPrice}</span>
-                  )}
-                </div>
-              </ConsistentCardContent>
-            </ConsistentCard>
-          ))}
-        </div>
+                      {/* Price */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-[#160B53]">
+                          {formatPrice(product.otcPrice || product.unitCost || 0)}
+                        </span>
+                        {product.unitCost && product.otcPrice && product.unitCost < product.otcPrice && (
+                          <span className="text-sm text-gray-500 line-through">
+                            {formatPrice(product.unitCost)}
+                          </span>
+                        )}
+                      </div>
+                    </ConsistentCardContent>
+                  </ConsistentCard>
+                ))}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Pagination */}
-        <div className="flex justify-center mt-8 space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-8 h-8 p-0 bg-transparent text-gray-700 border-gray-300 hover:bg-gray-50 transition-all duration-300 hover:scale-110 hover:border-[#160B53]/50"
-          >
-            {"<"}
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-8 h-8 p-0 bg-[#160B53] text-white border-[#160B53] transition-all duration-300 hover:scale-110"
-          >
-            1
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-8 h-8 p-0 bg-transparent text-gray-700 border-gray-300 hover:bg-gray-50 transition-all duration-300 hover:scale-110 hover:border-[#160B53]/50"
-          >
-            2
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-8 h-8 p-0 bg-transparent text-gray-700 border-gray-300 hover:bg-gray-50 transition-all duration-300 hover:scale-110 hover:border-[#160B53]/50"
-          >
-            {">"}
-          </Button>
-        </div>
+        {!loading && !error && filteredProducts.length > 0 && totalPages > 1 && (
+          <div className="flex justify-center mt-8 space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="w-8 h-8 p-0 bg-transparent text-gray-700 border-gray-300 hover:bg-gray-50 transition-all duration-300 hover:scale-110 hover:border-[#160B53]/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {"<"}
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page)}
+                className={`w-8 h-8 p-0 transition-all duration-300 hover:scale-110 ${
+                  currentPage === page
+                    ? "bg-[#160B53] text-white border-[#160B53]"
+                    : "bg-transparent text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-[#160B53]/50"
+                }`}
+              >
+                {page}
+              </Button>
+            ))}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="w-8 h-8 p-0 bg-transparent text-gray-700 border-gray-300 hover:bg-gray-50 transition-all duration-300 hover:scale-110 hover:border-[#160B53]/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {">"}
+            </Button>
+          </div>
+        )}
       </main>
     </>
   )

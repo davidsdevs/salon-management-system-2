@@ -31,7 +31,8 @@ import {
   BarChart3,
   ClipboardList,
   UserCog,
-  Calendar
+  Calendar,
+  PackageCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { collection, getDocs, query, where, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
@@ -65,6 +66,7 @@ const PurchaseOrders = () => {
     { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
     { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
     { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/deliveries', label: 'Deliveries', icon: PackageCheck },
     { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
     { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
     { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },
@@ -193,7 +195,8 @@ const PurchaseOrders = () => {
             category: productData.category,
             brand: productData.brand,
             unitCost: productData.unitCost || 0,
-            supplier: productData.supplier, // Supplier ID
+            suppliers: productData.suppliers || (productData.supplier ? [productData.supplier] : []), // Suppliers array
+            supplier: productData.supplier, // Keep for backward compatibility
             imageUrl: productData.imageUrl,
             description: productData.description,
             sku: productData.sku,
@@ -285,10 +288,17 @@ const PurchaseOrders = () => {
     }
   };
 
-  // When supplier is selected, filter products
+  // When supplier is selected, filter products (suppliers is now an array)
   useEffect(() => {
     if (selectedSupplierId && branchProducts.length > 0) {
-      const filtered = branchProducts.filter(product => product.supplier === selectedSupplierId);
+      const filtered = branchProducts.filter(product => {
+        // Check if suppliers is an array and contains the selected supplier ID
+        if (Array.isArray(product.suppliers)) {
+          return product.suppliers.includes(selectedSupplierId);
+        }
+        // Fallback for old data structure (single supplier)
+        return product.supplier === selectedSupplierId;
+      });
       setSupplierProducts(filtered);
     } else {
       setSupplierProducts([]);
@@ -581,6 +591,7 @@ const PurchaseOrders = () => {
       case 'Pending': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
       case 'Received': return 'text-blue-600 bg-blue-100 border-blue-200';
       case 'Approved': return 'text-green-600 bg-green-100 border-green-200';
+      case 'In Transit': return 'text-purple-600 bg-purple-100 border-purple-200';
       case 'Rejected': return 'text-red-600 bg-red-100 border-red-200';
       case 'Shipped': return 'text-purple-600 bg-purple-100 border-purple-200';
       case 'Delivered': return 'text-green-600 bg-green-100 border-green-200';
@@ -596,6 +607,7 @@ const PurchaseOrders = () => {
       case 'Pending': return <Clock className="h-4 w-4" />;
       case 'Received': return <CheckCircle className="h-4 w-4" />;
       case 'Approved': return <CheckCircle className="h-4 w-4" />;
+      case 'In Transit': return <Truck className="h-4 w-4" />;
       case 'Rejected': return <XCircle className="h-4 w-4" />;
       case 'Shipped': return <Truck className="h-4 w-4" />;
       case 'Delivered': return <CheckCircle className="h-4 w-4" />;
@@ -610,16 +622,16 @@ const PurchaseOrders = () => {
     return {
       totalOrders: purchaseOrders.length,
       pendingOrders: purchaseOrders.filter(o => o.status === 'Pending').length,
-      approvedOrders: purchaseOrders.filter(o => o.status === 'Approved').length,
+      approvedOrders: purchaseOrders.filter(o => o.status === 'Approved' || o.status === 'In Transit').length,
       deliveredOrders: purchaseOrders.filter(o => o.status === 'Delivered').length,
       overdueOrders: purchaseOrders.filter(o => o.status === 'Overdue').length,
       totalValue: purchaseOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
     };
   }, [purchaseOrders]);
 
-  // Check if order can be marked as delivered (must be Approved)
+  // Check if order can be marked as delivered (must be In Transit)
   const canMarkDelivered = (order) => {
-    return order.status === 'Approved';
+    return order.status === 'In Transit';
   };
 
   // Handle mark as delivered with batch creation
@@ -871,6 +883,7 @@ const PurchaseOrders = () => {
                 <option value="Pending">Pending</option>
                 <option value="Received">Received</option>
                 <option value="Approved">Approved</option>
+                <option value="In Transit">In Transit</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Shipped">Shipped</option>
                 <option value="Delivered">Delivered</option>

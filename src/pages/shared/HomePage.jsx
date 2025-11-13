@@ -5,19 +5,71 @@ import { MapPin, Phone, Search } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useState, useEffect } from "react"
 import PromotionPopup from "./PromotionPopup"
+import { branchContentService } from "../../services/branchContentService"
+import { useAuth } from "../../context/AuthContext"
+import { ROLES } from "../../utils/roles"
+import InlineEditable from "../../components/cms/InlineEditable"
+import FloatingSaveButton from "../../components/cms/FloatingSaveButton"
 
-export default function HomePage() {
+export default function HomePage({ embedded = false }) {
+  const { userData } = useAuth()
+  const isSystemAdmin = userData?.roles?.[0] === ROLES.SYSTEM_ADMIN
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [isVisible, setIsVisible] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const branchesPerPage = 6
+  const [content, setContent] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [localContent, setLocalContent] = useState(null)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // Load content from Firestore
+  useEffect(() => {
+    const loadContent = async () => {
+      try {
+        const result = await branchContentService.getHomepageContent()
+        if (result.success && result.content) {
+          setContent(result.content)
+        }
+      } catch (error) {
+        console.error('Error loading homepage content:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    // Subscribe to real-time updates
+    const unsubscribe = branchContentService.subscribeToContent('main', 'homepage', (result) => {
+      if (result.success && result.content) {
+        setContent(result.content)
+        if (!hasChanges) {
+          setLocalContent(result.content)
+        }
+        setLoading(false)
+      }
+    })
+
+    loadContent()
+
+    return () => unsubscribe()
+  }, [hasChanges])
+
+  // Initialize local content when content loads
+  useEffect(() => {
+    if (content && !localContent) {
+      setLocalContent(content)
+    }
+  }, [content, localContent])
 
   // Fade in animation on component mount
   useEffect(() => {
     setIsVisible(true)
   }, [])
 
-  const branches = [
+  // Fallback branches data
+  const defaultBranches = [
     {
       name: "Harbor Point Ayala",
       slug: "harbor-point-ayala",
@@ -27,26 +79,120 @@ export default function HomePage() {
     },
   ]
 
-  const testimonials = [
-    {
-      name: "Maria Gonzalez",
-      branch: "Harbor Point Ayala",
-      rating: 5,
-      text: "I've been a loyal customer at Harbor Point Ayala for over 5 years, and the service quality and professionalism is remarkable. David's Salon truly understands Filipino beauty.",
-    },
-    {
-      name: "Jennifer Santos",
-      branch: "Harbor Point Ayala",
-      rating: 5,
-      text: "The staff at Harbor Point Ayala are not just skilled, they're artists. The transformation was beyond my expectations. The European techniques combined with Filipino hospitality is unmatched!",
-    },
-    {
-      name: "Carlos Mendoza",
-      branch: "Harbor Point Ayala",
-      rating: 5,
-      text: "Harbor Point Ayala offers world-class service. The quality is exceptional, the location is convenient, and the prices are very reasonable.",
-    },
-  ]
+  // Use local content if editing, otherwise use saved content
+  const displayContent = hasChanges ? localContent : content
+
+  // Use content from Firestore or fallback
+  const heroContent = displayContent?.hero || {
+    title: "Welcome to David's Salon",
+    subtitle: "Experience premium hair and beauty services at our Harbor Point Ayala location. Discover our specialized services and exclusive offers tailored just for you.",
+    buttonText: "View Our Services",
+    backgroundImage: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image%201-gwMUdJmDY3pIDaLqR4DsNsL8vwz2Fd.png",
+    overlayOpacity: 0.6
+  }
+
+  const branchesContent = displayContent?.branches || {
+    title: "Choose Your Branch",
+    subtitle: "",
+    searchPlaceholder: "Search branches..."
+  }
+
+  const testimonialsContent = displayContent?.testimonials || {
+    title: "What Our Clients Say",
+    subtitle: "Real stories from our satisfied customers",
+    items: [
+      {
+        name: "Maria Gonzalez",
+        branch: "Harbor Point Ayala",
+        rating: 5,
+        text: "I've been a loyal customer at Harbor Point Ayala for over 5 years, and the service quality and professionalism is remarkable. David's Salon truly understands Filipino beauty.",
+      },
+      {
+        name: "Jennifer Santos",
+        branch: "Harbor Point Ayala",
+        rating: 5,
+        text: "The staff at Harbor Point Ayala are not just skilled, they're artists. The transformation was beyond my expectations. The European techniques combined with Filipino hospitality is unmatched!",
+      },
+      {
+        name: "Carlos Mendoza",
+        branch: "Harbor Point Ayala",
+        rating: 5,
+        text: "Harbor Point Ayala offers world-class service. The quality is exceptional, the location is convenient, and the prices are very reasonable.",
+      },
+    ]
+  }
+
+  const ctaContent = displayContent?.cta || {
+    title: "Ready to Transform Your Look?",
+    subtitle: "Visit our Harbor Point Ayala location to discover our exclusive services and book your appointment today.",
+    buttonText: "View Our Services"
+  }
+
+  const branches = defaultBranches
+  const testimonials = testimonialsContent.items || []
+
+  // Handle inline editing
+  const handleContentUpdate = (fieldPath, value) => {
+    if (!localContent) return
+    
+    const keys = fieldPath.split('.')
+    const newContent = { ...localContent }
+    let current = newContent
+    
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) {
+        current[keys[i]] = {}
+      }
+      current = current[keys[i]]
+    }
+    
+    current[keys[keys.length - 1]] = value
+    setLocalContent(newContent)
+    setHasChanges(true)
+  }
+
+  // Handle testimonial updates
+  const handleTestimonialUpdate = (index, field, value) => {
+    if (!localContent) return
+    
+    const newContent = { ...localContent }
+    if (!newContent.testimonials) {
+      newContent.testimonials = { items: [] }
+    }
+    if (!newContent.testimonials.items) {
+      newContent.testimonials.items = []
+    }
+    
+    newContent.testimonials.items[index] = {
+      ...newContent.testimonials.items[index],
+      [field]: value
+    }
+    
+    setLocalContent(newContent)
+    setHasChanges(true)
+  }
+
+  // Save changes
+  const handleSave = async () => {
+    if (!localContent || !userData) return
+    
+    try {
+      setSaving(true)
+      const result = await branchContentService.saveContent('main', 'homepage', {
+        ...localContent,
+        updatedBy: userData.uid
+      })
+      
+      if (result.success) {
+        setContent(localContent)
+        setHasChanges(false)
+        setSaving(false)
+      }
+    } catch (error) {
+      console.error('Error saving content:', error)
+      setSaving(false)
+    }
+  }
 
   // Filter branches based on search term
   const filteredBranches = branches.filter(branch =>
@@ -66,23 +212,55 @@ export default function HomePage() {
 
   return (
     <>
-      {/* Promotion Popup */}
-      <PromotionPopup />
+      {/* Promotion Popup - Only show when not embedded */}
+      {!embedded && <PromotionPopup />}
+      
+      {/* Floating Save Button for System Admin */}
+      {isSystemAdmin && (
+        <FloatingSaveButton 
+          onSave={handleSave} 
+          saving={saving} 
+          hasChanges={hasChanges}
+        />
+      )}
       
       {/* Hero Section */}
       <section
-        className="relative h-[800px] flex items-center justify-center text-center text-white mt-[122px]"
+        className={`relative h-[800px] flex items-center justify-center text-center text-white ${embedded ? 'mt-0' : 'mt-[122px]'}`}
         style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(22, 11, 83, 0.7)), url('https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image%201-gwMUdJmDY3pIDaLqR4DsNsL8vwz2Fd.png')`,
+          backgroundImage: `linear-gradient(rgba(0, 0, 0, ${heroContent.overlayOpacity || 0.6}), rgba(22, 11, 83, 0.7)), url('${heroContent.backgroundImage}')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       >
         <div className={`max-w-4xl px-2 sm:px-4 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <h1 className="font-bold mb-6 text-balance animate-pulse-slow" style={{ fontSize: '50px' }}>Welcome to David's Salon</h1>
-          <p className="text-xl mb-8 text-pretty leading-relaxed">
-            Experience premium hair and beauty services at our Harbor Point Ayala location. Discover our specialized services and exclusive offers tailored just for you.
-          </p>
+          {isSystemAdmin ? (
+            <h1 className="font-bold mb-6 text-balance animate-pulse-slow" style={{ fontSize: '50px' }}>
+              <InlineEditable
+                value={heroContent.title}
+                onSave={(path, value) => handleContentUpdate('hero.title', value)}
+                fieldPath="hero.title"
+                className="text-white"
+              />
+            </h1>
+          ) : (
+            <h1 className="font-bold mb-6 text-balance animate-pulse-slow" style={{ fontSize: '50px' }}>{heroContent.title}</h1>
+          )}
+          {isSystemAdmin ? (
+            <p className="text-xl mb-8 text-pretty leading-relaxed">
+              <InlineEditable
+                value={heroContent.subtitle}
+                onSave={(path, value) => handleContentUpdate('hero.subtitle', value)}
+                fieldPath="hero.subtitle"
+                multiline={true}
+                className="text-white"
+              />
+            </p>
+          ) : (
+            <p className="text-xl mb-8 text-pretty leading-relaxed">
+              {heroContent.subtitle}
+            </p>
+          )}
           <Button 
             size="lg" 
             className="bg-white text-[#160B53] hover:bg-gray-100 font-semibold px-8 py-3"
@@ -114,7 +292,16 @@ export default function HomePage() {
               }
             }}
           >
-            View Our Services
+            {isSystemAdmin ? (
+              <InlineEditable
+                value={heroContent.buttonText}
+                onSave={(path, value) => handleContentUpdate('hero.buttonText', value)}
+                fieldPath="hero.buttonText"
+                className="text-[#160B53]"
+              />
+            ) : (
+              heroContent.buttonText
+            )}
           </Button>
         </div>
       </section>
@@ -122,12 +309,37 @@ export default function HomePage() {
       {/* Our Location Section */}
       <section id="branches" className="py-16 px-2 sm:px-4">
         <div className="max-w-7xl mx-auto">
-          <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>Choose Your Branch</h2>
+          {isSystemAdmin ? (
+            <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>
+              <InlineEditable
+                value={branchesContent.title}
+                onSave={(path, value) => handleContentUpdate('branches.title', value)}
+                fieldPath="branches.title"
+                className="text-[#160B53]"
+              />
+            </h2>
+          ) : (
+            <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>{branchesContent.title}</h2>
+          )}
+          {branchesContent.subtitle && (
+            isSystemAdmin ? (
+              <p className="text-center text-gray-600 mb-8">
+                <InlineEditable
+                  value={branchesContent.subtitle}
+                  onSave={(path, value) => handleContentUpdate('branches.subtitle', value)}
+                  fieldPath="branches.subtitle"
+                  className="text-gray-600"
+                />
+              </p>
+            ) : (
+              <p className="text-center text-gray-600 mb-8">{branchesContent.subtitle}</p>
+            )
+          )}
 
           <div className="flex justify-center mb-12">
             <div className="max-w-md w-full">
               <SearchInput
-                placeholder="Search branches..."
+                placeholder={branchesContent.searchPlaceholder || "Search branches..."}
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value)
@@ -257,8 +469,30 @@ export default function HomePage() {
       {/* Testimonials Section */}
       <section className="py-16 px-2 sm:px-4 bg-gray-50">
         <div className="max-w-6xl mx-auto">
-          <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>What Our Clients Say</h2>
-          <p className="text-center text-gray-600 mb-12">Real stories from our satisfied customers</p>
+          {isSystemAdmin ? (
+            <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>
+              <InlineEditable
+                value={testimonialsContent.title}
+                onSave={(path, value) => handleContentUpdate('testimonials.title', value)}
+                fieldPath="testimonials.title"
+                className="text-[#160B53]"
+              />
+            </h2>
+          ) : (
+            <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>{testimonialsContent.title}</h2>
+          )}
+          {isSystemAdmin ? (
+            <p className="text-center text-gray-600 mb-12">
+              <InlineEditable
+                value={testimonialsContent.subtitle}
+                onSave={(path, value) => handleContentUpdate('testimonials.subtitle', value)}
+                fieldPath="testimonials.subtitle"
+                className="text-gray-600"
+              />
+            </p>
+          ) : (
+            <p className="text-center text-gray-600 mb-12">{testimonialsContent.subtitle}</p>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
@@ -272,17 +506,51 @@ export default function HomePage() {
               >
                 <CardContent className="p-0">
                   <div className="text-6xl text-[#160B53] mb-4">"</div>
-                  <p className="text-gray-700 mb-6 leading-relaxed">
-                    {testimonial.text}
-                  </p>
+                  {isSystemAdmin ? (
+                    <p className="text-gray-700 mb-6 leading-relaxed">
+                      <InlineEditable
+                        value={testimonial.text}
+                        onSave={(path, value) => handleTestimonialUpdate(index, 'text', value)}
+                        fieldPath={`testimonials.items.${index}.text`}
+                        multiline={true}
+                        className="text-gray-700"
+                      />
+                    </p>
+                  ) : (
+                    <p className="text-gray-700 mb-6 leading-relaxed">
+                      {testimonial.text}
+                    </p>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-[#160B53]">
-                        {testimonial.name}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {testimonial.branch}
-                      </div>
+                      {isSystemAdmin ? (
+                        <div className="font-semibold text-[#160B53]">
+                          <InlineEditable
+                            value={testimonial.name}
+                            onSave={(path, value) => handleTestimonialUpdate(index, 'name', value)}
+                            fieldPath={`testimonials.items.${index}.name`}
+                            className="text-[#160B53]"
+                          />
+                        </div>
+                      ) : (
+                        <div className="font-semibold text-[#160B53]">
+                          {testimonial.name}
+                        </div>
+                      )}
+                      {isSystemAdmin ? (
+                        <div className="text-sm text-gray-500">
+                          <InlineEditable
+                            value={testimonial.branch}
+                            onSave={(path, value) => handleTestimonialUpdate(index, 'branch', value)}
+                            fieldPath={`testimonials.items.${index}.branch`}
+                            className="text-gray-500"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          {testimonial.branch}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -295,10 +563,33 @@ export default function HomePage() {
       {/* Call to Action Section */}
       <section className="py-16 px-2 sm:px-4 bg-[#160B53] text-white text-center">
         <div className="max-w-4xl mx-auto">
-          <h2 className="font-bold mb-6" style={{ fontSize: '50px' }}>Ready to Transform Your Look?</h2>
-          <p className="text-xl mb-8 text-pretty leading-relaxed">
-            Visit our Harbor Point Ayala location to discover our exclusive services and book your appointment today.
-          </p>
+          {isSystemAdmin ? (
+            <h2 className="font-bold mb-6" style={{ fontSize: '50px' }}>
+              <InlineEditable
+                value={ctaContent.title}
+                onSave={(path, value) => handleContentUpdate('cta.title', value)}
+                fieldPath="cta.title"
+                className="text-white"
+              />
+            </h2>
+          ) : (
+            <h2 className="font-bold mb-6" style={{ fontSize: '50px' }}>{ctaContent.title}</h2>
+          )}
+          {isSystemAdmin ? (
+            <p className="text-xl mb-8 text-pretty leading-relaxed">
+              <InlineEditable
+                value={ctaContent.subtitle}
+                onSave={(path, value) => handleContentUpdate('cta.subtitle', value)}
+                fieldPath="cta.subtitle"
+                multiline={true}
+                className="text-white"
+              />
+            </p>
+          ) : (
+            <p className="text-xl mb-8 text-pretty leading-relaxed">
+              {ctaContent.subtitle}
+            </p>
+          )}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
@@ -332,7 +623,16 @@ export default function HomePage() {
                 }
               }}
             >
-              View Our Services
+              {isSystemAdmin ? (
+                <InlineEditable
+                  value={ctaContent.buttonText}
+                  onSave={(path, value) => handleContentUpdate('cta.buttonText', value)}
+                  fieldPath="cta.buttonText"
+                  className="text-white"
+                />
+              ) : (
+                ctaContent.buttonText
+              )}
             </Button>
           </div>
         </div>

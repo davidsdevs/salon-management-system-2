@@ -1,5 +1,5 @@
 // src/pages/06_InventoryController/UpcGenerator.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../shared/DashboardLayout';
 import { Card } from '../ui/card';
@@ -7,15 +7,18 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { SearchInput } from '../ui/search-input';
 import Modal from '../ui/modal';
+import { QRCodeSVG } from 'qrcode.react';
+import { useReactToPrint } from 'react-to-print';
+import html2canvas from 'html2canvas';
+import { productService } from '../../services/productService';
+import { branchService } from '../../services/branchService';
+import { inventoryService } from '../../services/inventoryService';
 import {
   QrCode,
   Search,
   Filter,
   Eye,
-  Edit,
   Plus,
-  Download,
-  Upload,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
@@ -24,24 +27,47 @@ import {
   Package,
   Calendar,
   Building,
-  FileText,
-  Bell,
-  AlertCircle,
-  TrendingDown,
-  ShoppingCart,
-  ArrowRight,
   Copy,
   Printer,
-  Image as ImageIcon
+  Download,
+  Home,
+  TrendingUp,
+  ArrowRightLeft,
+  ShoppingCart,
+  Truck,
+  BarChart3,
+  DollarSign,
+  ClipboardList,
+  UserCog,
+  PackageCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const UpcGenerator = () => {
   const { userData } = useAuth();
+  const printRef = useRef();
+
+  const menuItems = [
+    { path: '/inventory/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/inventory/products', label: 'Products', icon: Package },
+    { path: '/inventory/stocks', label: 'Stocks', icon: TrendingUp },
+    { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
+    { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
+    { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/deliveries', label: 'Deliveries', icon: PackageCheck },
+    { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
+    { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
+    { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },
+    { path: '/inventory/cost-analysis', label: 'Cost Analysis', icon: DollarSign },
+    { path: '/inventory/inventory-audit', label: 'Inventory Audit', icon: ClipboardList },
+    { path: '/inventory/expiry-tracker', label: 'Expiry Tracker', icon: Calendar },
+    { path: '/inventory/profile', label: 'Profile', icon: UserCog },
+  ];
   
   // Data states
   const [products, setProducts] = useState([]);
-  const [generatedCodes, setGeneratedCodes] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [generatedQRCodes, setGeneratedQRCodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -53,94 +79,33 @@ const UpcGenerator = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedBatches, setSelectedBatches] = useState([]);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [qrCodesToPrint, setQrCodesToPrint] = useState([]);
   
   // Filter states
   const [filters, setFilters] = useState({
     category: 'all',
     status: 'all',
-    hasUpc: 'all'
+    hasQRCode: 'all'
   });
 
   // Generate form states
   const [generateForm, setGenerateForm] = useState({
     productId: '',
-    upcCode: '',
+    branchId: '',
+    batchId: '',
     quantity: 1,
-    format: 'UPC-A',
-    size: 'medium',
-    includeText: true,
-    textPosition: 'bottom'
+    size: 'medium'
   });
 
-  // Mock product data
-  const mockProducts = [
-    {
-      id: 'prod1',
-      name: 'Olaplex No.3 Hair Perfector',
-      brand: 'Olaplex',
-      category: 'Hair Care',
-      upc: '123456789114',
-      hasUpc: true,
-      status: 'Active',
-      imageUrl: 'https://res.cloudinary.com/dn0jgdjts/image/upload/v1761245057/eg9tc1wixlvsd0scwjtd.jpg',
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-15')
-    },
-    {
-      id: 'prod2',
-      name: 'L\'Oréal Hair Color',
-      brand: 'L\'Oréal',
-      category: 'Hair Color',
-      upc: '',
-      hasUpc: false,
-      status: 'Active',
-      imageUrl: null,
-      createdAt: new Date('2024-01-10'),
-      updatedAt: new Date('2024-01-10')
-    },
-    {
-      id: 'prod3',
-      name: 'Kerastase Shampoo',
-      brand: 'Kerastase',
-      category: 'Hair Care',
-      upc: '123456789116',
-      hasUpc: true,
-      status: 'Active',
-      imageUrl: null,
-      createdAt: new Date('2024-01-08'),
-      updatedAt: new Date('2024-01-08')
-    }
-  ];
-
-  // Mock generated codes
-  const mockGeneratedCodes = [
-    {
-      id: 'gen-001',
-      productId: 'prod1',
-      productName: 'Olaplex No.3 Hair Perfector',
-      upcCode: '123456789114',
-      format: 'UPC-A',
-      size: 'medium',
-      quantity: 10,
-      generatedAt: new Date('2024-01-15'),
-      generatedBy: 'John Smith',
-      status: 'Generated'
-    },
-    {
-      id: 'gen-002',
-      productId: 'prod2',
-      productName: 'L\'Oréal Hair Color',
-      upcCode: '123456789115',
-      format: 'UPC-A',
-      size: 'large',
-      quantity: 5,
-      generatedAt: new Date('2024-01-14'),
-      generatedBy: 'Maria Santos',
-      status: 'Generated'
-    }
-  ];
+  // Print handler
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: 'QR Code Stickers'
+  });
 
   // Load data
   const loadData = async () => {
@@ -148,15 +113,42 @@ const UpcGenerator = () => {
       setLoading(true);
       setError(null);
       
-      // For now, use mock data
-      setProducts(mockProducts);
-      setGeneratedCodes(mockGeneratedCodes);
+      // Load products
+      const productsResult = await productService.getAllProducts();
+      if (productsResult.success) {
+        setProducts(productsResult.products || []);
+      } else {
+        throw new Error(productsResult.message || 'Failed to load products');
+      }
+
+      // Load branches
+      try {
+        const branchesData = await branchService.getBranches(userData?.roles?.[0] || 'Inventory Controller', userData?.uid || '');
+        setBranches(Array.isArray(branchesData) ? branchesData : (branchesData?.branches || []));
+      } catch (branchError) {
+        console.warn('Could not load branches:', branchError);
+        setBranches([]);
+      }
       
     } catch (err) {
       console.error('Error loading data:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred while loading data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load batches for a product in a branch
+  const loadBatches = async (productId, branchId) => {
+    try {
+      const batchesResult = await inventoryService.getProductBatches(branchId, productId);
+      if (batchesResult.success) {
+        return batchesResult.batches.filter(b => b.status === 'active' && b.remainingQuantity > 0);
+      }
+      return [];
+    } catch (error) {
+      console.error('Error loading batches:', error);
+      return [];
     }
   };
 
@@ -165,23 +157,39 @@ const UpcGenerator = () => {
     loadData();
   }, []);
 
+  // Load batches when branch or product changes in generate form
+  useEffect(() => {
+    if (generateForm.productId && generateForm.branchId) {
+      loadBatches(generateForm.productId, generateForm.branchId).then(batches => {
+        setSelectedBatches(batches);
+        if (batches.length > 0 && !generateForm.batchId) {
+          setGenerateForm(prev => ({ ...prev, batchId: batches[0].id }));
+        } else if (batches.length === 0) {
+          setGenerateForm(prev => ({ ...prev, batchId: '' }));
+        }
+      }).catch(error => {
+        console.error('Error loading batches:', error);
+        setSelectedBatches([]);
+      });
+    } else {
+      setSelectedBatches([]);
+    }
+  }, [generateForm.productId, generateForm.branchId]);
+
   // Get unique categories
   const categories = [...new Set(products.map(p => p.category))].filter(Boolean);
 
   // Filter and sort products
   const filteredProducts = products
     .filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.upc.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (product.upc || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesCategory = filters.category === 'all' || product.category === filters.category;
       const matchesStatus = filters.status === 'all' || product.status === filters.status;
-      const matchesHasUpc = filters.hasUpc === 'all' || 
-                           (filters.hasUpc === 'yes' && product.hasUpc) ||
-                           (filters.hasUpc === 'no' && !product.hasUpc);
       
-      return matchesSearch && matchesCategory && matchesStatus && matchesHasUpc;
+      return matchesSearch && matchesCategory && matchesStatus;
     })
     .sort((a, b) => {
       let aValue = a[sortBy];
@@ -205,39 +213,179 @@ const UpcGenerator = () => {
     setIsDetailsModalOpen(true);
   };
 
-  // Handle generate UPC
-  const handleGenerateUPC = (product) => {
-    setSelectedProduct(product);
-    setGenerateForm({
-      productId: product.id,
-      upcCode: product.upc || '',
-      quantity: 1,
-      format: 'UPC-A',
-      size: 'medium',
-      includeText: true,
-      textPosition: 'bottom'
-    });
-    setIsGenerateModalOpen(true);
+  // Handle generate QR code - simplified, no branch/batch selection needed, no database storage
+  const handleGenerateQRCode = async (product) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSelectedProduct(product);
+
+      // Find the oldest active batch for this product (FIFO - for expiration date)
+      let expirationDate = null;
+      let batchNumber = 'N/A';
+
+      // Try to find batches across all branches
+      if (branches.length > 0) {
+        for (const branch of branches) {
+          try {
+            const batchesResult = await inventoryService.getProductBatches(branch.id, product.id, { status: 'active' });
+            if (batchesResult.success && batchesResult.batches.length > 0) {
+              // Get the oldest batch (first one after FIFO sort)
+              const oldest = batchesResult.batches[0];
+              if (oldest && oldest.expirationDate) {
+                expirationDate = oldest.expirationDate;
+                batchNumber = oldest.batchNumber;
+                break; // Found one, use it
+              }
+            }
+          } catch (err) {
+            console.warn(`Could not fetch batches for branch ${branch.name}:`, err);
+          }
+        }
+      }
+
+      // Generate QR code string directly (no database storage - cache-based)
+      const qrCodeString = JSON.stringify({
+        productId: product.id,
+        productName: product.name,
+        price: product.otcPrice || 0,
+        batchNumber: batchNumber,
+        expirationDate: expirationDate ? expirationDate.toISOString() : null,
+        timestamp: Date.now()
+      });
+
+      // Create QR code data (in-memory only, no database)
+      const qrCode = {
+        id: `qr-${Date.now()}`,
+        qrCodeString: qrCodeString,
+        batchNumber: batchNumber,
+        productName: product.name,
+        price: product.otcPrice || 0,
+        expirationDate: expirationDate,
+        createdAt: new Date()
+      };
+
+      setGeneratedQRCodes(prev => [...prev, qrCode]);
+      setQrCodesToPrint([qrCode]);
+      setIsPrintModalOpen(true);
+      setError(null);
+    } catch (err) {
+      console.error('Error generating QR code:', err);
+      setError(err.message || 'An error occurred while generating QR code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save QR code sticker as PNG
+  const handleSaveAsPNG = async (qrCode, index) => {
+    try {
+      const stickerElement = document.getElementById(`sticker-${index}`);
+      if (!stickerElement) {
+        setError('Sticker element not found');
+        return;
+      }
+
+      // Use html2canvas to convert the sticker element to PNG
+      const canvas = await html2canvas(stickerElement, {
+        backgroundColor: '#ffffff',
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true,
+        allowTaint: true
+      });
+
+      // Convert canvas to blob and download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          setError('Failed to create PNG');
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${qrCode.productName.replace(/[^a-z0-9]/gi, '_')}_QR_${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 'image/png', 1.0);
+    } catch (err) {
+      console.error('Error saving as PNG:', err);
+      setError('Failed to save as PNG: ' + err.message);
+    }
   };
 
   // Handle form submission
-  const handleGenerateSubmit = (e) => {
+  const handleGenerateSubmit = async (e) => {
     e.preventDefault();
-    // Handle UPC generation logic here
-    console.log('Generating UPC:', generateForm);
-    setIsGenerateModalOpen(false);
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (!generateForm.productId || !generateForm.branchId || !generateForm.batchId) {
+        setError('Please fill in all required fields');
+        setLoading(false);
+        return;
+      }
+
+      const batch = selectedBatches.find(b => b.id === generateForm.batchId);
+      if (!batch) {
+        setError('Please select a valid batch');
+        setLoading(false);
+        return;
+      }
+
+      const qrCodes = [];
+      for (let i = 0; i < generateForm.quantity; i++) {
+        try {
+          const result = await qrCodeService.generateQRCodeForBatch({
+            productId: generateForm.productId,
+            batchId: generateForm.batchId,
+            branchId: generateForm.branchId,
+            expirationDate: batch.expirationDate,
+            price: selectedProduct.otcPrice || 0
+          });
+
+          if (result.success) {
+            qrCodes.push({
+              ...result.qrCodeData,
+              qrCodeString: result.qrCodeString,
+              batchNumber: batch.batchNumber,
+              productName: selectedProduct.name,
+              price: selectedProduct.otcPrice || 0
+            });
+          } else {
+            console.error('Failed to generate QR code:', result.message);
+            setError(result.message || 'Failed to generate QR code');
+          }
+        } catch (qrError) {
+          console.error('Error generating QR code:', qrError);
+          setError(qrError.message || 'Error generating QR code');
+        }
+      }
+
+      if (qrCodes.length > 0) {
+        setGeneratedQRCodes(prev => [...prev, ...qrCodes]);
+        setQrCodesToPrint(qrCodes);
+        setIsGenerateModalOpen(false);
+        setIsPrintModalOpen(true);
+        setError(null);
+      } else {
+        setError('No QR codes were generated. Please try again.');
+      }
+      
+    } catch (err) {
+      console.error('Error generating QR codes:', err);
+      setError(err.message || 'An error occurred while generating QR codes');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Generate random UPC code
-  const generateRandomUPC = () => {
-    const randomCode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
-    setGenerateForm(prev => ({ ...prev, upcCode: randomCode }));
-  };
-
-  // Copy UPC code to clipboard
+  // Copy QR code string to clipboard
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    // You could add a toast notification here
   };
 
   // Get status color
@@ -263,17 +411,16 @@ const UpcGenerator = () => {
   // Calculate statistics
   const stats = {
     totalProducts: products.length,
-    productsWithUPC: products.filter(p => p.hasUpc).length,
-    productsWithoutUPC: products.filter(p => !p.hasUpc).length,
-    totalGenerated: generatedCodes.length,
-    recentGenerated: generatedCodes.filter(g => 
-      new Date(g.generatedAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    productsWithQRCode: generatedQRCodes.length > 0 ? new Set(generatedQRCodes.map(q => q.productId)).size : 0,
+    totalGenerated: generatedQRCodes.length,
+    recentGenerated: generatedQRCodes.filter(g => 
+      new Date(g.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     ).length
   };
 
-  if (loading) {
+  if (loading && products.length === 0) {
     return (
-      <DashboardLayout>
+      <DashboardLayout menuItems={menuItems} pageTitle="QR Code Generator">
         <div className="flex items-center justify-center h-64">
           <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
           <span className="ml-2 text-gray-600">Loading products...</span>
@@ -282,9 +429,9 @@ const UpcGenerator = () => {
     );
   }
 
-  if (error) {
+  if (error && products.length === 0) {
     return (
-      <DashboardLayout>
+      <DashboardLayout menuItems={menuItems} pageTitle="QR Code Generator">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
@@ -301,32 +448,18 @@ const UpcGenerator = () => {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout menuItems={menuItems} pageTitle="QR Code Generator">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">UPC Generator</h1>
-            <p className="text-gray-600">Generate barcodes and UPC codes for products</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Import
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Generate Batch
-            </Button>
+            <h1 className="text-2xl font-bold text-gray-900">QR Code Generator</h1>
+            <p className="text-gray-600">Generate QR code stickers for product batches with expiration dates</p>
           </div>
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-4">
             <div className="flex items-center">
               <Package className="h-8 w-8 text-blue-600" />
@@ -341,18 +474,8 @@ const UpcGenerator = () => {
             <div className="flex items-center">
               <CheckCircle className="h-8 w-8 text-green-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">With UPC</p>
-                <p className="text-xl font-bold text-gray-900">{stats.productsWithUPC}</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-4">
-            <div className="flex items-center">
-              <XCircle className="h-8 w-8 text-red-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Without UPC</p>
-                <p className="text-xl font-bold text-gray-900">{stats.productsWithoutUPC}</p>
+                <p className="text-sm font-medium text-gray-600">With QR Code</p>
+                <p className="text-xl font-bold text-gray-900">{stats.productsWithQRCode}</p>
               </div>
             </div>
           </Card>
@@ -378,12 +501,27 @@ const UpcGenerator = () => {
           </Card>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <Card className="p-4 bg-red-50 border-red-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                <p className="font-medium">{error}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setError(null)}>
+                Dismiss
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* Search and Filters */}
         <Card className="p-6">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <SearchInput
-                placeholder="Search by product name, brand, or UPC..."
+                placeholder="Search by product name, brand..."
                 value={searchTerm}
                 onChange={setSearchTerm}
                 className="w-full"
@@ -410,29 +548,12 @@ const UpcGenerator = () => {
                 <option value="Inactive">Inactive</option>
                 <option value="Discontinued">Discontinued</option>
               </select>
-              <select
-                value={filters.hasUpc}
-                onChange={(e) => setFilters(prev => ({ ...prev, hasUpc: e.target.value }))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All UPC Status</option>
-                <option value="yes">Has UPC</option>
-                <option value="no">No UPC</option>
-              </select>
-              <Button
-                variant="outline"
-                onClick={() => setIsFilterModalOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <Filter className="h-4 w-4" />
-                More Filters
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => setFilters({
                   category: 'all',
                   status: 'all',
-                  hasUpc: 'all'
+                  hasQRCode: 'all'
                 })}
                 className="flex items-center gap-2"
               >
@@ -443,105 +564,113 @@ const UpcGenerator = () => {
           </div>
         </Card>
 
-        {/* Products Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
-            <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              {/* Product Image */}
-              <div className="aspect-square bg-gray-100 relative">
-                {product.imageUrl ? (
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Package className="h-16 w-16 text-gray-400" />
-                  </div>
-                )}
-                <div className="absolute top-2 right-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
-                    {getStatusIcon(product.status)}
-                    {product.status}
-                  </span>
-                </div>
-                {product.hasUpc && (
-                  <div className="absolute top-2 left-2">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <QrCode className="h-3 w-3" />
-                      UPC
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Product Info */}
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900 line-clamp-2">{product.name}</h3>
-                </div>
-                
-                <p className="text-sm text-gray-600 mb-2">{product.brand}</p>
-                <p className="text-xs text-gray-500 mb-3">{product.category}</p>
-                
-                {product.upc && (
-                  <div className="mb-3">
-                    <label className="text-xs font-medium text-gray-500">UPC Code</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">{product.upc}</code>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(product.upc)}
-                        className="p-1"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleViewDetails(product)}
-                    className="flex-1 flex items-center gap-2"
-                  >
-                    <Eye className="h-4 w-4" />
-                    View
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleGenerateUPC(product)}
-                    className="flex items-center gap-2"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    {product.hasUpc ? 'Regenerate' : 'Generate'}
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Empty State */}
-        {filteredProducts.length === 0 && (
+        {/* Products Table */}
+        {filteredProducts.length > 0 ? (
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Brand
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Category
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 h-12 w-12">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="h-12 w-12 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <Package className="h-6 w-6 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                            {product.upc && (
+                              <div className="text-xs text-gray-500 font-mono mt-1">{product.upc}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{product.brand || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{product.category || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          ₱{product.otcPrice?.toFixed(2) || '0.00'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
+                          {getStatusIcon(product.status)}
+                          {product.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewDetails(product)}
+                            className="flex items-center gap-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleGenerateQRCode(product)}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <QrCode className="h-4 w-4" />
+                            Generate Sticker
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : (
           <Card className="p-12 text-center">
             <QrCode className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Products Found</h3>
             <p className="text-gray-600 mb-4">
               {searchTerm || Object.values(filters).some(f => f !== 'all')
                 ? 'Try adjusting your search or filters'
-                : 'No products available for UPC generation'
+                : 'No products available for QR code generation'
               }
             </p>
-            <Button className="flex items-center gap-2 mx-auto">
-              <Plus className="h-4 w-4" />
-              Add Product
-            </Button>
           </Card>
         )}
 
@@ -583,60 +712,6 @@ const UpcGenerator = () => {
                 </div>
               </div>
 
-              {/* UPC Information */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">UPC Information</h3>
-                {selectedProduct.upc ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">UPC Code</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-lg bg-white px-3 py-2 rounded font-mono border">{selectedProduct.upc}</code>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(selectedProduct.upc)}
-                          className="flex items-center gap-2"
-                        >
-                          <Copy className="h-4 w-4" />
-                          Copy
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2"
-                      >
-                        <Printer className="h-4 w-4" />
-                        Print
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <QrCode className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-500 mb-3">No UPC code generated yet</p>
-                    <Button
-                      onClick={() => handleGenerateUPC(selectedProduct)}
-                      className="flex items-center gap-2"
-                    >
-                      <QrCode className="h-4 w-4" />
-                      Generate UPC
-                    </Button>
-                  </div>
-                )}
-              </div>
-
               {/* Product Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -658,20 +733,26 @@ const UpcGenerator = () => {
                   <label className="text-sm font-medium text-gray-500">Status</label>
                   <p className="text-gray-900">{selectedProduct.status}</p>
                 </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Price</label>
+                  <p className="text-gray-900">₱{selectedProduct.otcPrice?.toFixed(2) || '0.00'}</p>
+                </div>
               </div>
             </div>
           </Modal>
         )}
 
-        {/* Generate UPC Modal */}
+        {/* Generate QR Code Modal */}
         {isGenerateModalOpen && selectedProduct && (
           <Modal
             isOpen={isGenerateModalOpen}
             onClose={() => {
               setIsGenerateModalOpen(false);
               setSelectedProduct(null);
+              setSelectedBatches([]);
             }}
-            title="Generate UPC Code"
+            title="Generate QR Code Sticker"
             size="md"
           >
             <form onSubmit={handleGenerateSubmit} className="space-y-4">
@@ -681,40 +762,50 @@ const UpcGenerator = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">UPC Code *</label>
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    value={generateForm.upcCode}
-                    onChange={(e) => setGenerateForm(prev => ({ ...prev, upcCode: e.target.value }))}
-                    placeholder="Enter 12-digit UPC code"
-                    maxLength="12"
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={generateRandomUPC}
-                    className="whitespace-nowrap"
-                  >
-                    Generate Random
-                  </Button>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
+                <select
+                  value={generateForm.branchId}
+                  onChange={(e) => setGenerateForm(prev => ({ ...prev, branchId: e.target.value, batchId: '' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select Branch</option>
+                  {branches.map(branch => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Batch *</label>
+                <select
+                  value={generateForm.batchId}
+                  onChange={(e) => setGenerateForm(prev => ({ ...prev, batchId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                  disabled={!generateForm.branchId || selectedBatches.length === 0}
+                >
+                  <option value="">{selectedBatches.length === 0 ? 'No batches available' : 'Select Batch'}</option>
+                  {selectedBatches.map(batch => (
+                    <option key={batch.id} value={batch.id}>
+                      {batch.batchNumber} - Qty: {batch.remainingQuantity} 
+                      {batch.expirationDate ? ` - Exp: ${format(new Date(batch.expirationDate), 'MMM dd, yyyy')}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Format</label>
-                  <select
-                    value={generateForm.format}
-                    onChange={(e) => setGenerateForm(prev => ({ ...prev, format: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="UPC-A">UPC-A</option>
-                    <option value="UPC-E">UPC-E</option>
-                    <option value="EAN-13">EAN-13</option>
-                    <option value="EAN-8">EAN-8</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={generateForm.quantity}
+                    onChange={(e) => setGenerateForm(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                    required
+                  />
                 </div>
                 
                 <div>
@@ -727,111 +818,266 @@ const UpcGenerator = () => {
                     <option value="small">Small</option>
                     <option value="medium">Medium</option>
                     <option value="large">Large</option>
-                    <option value="xlarge">Extra Large</option>
                   </select>
                 </div>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={generateForm.quantity}
-                  onChange={(e) => setGenerateForm(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="includeText"
-                  checked={generateForm.includeText}
-                  onChange={(e) => setGenerateForm(prev => ({ ...prev, includeText: e.target.checked }))}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="includeText" className="ml-2 block text-sm text-gray-900">
-                  Include text below barcode
-                </label>
-              </div>
-              
-              {generateForm.includeText && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Text Position</label>
-                  <select
-                    value={generateForm.textPosition}
-                    onChange={(e) => setGenerateForm(prev => ({ ...prev, textPosition: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="bottom">Bottom</option>
-                    <option value="top">Top</option>
-                    <option value="both">Both</option>
-                  </select>
-                </div>
-              )}
               
               <div className="flex justify-end gap-3 pt-4">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsGenerateModalOpen(false)}
+                  onClick={() => {
+                    setIsGenerateModalOpen(false);
+                    setSelectedProduct(null);
+                    setSelectedBatches([]);
+                  }}
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  Generate UPC
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Generating...' : 'Generate QR Code'}
                 </Button>
               </div>
             </form>
           </Modal>
         )}
 
-        {/* Advanced Filters Modal */}
-        {isFilterModalOpen && (
-          <Modal
-            isOpen={isFilterModalOpen}
-            onClose={() => setIsFilterModalOpen(false)}
-            title="Advanced Filters"
-            size="md"
-          >
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Brand</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="all">All Brands</option>
-                  {/* Brand options would be populated here */}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    type="date"
-                    placeholder="Start Date"
-                  />
-                  <Input
-                    type="date"
-                    placeholder="End Date"
-                  />
+        {/* Print QR Code Stickers Modal */}
+        {isPrintModalOpen && qrCodesToPrint.length > 0 && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-screen items-center justify-center p-4">
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm transition-opacity"
+                onClick={() => {
+                  setIsPrintModalOpen(false);
+                  setQrCodesToPrint([]);
+                }}
+              />
+              
+              {/* Modal */}
+              <div className="relative w-full max-w-6xl transform overflow-hidden rounded-xl bg-white shadow-2xl transition-all">
+                {/* Enhanced Header */}
+                <div className="bg-gradient-to-r from-[#160B53] to-[#2D1B69] px-6 py-5 text-white">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/20 rounded-lg">
+                        <QrCode className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold">QR Code Stickers</h3>
+                        <p className="text-sm text-blue-100 mt-0.5">
+                          {qrCodesToPrint.length} sticker{qrCodesToPrint.length > 1 ? 's' : ''} ready to print
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsPrintModalOpen(false);
+                          setQrCodesToPrint([]);
+                        }}
+                        className="text-white border-white/30 hover:bg-white/20"
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setFilters({
-                  category: 'all',
-                  status: 'all',
-                  hasUpc: 'all'
-                })}>
-                  Reset
-                </Button>
-                <Button onClick={() => setIsFilterModalOpen(false)}>
-                  Apply Filters
-                </Button>
+                {/* Content */}
+                <div className="p-6">
+                  {/* Action Bar */}
+                  <div className="mb-6 flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-5 w-5 text-gray-600" />
+                        <span className="text-sm text-gray-700">
+                          <span className="font-semibold">{qrCodesToPrint.length}</span> sticker{qrCodesToPrint.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      {qrCodesToPrint[0]?.productName && (
+                        <>
+                          <div className="h-4 w-px bg-gray-300" />
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">Product:</span>
+                            <span className="text-sm font-semibold text-gray-900">{qrCodesToPrint[0].productName}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <Button 
+                      onClick={handlePrint} 
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+                      size="lg"
+                    >
+                      <Printer className="h-5 w-5" />
+                      Print Stickers
+                    </Button>
+                  </div>
+
+                  {/* Preview Info */}
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-blue-800 flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4" />
+                      Preview your stickers below. Click "Print Stickers" when ready.
+                    </p>
+                  </div>
+
+                  {/* Printable QR Code Stickers */}
+                  <div ref={printRef} className="print-content">
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                      {qrCodesToPrint.map((qrCode, index) => (
+                        <div
+                          key={index}
+                          id={`sticker-${index}`}
+                          className="bg-white border-2 border-gray-300 p-5 rounded-lg flex flex-col items-center justify-center space-y-3 shadow-sm hover:shadow-md transition-shadow"
+                          style={{ minHeight: '280px', pageBreakInside: 'avoid' }}
+                        >
+                          {/* Logo */}
+                          <div className="mb-2">
+                            <img
+                              src="/logo.png"
+                              alt="David's Salon Logo"
+                              className="h-12 object-contain"
+                            />
+                          </div>
+
+                          {/* QR Code */}
+                          <div className="bg-white p-2 rounded-lg border border-gray-200">
+                            {qrCode.qrCodeString ? (
+                              <QRCodeSVG
+                                id={`qr-svg-${index}`}
+                                value={qrCode.qrCodeString}
+                                size={140}
+                                level="H"
+                                includeMargin={true}
+                              />
+                            ) : (
+                              <div className="w-[140px] h-[140px] bg-gray-100 flex items-center justify-center rounded">
+                                <QrCode className="h-16 w-16 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Product Info */}
+                          <div className="text-center w-full space-y-1.5">
+                            <p className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight">
+                              {qrCode.productName}
+                            </p>
+                            
+                            {qrCode.batchNumber && qrCode.batchNumber !== 'N/A' && (
+                              <div className="flex items-center justify-center gap-1">
+                                <Package className="h-3 w-3 text-gray-500" />
+                                <p className="text-xs text-gray-600">Batch: {qrCode.batchNumber}</p>
+                              </div>
+                            )}
+                            
+                            {qrCode.expirationDate ? (
+                              <div className="flex items-center justify-center gap-1 bg-red-50 px-2 py-1 rounded">
+                                <Calendar className="h-3 w-3 text-red-600" />
+                                <p className="text-xs text-red-700 font-semibold">
+                                  Exp: {format(new Date(qrCode.expirationDate), 'MMM dd, yyyy')}
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-400 italic">No expiration date</p>
+                            )}
+                            
+                            <div className="pt-1 border-t border-gray-200">
+                              <p className="text-base font-bold text-blue-600">
+                                ₱{qrCode.price?.toFixed(2) || '0.00'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-200">
+                    <p className="text-xs text-gray-500">
+                      Stickers are optimized for standard label printers (2x2 inches)
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsPrintModalOpen(false);
+                          setQrCodesToPrint([]);
+                        }}
+                      >
+                        Close
+                      </Button>
+                      {qrCodesToPrint.length > 0 && (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleSaveAsPNG(qrCodesToPrint[0], 0)}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            Save as PNG
+                          </Button>
+                          {qrCodesToPrint.length > 1 && (
+                            <Button
+                              variant="outline"
+                              onClick={async () => {
+                                for (let i = 0; i < qrCodesToPrint.length; i++) {
+                                  await handleSaveAsPNG(qrCodesToPrint[i], i);
+                                  // Small delay between downloads
+                                  await new Promise(resolve => setTimeout(resolve, 500));
+                                }
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Download className="h-4 w-4" />
+                              Save All as PNG
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      <Button 
+                        onClick={handlePrint} 
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Print Stickers
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Print Styles */}
+                <style>{`
+                  @media print {
+                    body * {
+                      visibility: hidden;
+                    }
+                    .print-content, .print-content * {
+                      visibility: visible;
+                    }
+                    .print-content {
+                      position: absolute;
+                      left: 0;
+                      top: 0;
+                      width: 100%;
+                      background: white;
+                    }
+                    .print-content .bg-gray-50 {
+                      background: white !important;
+                    }
+                    @page {
+                      margin: 0.5cm;
+                      size: A4;
+                    }
+                  }
+                `}</style>
               </div>
             </div>
-          </Modal>
+          </div>
         )}
       </div>
     </DashboardLayout>

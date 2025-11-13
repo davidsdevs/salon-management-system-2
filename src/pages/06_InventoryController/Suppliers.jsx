@@ -38,9 +38,13 @@ import {
   ShoppingCart,
   BarChart3,
   ClipboardList,
-  UserCog
+  UserCog,
+  PackageCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { productService } from '../../services/productService';
 
 const Suppliers = () => {
   const { userData } = useAuth();
@@ -52,6 +56,7 @@ const Suppliers = () => {
     { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
     { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
     { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/deliveries', label: 'Deliveries', icon: PackageCheck },
     { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
     { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
     { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },
@@ -63,8 +68,10 @@ const Suppliers = () => {
   
   // Data states
   const [suppliers, setSuppliers] = useState([]);
+  const [supplierProducts, setSupplierProducts] = useState({}); // { supplierId: [products] }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   
   // UI states
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,95 +108,40 @@ const Suppliers = () => {
     isActive: true
   });
 
-  // Mock supplier data - in real app, this would come from API
-  const mockSuppliers = [
-    {
-      id: '1',
-      name: 'Olaplex Philippines',
-      contactPerson: 'Maria Santos',
-      email: 'maria@olaplex.ph',
-      phone: '+63 2 8888 1234',
-      address: '123 Business Ave, Makati City, Metro Manila',
-      website: 'https://olaplex.ph',
-      category: 'Hair Care',
-      paymentTerms: 'Net 30',
-      rating: 5,
-      totalOrders: 45,
-      totalValue: 1250000,
-      lastOrder: new Date('2024-01-10'),
-      notes: 'Reliable supplier with excellent product quality',
-      isActive: true,
-      createdAt: new Date('2023-06-15'),
-      updatedAt: new Date('2024-01-15')
-    },
-    {
-      id: '2',
-      name: 'L\'Oréal Professional Philippines',
-      contactPerson: 'John Rodriguez',
-      email: 'john.rodriguez@loreal.com',
-      phone: '+63 2 9999 5678',
-      address: '456 Corporate Plaza, BGC, Taguig City',
-      website: 'https://lorealprofessional.ph',
-      category: 'Hair Color',
-      paymentTerms: 'Net 15',
-      rating: 4,
-      totalOrders: 32,
-      totalValue: 890000,
-      lastOrder: new Date('2024-01-08'),
-      notes: 'Good pricing and fast delivery',
-      isActive: true,
-      createdAt: new Date('2023-08-20'),
-      updatedAt: new Date('2024-01-12')
-    },
-    {
-      id: '3',
-      name: 'Kerastase Philippines',
-      contactPerson: 'Ana Garcia',
-      email: 'ana.garcia@kerastase.ph',
-      phone: '+63 2 7777 9012',
-      address: '789 Luxury Tower, Ortigas Center, Pasig City',
-      website: 'https://kerastase.ph',
-      category: 'Hair Care',
-      paymentTerms: 'Net 45',
-      rating: 4,
-      totalOrders: 28,
-      totalValue: 650000,
-      lastOrder: new Date('2024-01-05'),
-      notes: 'Premium products, longer payment terms',
-      isActive: true,
-      createdAt: new Date('2023-09-10'),
-      updatedAt: new Date('2024-01-08')
-    },
-    {
-      id: '4',
-      name: 'Wella Professionals',
-      contactPerson: 'Carlos Mendoza',
-      email: 'carlos.mendoza@wella.com',
-      phone: '+63 2 6666 3456',
-      address: '321 Industry St, Quezon City',
-      website: 'https://wella.ph',
-      category: 'Hair Color',
-      paymentTerms: 'Net 30',
-      rating: 3,
-      totalOrders: 15,
-      totalValue: 320000,
-      lastOrder: new Date('2023-12-20'),
-      notes: 'Occasional delivery delays',
-      isActive: false,
-      createdAt: new Date('2023-10-05'),
-      updatedAt: new Date('2023-12-25')
-    }
-  ];
-
-  // Load suppliers
+  // Load suppliers from Firestore
   const loadSuppliers = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // For now, use mock data
-      setSuppliers(mockSuppliers);
+      const suppliersRef = collection(db, 'suppliers');
+      const snapshot = await getDocs(suppliersRef);
+      const suppliersList = [];
       
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        suppliersList.push({
+          id: doc.id,
+          name: data.name || 'Unknown Supplier',
+          contactPerson: data.contactPerson || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          address: data.address || '',
+          website: data.website || '',
+          category: data.category || '',
+          paymentTerms: data.paymentTerms || '',
+          rating: data.rating || 0,
+          notes: data.notes || '',
+          isActive: data.isActive !== false,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date())
+        });
+      });
+      
+      // Sort by name
+      suppliersList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      
+      setSuppliers(suppliersList);
     } catch (err) {
       console.error('Error loading suppliers:', err);
       setError(err.message);
@@ -198,10 +150,67 @@ const Suppliers = () => {
     }
   };
 
-  // Load suppliers on mount
+  // Load products for a specific supplier
+  const loadSupplierProducts = async (supplierId, showLoading = false) => {
+    if (!supplierId) return;
+    
+    // Check if already loaded
+    if (supplierProducts[supplierId]) {
+      return;
+    }
+
+    try {
+      if (showLoading) {
+        setLoadingProducts(true);
+      }
+      const result = await productService.getProductsBySupplier(supplierId);
+      
+      if (result.success) {
+        setSupplierProducts(prev => ({
+          ...prev,
+          [supplierId]: result.products
+        }));
+      } else {
+        // If no products found or error, set empty array
+        setSupplierProducts(prev => ({
+          ...prev,
+          [supplierId]: []
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading supplier products:', err);
+      setSupplierProducts(prev => ({
+        ...prev,
+        [supplierId]: []
+      }));
+    } finally {
+      if (showLoading) {
+        setLoadingProducts(false);
+      }
+    }
+  };
+
+  // Load suppliers and their products on mount
   useEffect(() => {
-    loadSuppliers();
+    const loadData = async () => {
+      await loadSuppliers();
+    };
+    loadData();
   }, []);
+
+  // Load products for all suppliers after suppliers are loaded
+  useEffect(() => {
+    if (suppliers.length > 0) {
+      const loadAllProducts = async () => {
+        for (const supplier of suppliers) {
+          if (supplier.id && !supplierProducts[supplier.id]) {
+            await loadSupplierProducts(supplier.id);
+          }
+        }
+      };
+      loadAllProducts();
+    }
+  }, [suppliers]);
 
   // Get unique categories
   const categories = [...new Set(suppliers.map(s => s.category))].filter(Boolean);
@@ -246,6 +255,10 @@ const Suppliers = () => {
   const handleViewDetails = (supplier) => {
     setSelectedSupplier(supplier);
     setIsDetailsModalOpen(true);
+    // Load products for this supplier if not already loaded
+    if (supplier.id && !supplierProducts[supplier.id]) {
+      loadSupplierProducts(supplier.id, true);
+    }
   };
 
   // Handle edit supplier
@@ -319,10 +332,9 @@ const Suppliers = () => {
   // Calculate supplier statistics
   const supplierStats = {
     totalSuppliers: suppliers.length,
-    activeSuppliers: suppliers.filter(s => s.isActive).length,
-    inactiveSuppliers: suppliers.filter(s => !s.isActive).length,
-    totalValue: suppliers.reduce((sum, s) => sum + s.totalValue, 0),
-    averageRating: suppliers.reduce((sum, s) => sum + s.rating, 0) / suppliers.length
+    activeSuppliers: suppliers.filter(s => s.isActive !== false).length,
+    inactiveSuppliers: suppliers.filter(s => s.isActive === false).length,
+    averageRating: suppliers.length > 0 ? suppliers.reduce((sum, s) => sum + (s.rating || 0), 0) / suppliers.length : 0
   };
 
   if (loading) {
@@ -358,11 +370,7 @@ const Suppliers = () => {
     <DashboardLayout menuItems={menuItems} pageTitle="Suppliers">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
-            <p className="text-gray-600">Manage your supplier relationships and information</p>
-          </div>
+        <div className="flex items-center justify-end">
           <div className="flex items-center gap-3">
             <Button variant="outline" className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
@@ -413,10 +421,10 @@ const Suppliers = () => {
           
           <Card className="p-4">
             <div className="flex items-center">
-              <DollarSign className="h-8 w-8 text-purple-600" />
+              <Package className="h-8 w-8 text-purple-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-600">Total Value</p>
-                <p className="text-xl font-bold text-gray-900">₱{supplierStats.totalValue.toLocaleString()}</p>
+                <p className="text-sm font-medium text-gray-600">Total Categories</p>
+                <p className="text-xl font-bold text-gray-900">{categories.length}</p>
               </div>
             </div>
           </Card>
@@ -533,20 +541,21 @@ const Suppliers = () => {
 
                 <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Orders:</span>
-                    <span className="ml-1 font-medium">{supplier.totalOrders}</span>
+                    <span className="text-gray-500">Payment Terms:</span>
+                    <span className="ml-1 font-medium">{supplier.paymentTerms || 'N/A'}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Value:</span>
-                    <span className="ml-1 font-medium">₱{supplier.totalValue.toLocaleString()}</span>
+                    <span className="text-gray-500">Category:</span>
+                    <span className="ml-1 font-medium">{supplier.category || 'N/A'}</span>
                   </div>
-                  <div>
-                    <span className="text-gray-500">Terms:</span>
-                    <span className="ml-1 font-medium">{supplier.paymentTerms}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Last Order:</span>
-                    <span className="ml-1 font-medium">{format(new Date(supplier.lastOrder), 'MMM dd')}</span>
+                  <div className="col-span-2">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-blue-600" />
+                      <span className="text-gray-500">Products:</span>
+                      <span className="ml-1 font-semibold text-blue-600">
+                        {supplierProducts[supplier.id]?.length || 0} available
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -669,44 +678,113 @@ const Suppliers = () => {
                   </div>
                   
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Total Orders</label>
-                    <p className="text-lg font-semibold text-gray-900">{selectedSupplier.totalOrders}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Total Value</label>
-                    <p className="text-lg font-semibold text-green-600">₱{selectedSupplier.totalValue.toLocaleString()}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Last Order</label>
-                    <p className="text-gray-900">{format(new Date(selectedSupplier.lastOrder), 'MMM dd, yyyy')}</p>
-                  </div>
-                  
-                  <div>
                     <label className="text-sm font-medium text-gray-500">Rating</label>
                     <div className="flex items-center gap-1">
-                      {getRatingStars(selectedSupplier.rating)}
-                      <span className="ml-2 text-sm text-gray-500">({selectedSupplier.rating}/5)</span>
+                      {getRatingStars(selectedSupplier.rating || 0)}
+                      <span className="ml-2 text-sm text-gray-500">({selectedSupplier.rating || 0}/5)</span>
                     </div>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Products</label>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {supplierProducts[selectedSupplier.id]?.length || 0} products
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Notes */}
-              <div>
-                <label className="text-sm font-medium text-gray-500">Notes</label>
-                <p className="text-gray-900 mt-1 bg-gray-50 p-3 rounded-lg">{selectedSupplier.notes}</p>
+              {/* Products Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-blue-600" />
+                    Products Supplied ({supplierProducts[selectedSupplier.id]?.length || 0})
+                  </h3>
+                  {loadingProducts && (
+                    <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />
+                  )}
+                </div>
+                
+                {loadingProducts ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Loading products...</p>
+                  </div>
+                ) : supplierProducts[selectedSupplier.id] && supplierProducts[selectedSupplier.id].length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {supplierProducts[selectedSupplier.id].map((product) => (
+                      <Card key={product.id} className="p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              {product.imageUrl ? (
+                                <img
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  className="w-16 h-16 object-cover rounded-lg"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+                                  <Package className="h-8 w-8 text-gray-400" />
+                                </div>
+                              )}
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-gray-900">{product.name}</h4>
+                                {product.brand && (
+                                  <p className="text-sm text-gray-600">Brand: {product.brand}</p>
+                                )}
+                                {product.sku && (
+                                  <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+                                )}
+                                {product.category && (
+                                  <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                    {product.category}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right ml-4">
+                            <p className="text-sm font-semibold text-gray-900">
+                              ₱{(product.unitCost || 0).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-500">Unit Cost</p>
+                          </div>
+                        </div>
+                        {product.description && (
+                          <p className="text-sm text-gray-600 mt-2 line-clamp-2">{product.description}</p>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No products found for this supplier</p>
+                  </div>
+                )}
               </div>
+
+              {/* Notes */}
+              {selectedSupplier.notes && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Notes</label>
+                  <p className="text-gray-900 mt-1 bg-gray-50 p-3 rounded-lg">{selectedSupplier.notes}</p>
+                </div>
+              )}
 
               {/* Timestamps */}
               <div className="border-t pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500">
                   <div>
-                    <span className="font-medium">Created:</span> {format(new Date(selectedSupplier.createdAt), 'MMM dd, yyyy HH:mm')}
+                    <span className="font-medium">Created:</span> {selectedSupplier.createdAt ? format(new Date(selectedSupplier.createdAt), 'MMM dd, yyyy HH:mm') : 'N/A'}
                   </div>
                   <div>
-                    <span className="font-medium">Updated:</span> {format(new Date(selectedSupplier.updatedAt), 'MMM dd, yyyy HH:mm')}
+                    <span className="font-medium">Updated:</span> {selectedSupplier.updatedAt ? format(new Date(selectedSupplier.updatedAt), 'MMM dd, yyyy HH:mm') : 'N/A'}
                   </div>
                 </div>
               </div>

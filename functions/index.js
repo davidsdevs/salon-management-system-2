@@ -2,11 +2,15 @@
 const admin = require('firebase-admin');
 admin.initializeApp();
 const { createUser } = require('./createUser');
+const { sendPromotionEmail } = require('./sendPromotionEmail');
 const appointmentService = require('./appointmentService');
 const masterProductsService = require('./masterProductsService');
 const staffService = require('./staffService');
 const staffExtraService = require('./staffExtraService');
 const transactionService = require('./transactionService');
+
+// Export all functions
+exports.sendPromotionEmail = sendPromotionEmail;
 
 // Export all functions
 exports.createUser = createUser.createUser;

@@ -47,6 +47,9 @@ import BranchManagerSettings from "./pages/04_BranchManager/Settings";
 import BranchManagerPurchaseOrders from "./pages/04_BranchManager/PurchaseOrders";
 import Inventory from "./pages/04_BranchManager/Inventory";
 import BranchManagerDeposits from "./pages/04_BranchManager/Deposits";
+import BranchManagerPromotions from "./pages/04_BranchManager/Promotions";
+import BranchManagerClients from "./pages/04_BranchManager/Clients";
+import Reports from "./pages/04_BranchManager/Reports";
 
 // APPOINTMENT PAGES
 import ClientAppointments from "./pages/02_Client/ClientAppointments";
@@ -85,10 +88,15 @@ import ClientReports from "./pages/02_OperationalManager/ClientReports";
 import LoyaltySummary from "./pages/02_OperationalManager/LoyaltySummary";
 import OperationalManagerPurchaseOrders from "./pages/02_OperationalManager/PurchaseOrders";
 import OperationalManagerDeposits from "./pages/02_OperationalManager/Deposits";
+import OperationalManagerInventory from "./pages/02_OperationalManager/Inventory";
+import PriceHistory from "./pages/02_OperationalManager/PriceHistory";
 
 // NEW BRANCH MANAGEMENT PAGES
 import BranchMonitoring from "./pages/02_OperationalManager/BranchMonitoring";
 import BranchDetailsManagement from "./pages/01_SystemAdmin/BranchDetailsManagement";
+
+// CONTENT MANAGEMENT
+import ContentManagement from "./pages/01_SystemAdmin/ContentManagement";
 
 // INVENTORY CONTROLLER PAGES
 import InventoryControllerDashboard from "./pages/06_InventoryController/Dashboard";
@@ -97,6 +105,7 @@ import InventoryStocks from "./pages/06_InventoryController/Stocks";
 import InventoryStockTransfer from "./pages/06_InventoryController/StockTransfer";
 import InventoryUpcGenerator from "./pages/06_InventoryController/UpcGenerator";
 import InventoryPurchaseOrders from "./pages/06_InventoryController/PurchaseOrders";
+import InventoryDeliveries from "./pages/06_InventoryController/Deliveries";
 import InventorySuppliers from "./pages/06_InventoryController/Suppliers";
 import InventoryStockAlerts from "./pages/06_InventoryController/StockAlerts";
 import InventoryReports from "./pages/06_InventoryController/Reports";
@@ -205,6 +214,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <AppointmentSeeder />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/content-management"
+        element={
+          <AdminRoute>
+            <ContentManagement />
           </AdminRoute>
         }
       />
@@ -487,14 +504,7 @@ function AppRoutes() {
         path="/reports"
         element={
           <StaffRoute>
-            <div className="min-h-screen bg-gray-50 p-6">
-              <div className="max-w-7xl mx-auto">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports</h1>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-600">Reports page - Coming soon!</p>
-                </div>
-              </div>
-            </div>
+            <Reports />
           </StaffRoute>
         }
       />
@@ -527,6 +537,26 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <OperationalManagerDeposits />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Overview - Operational Manager */}
+      <Route
+        path="/operational-manager/inventory"
+        element={
+          <StaffRoute>
+            <OperationalManagerInventory />
+          </StaffRoute>
+        }
+      />
+
+      {/* Price History - Operational Manager */}
+      <Route
+        path="/operational-manager/price-history"
+        element={
+          <StaffRoute>
+            <PriceHistory />
           </StaffRoute>
         }
       />
@@ -578,6 +608,16 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <InventoryPurchaseOrders />
+          </StaffRoute>
+        }
+      />
+
+      {/* Inventory Deliveries */}
+      <Route
+        path="/inventory/deliveries"
+        element={
+          <StaffRoute>
+            <InventoryDeliveries />
           </StaffRoute>
         }
       />
@@ -722,6 +762,23 @@ function AppRoutes() {
           </StaffRoute>
         }
       />
+      {/* Branch Manager Promotions */}
+        <Route
+          path="/branch-manager/promotions"
+          element={
+            <StaffRoute>
+              <BranchManagerPromotions />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/branch-manager/clients"
+          element={
+            <StaffRoute>
+              <BranchManagerClients />
+            </StaffRoute>
+          }
+        />
       <Route
         path="/unauthorized"
         element={

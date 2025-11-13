@@ -27,6 +27,8 @@ import {
 import { format } from 'date-fns';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { inventoryService } from '../../services/inventoryService';
+import { Package, TrendingDown, TrendingUp } from 'lucide-react';
 
 const PurchaseOrders = () => {
   const { userData } = useAuth();
@@ -54,6 +56,8 @@ const PurchaseOrders = () => {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionNote, setRejectionNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [branchStocks, setBranchStocks] = useState([]);
+  const [loadingStocks, setLoadingStocks] = useState(false);
 
   // Load purchase orders that need approval (created by Inventory Controller, status = Received)
   useEffect(() => {
@@ -124,7 +128,7 @@ const PurchaseOrders = () => {
     return {
       totalOrders: purchaseOrders.length,
       pendingApproval: purchaseOrders.filter(o => o.status === 'Received').length,
-      approvedOrders: purchaseOrders.filter(o => o.status === 'Approved').length,
+      approvedOrders: purchaseOrders.filter(o => o.status === 'Approved' || o.status === 'In Transit').length,
       rejectedOrders: purchaseOrders.filter(o => o.status === 'Rejected').length,
       totalValue: purchaseOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
     };
@@ -136,6 +140,7 @@ const PurchaseOrders = () => {
       case 'Pending': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
       case 'Received': return 'text-blue-600 bg-blue-100 border-blue-200';
       case 'Approved': return 'text-green-600 bg-green-100 border-green-200';
+      case 'In Transit': return 'text-purple-600 bg-purple-100 border-purple-200';
       case 'Rejected': return 'text-red-600 bg-red-100 border-red-200';
       case 'Shipped': return 'text-purple-600 bg-purple-100 border-purple-200';
       case 'Delivered': return 'text-green-600 bg-green-100 border-green-200';
@@ -150,6 +155,7 @@ const PurchaseOrders = () => {
       case 'Pending': return <Clock className="h-3 w-3" />;
       case 'Received': return <CheckCircle className="h-3 w-3" />;
       case 'Approved': return <CheckCircle className="h-3 w-3" />;
+      case 'In Transit': return <Truck className="h-3 w-3" />;
       case 'Rejected': return <XCircle className="h-3 w-3" />;
       case 'Shipped': return <Truck className="h-3 w-3" />;
       case 'Delivered': return <CheckCircle className="h-3 w-3" />;
@@ -166,7 +172,7 @@ const PurchaseOrders = () => {
       setError(null);
       const orderRef = doc(db, 'purchaseOrders', orderId);
       await updateDoc(orderRef, {
-        status: 'Approved',
+        status: 'In Transit',
         approvedBy: userData.uid || userData.id,
         approvedByName: (userData.firstName && userData.lastName 
           ? `${userData.firstName} ${userData.lastName}`.trim() 
@@ -177,6 +183,7 @@ const PurchaseOrders = () => {
       await loadPurchaseOrders();
       setIsDetailsModalOpen(false);
       setSelectedOrder(null);
+      setBranchStocks([]);
     } catch (err) {
       console.error('Error approving order:', err);
       setError('Failed to approve order. Please try again.');
@@ -229,6 +236,61 @@ const PurchaseOrders = () => {
   // Check if order can be approved/rejected (Pending or Received status)
   const canApproveOrReject = (order) => {
     return order.status === 'Pending' || order.status === 'Received';
+  };
+
+  // Load branch stocks when viewing order details
+  const loadBranchStocks = async (branchId) => {
+    if (!branchId) {
+      setBranchStocks([]);
+      return;
+    }
+
+    try {
+      setLoadingStocks(true);
+      const result = await inventoryService.getBranchStocks(branchId);
+      if (result.success) {
+        setBranchStocks(result.stocks);
+      } else {
+        setBranchStocks([]);
+      }
+    } catch (err) {
+      console.error('Error loading branch stocks:', err);
+      setBranchStocks([]);
+    } finally {
+      setLoadingStocks(false);
+    }
+  };
+
+  // Get current stock for a product
+  const getCurrentStock = (productId) => {
+    const stock = branchStocks.find(s => s.productId === productId);
+    return stock ? stock.currentStock || 0 : null;
+  };
+
+  // Get stock status indicator
+  const getStockStatus = (productId, orderedQty) => {
+    const currentStock = getCurrentStock(productId);
+    if (currentStock === null) return { text: 'No stock data', color: 'text-gray-500', icon: null };
+    
+    const stock = branchStocks.find(s => s.productId === productId);
+    const minStock = stock?.minStock || 0;
+    
+    if (currentStock <= minStock) {
+      return { text: `Low (${currentStock})`, color: 'text-red-600', icon: <TrendingDown className="h-3 w-3" /> };
+    } else if (currentStock < orderedQty) {
+      return { text: `Current: ${currentStock}`, color: 'text-amber-600', icon: <AlertTriangle className="h-3 w-3" /> };
+    } else {
+      return { text: `Current: ${currentStock}`, color: 'text-green-600', icon: <CheckCircle className="h-3 w-3" /> };
+    }
+  };
+
+  // Handle open details modal
+  const handleOpenDetailsModal = (order) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
+    if (order.branchId) {
+      loadBranchStocks(order.branchId);
+    }
   };
 
   if (loading && purchaseOrders.length === 0) {
@@ -342,6 +404,7 @@ const PurchaseOrders = () => {
                 <option value="Pending">Pending</option>
                 <option value="Received">Received</option>
                 <option value="Approved">Approved</option>
+                <option value="In Transit">In Transit</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Shipped">Shipped</option>
                 <option value="Delivered">Delivered</option>
@@ -439,10 +502,7 @@ const PurchaseOrders = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setIsDetailsModalOpen(true);
-                            }}
+                            onClick={() => handleOpenDetailsModal(order)}
                             className="flex items-center gap-1"
                           >
                             <Eye className="h-3 w-3" />
@@ -500,6 +560,7 @@ const PurchaseOrders = () => {
                   onClick={() => {
                     setIsDetailsModalOpen(false);
                     setSelectedOrder(null);
+                    setBranchStocks([]);
                   }}
                   className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                 >
@@ -591,6 +652,28 @@ const PurchaseOrders = () => {
                   </div>
                 </div>
 
+                {/* Branch Stock Info */}
+                {selectedOrder.branchId && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-5 w-5 text-blue-600" />
+                        <h4 className="font-semibold text-blue-900">Branch Current Stock</h4>
+                      </div>
+                      {loadingStocks ? (
+                        <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
+                      ) : (
+                        <span className="text-sm text-blue-700">
+                          {branchStocks.length} products tracked
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Current stock levels help determine if this order is justified
+                    </p>
+                  </div>
+                )}
+
                 {/* Order Items */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h3>
@@ -599,36 +682,54 @@ const PurchaseOrders = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                          <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Ordered Qty</th>
+                          <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Current Stock</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
                           <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {selectedOrder.items && selectedOrder.items.length > 0 ? (
-                          selectedOrder.items.map((item, index) => (
-                            <tr key={index}>
-                              <td className="px-4 py-3">
-                                <div className="font-medium text-gray-900">{item.productName}</div>
-                                {item.sku && (
-                                  <div className="text-xs text-gray-500">SKU: {item.sku}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-900">{item.quantity}</td>
-                              <td className="px-4 py-3 text-gray-900">₱{(item.unitPrice || 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 text-right font-semibold text-gray-900">₱{(item.totalPrice || 0).toLocaleString()}</td>
-                            </tr>
-                          ))
+                          selectedOrder.items.map((item, index) => {
+                            const stockStatus = getStockStatus(item.productId, item.quantity);
+                            const currentStock = getCurrentStock(item.productId);
+                            
+                            return (
+                              <tr key={index} className={currentStock !== null && currentStock <= (branchStocks.find(s => s.productId === item.productId)?.minStock || 0) ? 'bg-red-50' : ''}>
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-gray-900">{item.productName}</div>
+                                  {item.sku && (
+                                    <div className="text-xs text-gray-500">SKU: {item.sku}</div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="text-gray-900 font-medium">{item.quantity}</div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {loadingStocks ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin text-gray-400 mx-auto" />
+                                  ) : (
+                                    <div className={`flex items-center justify-center gap-1 ${stockStatus.color}`}>
+                                      {stockStatus.icon}
+                                      <span className="text-sm font-medium">{stockStatus.text}</span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-gray-900">₱{(item.unitPrice || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right font-semibold text-gray-900">₱{(item.totalPrice || 0).toLocaleString()}</td>
+                              </tr>
+                            );
+                          })
                         ) : (
                           <tr>
-                            <td colSpan="4" className="px-4 py-4 text-center text-gray-500">No items</td>
+                            <td colSpan="5" className="px-4 py-4 text-center text-gray-500">No items</td>
                           </tr>
                         )}
                       </tbody>
                       {selectedOrder.items && selectedOrder.items.length > 0 && (
                         <tfoot className="bg-gray-50">
                           <tr>
-                            <td colSpan="3" className="px-4 py-3 text-right font-semibold text-gray-900">Total:</td>
+                            <td colSpan="4" className="px-4 py-3 text-right font-semibold text-gray-900">Total:</td>
                             <td className="px-4 py-3 text-right font-bold text-[#160B53] text-lg">
                               ₱{(selectedOrder.totalAmount || 0).toLocaleString()}
                             </td>
@@ -667,6 +768,7 @@ const PurchaseOrders = () => {
                   onClick={() => {
                     setIsDetailsModalOpen(false);
                     setSelectedOrder(null);
+                    setBranchStocks([]);
                   }}
                   className="border-gray-300 text-gray-700 hover:bg-gray-100"
                 >

@@ -3,6 +3,7 @@ import { Button } from '../../pages/ui/button';
 import { Card } from '../../pages/ui/card';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { promotionService } from '../../services/promotionService';
 import { 
   Scissors,
   Package,
@@ -11,7 +12,10 @@ import {
   Banknote,
   CreditCard,
   Smartphone,
-  User
+  User,
+  Tag,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess, showError, mode = 'create', existingTransaction = null }) => {
@@ -30,7 +34,9 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
     total: 0,
     notes: '',
     paymentMethod: '',
-    amountReceived: 0
+    amountReceived: 0,
+    promotionCode: '',
+    appliedPromotion: null
   });
   const [availableServices, setAvailableServices] = useState([]);
   const [availableProducts, setAvailableProducts] = useState([]);
@@ -40,6 +46,10 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [promotionError, setPromotionError] = useState('');
+  const [validatingPromotion, setValidatingPromotion] = useState(false);
+  const [activePromotions, setActivePromotions] = useState([]);
+  const [loadingPromotions, setLoadingPromotions] = useState(false);
 
   // Trigger animation when modal opens
   useEffect(() => {
@@ -60,8 +70,26 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
     }, 300); // Match animation duration
   };
 
+  // Load active promotions
+  const loadActivePromotions = async () => {
+    if (!userData?.branchId) return;
+    
+    try {
+      setLoadingPromotions(true);
+      const clientId = formData.clientId || null;
+      const promotions = await promotionService.getActivePromotions(userData.branchId, clientId);
+      setActivePromotions(promotions);
+    } catch (error) {
+      console.error('Error loading promotions:', error);
+    } finally {
+      setLoadingPromotions(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
+      loadActivePromotions();
+      
       if ((mode === 'payment' || mode === 'edit') && existingTransaction) {
         // Load existing transaction data for payment processing
         // Normalize service and product data to ensure 'name' field exists
@@ -92,7 +120,8 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
           total: existingTransaction.total || 0,
           notes: existingTransaction.notes || '',
           paymentMethod: '',
-          amountReceived: existingTransaction.total || 0
+          amountReceived: existingTransaction.total || 0,
+          appliedPromotion: existingTransaction.appliedPromotion || null
         });
       } else {
         // Creating new invoice
@@ -387,6 +416,111 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
     client.name.toLowerCase() === clientSearchTerm.toLowerCase()
   );
 
+  // Apply selected promotion
+  const handleApplyPromotion = async (promotionId) => {
+    if (!promotionId) {
+      setPromotionError('Please select a promotion');
+      return;
+    }
+
+    if (!userData?.branchId) {
+      setPromotionError('Branch ID not found');
+      return;
+    }
+
+    try {
+      setValidatingPromotion(true);
+      setPromotionError('');
+
+      const promotion = activePromotions.find(p => p.id === promotionId);
+      if (!promotion) {
+        setPromotionError('Promotion not found');
+        return;
+      }
+
+      // Validate promotion (check dates, usage, etc.)
+      const clientId = formData.clientId || null;
+      const validation = await promotionService.validatePromotionCode(
+        promotion.promotionCode,
+        userData.branchId,
+        clientId
+      );
+
+      if (!validation.success) {
+        setPromotionError(validation.error);
+        setFormData(prev => ({
+          ...prev,
+          appliedPromotion: null,
+          discount: 0
+        }));
+        // Reload promotions to update list
+        await loadActivePromotions();
+        return;
+      }
+
+      // Calculate subtotal for discount calculation
+      let subtotal = 0;
+      formData.services.forEach(service => {
+        subtotal += service.adjustedPrice || service.price || 0;
+      });
+      formData.products.forEach(product => {
+        subtotal += (product.price || 0) * (product.quantity || 0);
+      });
+
+      // Calculate promotion discount
+      const discountDetails = promotionService.calculatePromotionDiscount(
+        promotion,
+        subtotal,
+        formData.services,
+        formData.products
+      );
+
+      // Update form with promotion discount
+      const discountPercentage = discountDetails.discountType === 'percentage' 
+        ? discountDetails.discountValue 
+        : (discountDetails.discountAmount / subtotal) * 100;
+
+      setFormData(prev => ({
+        ...prev,
+        appliedPromotion: {
+          id: promotion.id,
+          code: promotion.promotionCode,
+          title: promotion.title,
+          discountAmount: discountDetails.discountAmount,
+          discountType: discountDetails.discountType,
+          discountValue: discountDetails.discountValue
+        },
+        discount: discountPercentage
+      }));
+
+      setPromotionError('');
+    } catch (error) {
+      console.error('Error applying promotion:', error);
+      setPromotionError('Failed to apply promotion');
+    } finally {
+      setValidatingPromotion(false);
+    }
+  };
+
+  // Remove promotion
+  const handleRemovePromotion = () => {
+    setFormData(prev => ({
+      ...prev,
+      appliedPromotion: null,
+      discount: 0
+    }));
+    setPromotionError('');
+    // Reload promotions to refresh list
+    loadActivePromotions();
+  };
+
+  // Reload promotions when client changes
+  useEffect(() => {
+    if (isOpen && formData.clientId) {
+      loadActivePromotions();
+    }
+  }, [formData.clientId, isOpen]);
+
   const calculateTotal = () => {
     let subtotal = 0;
 
@@ -398,10 +532,18 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
       subtotal += (product.price || 0) * (product.quantity || 0);
     });
 
-    const discountPercentage = formData.discount || 0;
-    const discountAmount = (subtotal * discountPercentage) / 100;
-    const tax = formData.tax || 0;
+    // Calculate discount
+    let discountAmount = 0;
+    if (formData.appliedPromotion) {
+      // Use promotion discount amount directly
+      discountAmount = formData.appliedPromotion.discountAmount;
+    } else {
+      // Use percentage discount
+      const discountPercentage = formData.discount || 0;
+      discountAmount = (subtotal * discountPercentage) / 100;
+    }
 
+    const tax = formData.tax || 0;
     const total = subtotal - discountAmount + tax;
 
     setFormData(prev => ({
@@ -413,7 +555,7 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
 
   useEffect(() => {
     calculateTotal();
-  }, [formData.services, formData.products, formData.discount, formData.tax]);
+  }, [formData.services, formData.products, formData.discount, formData.tax, formData.appliedPromotion]);
 
   const handleSubmit = async () => {
     try {
@@ -458,8 +600,10 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
         discount: 0,
         tax: 0,
         total: 0,
-        notes: ''
+        notes: '',
+        appliedPromotion: null
       }));
+      setPromotionError('');
     } catch (error) {
       console.error('Error submitting transaction:', error);
     } finally {
@@ -904,6 +1048,68 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
                   </div>
                 )}
 
+                {/* Promotion Selection */}
+                <div className="mb-3">
+                  <label className="block text-xs text-gray-500 mb-1">Active Promotions</label>
+                  {loadingPromotions ? (
+                    <div className="text-xs text-gray-500 py-2">Loading promotions...</div>
+                  ) : activePromotions.length === 0 ? (
+                    <div className="text-xs text-gray-500 py-2">No active promotions available</div>
+                  ) : (
+                    <>
+                      <select
+                        value={formData.appliedPromotion?.id || ''}
+                        onChange={(e) => {
+                          const promotionId = e.target.value;
+                          if (promotionId) {
+                            handleApplyPromotion(promotionId);
+                          } else {
+                            handleRemovePromotion();
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-[#160B53] focus:border-transparent"
+                        disabled={validatingPromotion}
+                      >
+                        <option value="">Select a promotion...</option>
+                        {activePromotions.map(promotion => (
+                          <option key={promotion.id} value={promotion.id}>
+                            {promotion.title} - {promotion.discountType === 'percentage' 
+                              ? `${promotion.discountValue}% OFF`
+                              : `₱${promotion.discountValue} OFF`}
+                            {promotion.applicableTo === 'services' && ' (Services Only)'}
+                            {promotion.applicableTo === 'products' && ' (Products Only)'}
+                            {promotion.applicableTo === 'specific' && ' (Specific Items)'}
+                          </option>
+                        ))}
+                      </select>
+                      {promotionError && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                          <AlertCircle className="h-3 w-3" />
+                          {promotionError}
+                        </div>
+                      )}
+                      {formData.appliedPromotion && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-green-600 bg-green-50 p-2 rounded">
+                          <CheckCircle className="h-3 w-3" />
+                          <span className="font-semibold">{formData.appliedPromotion.title}</span>
+                          <span className="text-gray-600">
+                            ({formData.appliedPromotion.discountType === 'percentage' 
+                              ? `${formData.appliedPromotion.discountValue}% OFF`
+                              : `₱${formData.appliedPromotion.discountValue} OFF`})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleRemovePromotion}
+                            className="ml-auto text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
                 {/* Discount and Tax - Always editable */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -914,10 +1120,21 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
                       max="100"
                       step="0.1"
                       value={formData.discount}
-                      onChange={(e) => handleInputChange('discount', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const newDiscount = parseFloat(e.target.value) || 0;
+                        // If promotion is applied, remove it when manually changing discount
+                        if (formData.appliedPromotion && newDiscount !== formData.discount) {
+                          handleRemovePromotion();
+                        }
+                        handleInputChange('discount', newDiscount);
+                      }}
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-[#160B53] focus:border-transparent"
                       placeholder="0"
+                      disabled={!!formData.appliedPromotion}
                     />
+                    {formData.appliedPromotion && (
+                      <p className="text-xs text-gray-500 mt-0.5">Discount from promotion</p>
+                    )}
                   </div>
                   
                   <div>
@@ -1010,8 +1227,14 @@ const SalonTransactionForm = ({ isOpen, onClose, onSubmit, userData, showSuccess
                   <span>₱{formData.subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Discount ({formData.discount}%):</span>
-                  <span>-₱{((formData.subtotal * formData.discount) / 100).toFixed(2)}</span>
+                  <span>
+                    Discount {formData.appliedPromotion 
+                      ? `(${formData.appliedPromotion.title})`
+                      : `(${formData.discount}%)`}:
+                  </span>
+                  <span>-₱{formData.appliedPromotion 
+                    ? formData.appliedPromotion.discountAmount.toFixed(2)
+                    : ((formData.subtotal * formData.discount) / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tax:</span>

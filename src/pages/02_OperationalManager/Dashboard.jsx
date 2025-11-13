@@ -4,18 +4,22 @@ import { useAuth } from '../../context/AuthContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import DashboardLayout from '../shared/DashboardLayout';
-import { Users, Calendar, DollarSign, User, Home, Building2, BarChart3, UserCog, ShoppingCart } from 'lucide-react';
+import { Users, Calendar, DollarSign, User, Home, Building2, BarChart3, UserCog, ShoppingCart, Package, Award, MapPin } from 'lucide-react';
 
 const OperationalManagerDashboard = () => {
   const { userData } = useAuth();
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/appointment-reports', label: 'Appointment Reports', icon: Calendar },
-    { path: '/branch-management', label: 'Branch Management', icon: Building2 },
+    { path: '/operational-manager/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/appointment-reports', label: 'Appointments', icon: Calendar },
+    { path: '/branch-monitoring', label: 'Branch Monitoring', icon: MapPin },
+    { path: '/operational-manager/clients', label: 'Client Reports', icon: Users },
+    { path: '/operational-manager/loyalty-summary', label: 'Loyalty Summary', icon: Award },
+    { path: '/operational-manager/inventory', label: 'Inventory', icon: Package },
+    { path: '/operational-manager/price-history', label: 'Price History', icon: DollarSign },
     { path: '/operational-manager/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
     { path: '/operational-manager/deposits', label: 'Deposit Reviews', icon: DollarSign },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
+    { path: '/operational-manager/reports', label: 'Analytics', icon: BarChart3 },
     { path: '/profile', label: 'Profile', icon: UserCog },
   ];
 

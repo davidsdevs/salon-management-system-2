@@ -1,0 +1,86 @@
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333333; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+  
+  <!-- Header Section -->
+  <div style="background: linear-gradient(135deg, #160B53 0%, #12094A 100%); color: #ffffff; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px;">🎉 Special Promotion</h1>
+    <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">David's Salon</p>
+  </div>
+
+  <!-- Main Content -->
+  <div style="padding: 30px 20px; background-color: #ffffff;">
+    
+    <!-- Intro Message -->
+    <div style="margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #160B53; border-radius: 4px;">
+      <p style="margin: 0; color: #555555; font-size: 14px; line-height: 1.6;">
+        A message by <strong style="color: #160B53;">{{name}}</strong> has been received. Kindly respond at your earliest convenience.
+      </p>
+    </div>
+
+    <!-- Message Card -->
+    <div style="
+      margin-top: 20px;
+      padding: 20px;
+      border: 2px solid #e8e9ea;
+      border-radius: 12px;
+      background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    ">
+      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="vertical-align: top; width: 60px; padding-right: 15px;">
+            <div style="
+              width: 50px;
+              height: 50px;
+              padding: 0;
+              margin: 0;
+              background: linear-gradient(135deg, #160B53 0%, #1a0f6b 100%);
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 24px;
+              box-shadow: 0 4px 12px rgba(22, 11, 83, 0.2);
+            " role="img">
+              👤
+            </div>
+          </td>
+          <td style="vertical-align: top; padding-left: 0;">
+            <div style="margin-bottom: 8px;">
+              <strong style="color: #160B53; font-size: 18px; font-weight: 600; display: block;">
+                {{name}}
+              </strong>
+            </div>
+            <div style="margin-bottom: 15px;">
+              <span style="color: #888888; font-size: 13px; font-weight: 500; display: inline-block; padding: 4px 10px; background-color: #f0f0f0; border-radius: 4px;">
+                📅 {{time}}
+              </span>
+            </div>
+            <div style="
+              color: #2c3e50;
+              font-size: 15px;
+              line-height: 1.7;
+              white-space: pre-line;
+              padding: 15px;
+              background-color: #ffffff;
+              border-radius: 8px;
+              border: 1px solid #e8e9ea;
+            ">
+              {{message}}
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e8e9ea; text-align: center;">
+      <p style="margin: 0; color: #999999; font-size: 12px; line-height: 1.5;">
+        This is an automated email from David's Salon Management System.<br>
+        Please do not reply to this email.
+      </p>
+    </div>
+
+  </div>
+
+</div>
+

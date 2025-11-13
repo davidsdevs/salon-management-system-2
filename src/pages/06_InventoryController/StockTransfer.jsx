@@ -42,7 +42,8 @@ import {
   DollarSign,
   ClipboardList,
   UserCog,
-  AlertCircle
+  AlertCircle,
+  PackageCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -56,6 +57,7 @@ const StockTransfer = () => {
     { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
     { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
     { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/deliveries', label: 'Deliveries', icon: PackageCheck },
     { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
     { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
     { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },

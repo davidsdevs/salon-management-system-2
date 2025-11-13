@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import DashboardLayout from '../shared/DashboardLayout';
 import UserForm from '../../components/user/UserForm';
 import { appointmentService } from '../../services/appointmentService';
-import { Users, Calendar, Package, DollarSign, User, Home, Building2, Building, Settings, BarChart3, UserCog, Scissors, Package2, RefreshCw } from 'lucide-react';
+import { Users, Calendar, Package, DollarSign, User, Home, Building2, Building, Settings, BarChart3, UserCog, Scissors, Package2, RefreshCw, Type } from 'lucide-react';
 
 const SystemAdminDashboard = () => {
   const { userData } = useAuth();
@@ -146,6 +146,18 @@ const SystemAdminDashboard = () => {
               )}
             </Button>
           </div>
+        </Card>
+
+        {/* Content Management Section */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Content Management</h2>
+          <p className="text-sm text-gray-600 mb-4">Manage your public-facing landing pages with inline editing.</p>
+          <Link to="/content-management">
+            <Button className="w-full flex items-center justify-center bg-green-600 hover:bg-green-700 text-white">
+              <Type className="h-5 w-5 mr-2" />
+              Manage Content
+            </Button>
+          </Link>
         </Card>
 
         {/* Quick Actions */}

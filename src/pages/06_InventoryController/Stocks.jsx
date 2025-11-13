@@ -8,8 +8,11 @@ import { Input } from '../ui/input';
 import { SearchInput } from '../ui/search-input';
 import Modal from '../ui/modal';
 import { productService } from '../../services/productService';
+import { activityLogService } from '../../services/activityLogService';
+import { stockListenerService } from '../../services/stockListenerService';
+import { weeklyStockRecorder } from '../../services/weeklyStockRecorder';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, startAfter, getCountFromServer, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, orderBy, limit, startAfter, getCountFromServer, updateDoc, doc, getDoc } from 'firebase/firestore';
 import { 
   Package, 
   Search,
@@ -44,7 +47,8 @@ import {
   UserCog,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  PackageCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -58,6 +62,7 @@ const Stocks = () => {
     { path: '/inventory/stock-transfer', label: 'Stock Transfer', icon: ArrowRightLeft },
     { path: '/inventory/upc-generator', label: 'UPC Generator', icon: QrCode },
     { path: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { path: '/inventory/deliveries', label: 'Deliveries', icon: PackageCheck },
     { path: '/inventory/suppliers', label: 'Suppliers', icon: Truck },
     { path: '/inventory/stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
     { path: '/inventory/reports', label: 'Reports', icon: BarChart3 },
@@ -85,7 +90,6 @@ const Stocks = () => {
   // UI states
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [sortBy, setSortBy] = useState('productName');
   const [sortOrder, setSortOrder] = useState('asc');
@@ -97,6 +101,11 @@ const Stocks = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [selectedProductId, setSelectedProductId] = useState(null); // For viewing stock history
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [loadingActivityLogs, setLoadingActivityLogs] = useState(false);
+  const [historyDateFilter, setHistoryDateFilter] = useState('all'); // 'all', '7days', '30days', '90days', '1year', 'custom'
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isCreateStockModalOpen, setIsCreateStockModalOpen] = useState(false);
   const [isEditStockModalOpen, setIsEditStockModalOpen] = useState(false);
@@ -166,7 +175,6 @@ const Stocks = () => {
   
   // Filter states
   const [filters, setFilters] = useState({
-    branch: 'all',
     status: 'all',
     category: 'all',
     stockRange: { min: '', max: '' },
@@ -239,6 +247,48 @@ const Stocks = () => {
       expiryDate: new Date('2025-03-15')
     }
   ];
+
+  // Helper function to get branch name
+  const getBranchName = async (branchId) => {
+    if (!branchId) return 'Unknown Branch';
+    try {
+      const branchDoc = await getDoc(doc(db, 'branches', branchId));
+      if (branchDoc.exists()) {
+        return branchDoc.data().name || 'Unknown Branch';
+      }
+    } catch (error) {
+      console.error('Error getting branch name:', error);
+    }
+    return 'Unknown Branch';
+  };
+
+  // Helper function to log activity
+  const logActivity = async (action, entityType, entityId, entityName, changes, reason = '', notes = '') => {
+    try {
+      const branchName = await getBranchName(userData?.branchId);
+      const userName = userData?.displayName || userData?.name || userData?.email || 'Unknown User';
+      const userRole = userData?.roles?.[0] || userData?.role || 'unknown';
+
+      await activityLogService.createActivityLog({
+        module: 'stocks',
+        action,
+        entityType,
+        entityId,
+        entityName,
+        branchId: userData?.branchId || '',
+        branchName,
+        userId: userData?.uid || '',
+        userName,
+        userRole,
+        changes,
+        reason,
+        notes
+      });
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      // Don't throw - activity logging should not break the main flow
+    }
+  };
 
   // Load stocks and products
   const loadData = async () => {
@@ -401,6 +451,29 @@ const Stocks = () => {
     loadData();
   }, []);
 
+  // Start stock listener on mount
+  useEffect(() => {
+    if (userData?.branchId) {
+      console.log('Starting stock listener for branch:', userData.branchId);
+      
+      const unsubscribe = stockListenerService.startListening(
+        userData.branchId,
+        (transactionId, transactionData) => {
+          console.log('Stock updated from transaction:', transactionId);
+          // Reload stocks to reflect changes
+          reloadStocks();
+        }
+      );
+
+      // Cleanup: stop listener on unmount
+      return () => {
+        if (unsubscribe) {
+          stockListenerService.stopListening(userData.branchId);
+        }
+      };
+    }
+  }, [userData?.branchId]);
+
   // Reset visible range when filters change
   useEffect(() => {
     setVisibleStartIndex(0);
@@ -508,11 +581,6 @@ const Stocks = () => {
   // Get current month stocks for display (only from loaded stocks)
   const currentMonthStocks = getCurrentStocksByProduct();
 
-  // Get unique branches (from loaded data only - memoized for performance)
-  const branches = useMemo(() => {
-    return [...new Set(currentMonthStocks.map(s => s.branchName))].filter(Boolean);
-  }, [currentMonthStocks]);
-  
   // Get unique categories (from loaded data only - memoized for performance)
   const categories = useMemo(() => {
     return [...new Set(currentMonthStocks.map(s => s.category || s.product?.category))].filter(Boolean);
@@ -532,7 +600,6 @@ const Stocks = () => {
           (stock.brand || product?.brand || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
           (stock.upc || product?.upc || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase());
         
-        const matchesBranch = filters.branch === 'all' || stock.branchName === filters.branch;
         const matchesStatus = filters.status === 'all' || stock.status === filters.status;
         const matchesCategory = filters.category === 'all' || 
           (stock.category || product?.category || '') === filters.category;
@@ -544,7 +611,7 @@ const Stocks = () => {
         const minStock = stock.minStock || 0;
         const matchesLowStock = !filters.lowStock || currentStock <= minStock;
         
-        return matchesSearch && matchesBranch && matchesStatus && matchesCategory && matchesStockRange && matchesLowStock;
+        return matchesSearch && matchesStatus && matchesCategory && matchesStockRange && matchesLowStock;
       })
       .sort((a, b) => {
         const aStock = a.productName || a.product?.name || '';
@@ -749,6 +816,54 @@ const Stocks = () => {
               Export
             </Button>
             <Button 
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={async () => {
+                if (!userData?.branchId) {
+                  alert('Branch ID not found');
+                  return;
+                }
+                
+                const now = new Date();
+                const currentDate = now.getDate();
+                let weekNumber;
+                if (currentDate <= 7) {
+                  weekNumber = 1;
+                } else if (currentDate <= 14) {
+                  weekNumber = 2;
+                } else if (currentDate <= 21) {
+                  weekNumber = 3;
+                } else {
+                  weekNumber = 4;
+                }
+
+                if (confirm(`Record Week ${weekNumber} stock for all products?`)) {
+                  try {
+                    const userName = userData?.displayName || userData?.name || userData?.email || 'System';
+                    const result = await weeklyStockRecorder.recordWeeklyStock(
+                      userData.branchId,
+                      weekNumber,
+                      userData?.uid,
+                      userName
+                    );
+                    
+                    if (result.success) {
+                      alert(`Successfully recorded Week ${weekNumber} stock for ${result.recorded.length} products!`);
+                      await reloadStocks();
+                    } else {
+                      alert(`Error: ${result.message}`);
+                    }
+                  } catch (error) {
+                    console.error('Error recording weekly stock:', error);
+                    alert('Failed to record weekly stock. Please try again.');
+                  }
+                }
+              }}
+            >
+              <Calendar className="h-4 w-4" />
+              Record Week Stock
+            </Button>
+            <Button 
               className="flex items-center gap-2"
               onClick={() => setIsCreateStockModalOpen(true)}
             >
@@ -830,16 +945,6 @@ const Stocks = () => {
             </div>
             <div className="flex gap-3">
               <select
-                value={filters.branch}
-                onChange={(e) => setFilters(prev => ({ ...prev, branch: e.target.value }))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Branches</option>
-                {branches.map(branch => (
-                  <option key={branch} value={branch}>{branch}</option>
-                ))}
-              </select>
-              <select
                 value={filters.status}
                 onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -861,7 +966,6 @@ const Stocks = () => {
                 variant="outline"
                 onClick={() => {
                   setFilters({
-                    branch: 'all',
                     status: 'all',
                     category: 'all',
                     stockRange: { min: '', max: '' },
@@ -1460,6 +1564,30 @@ const Stocks = () => {
                       
                       await updateDoc(stockDocRef, updateData);
                       
+                      // Log activity
+                      await logActivity(
+                        'update',
+                        'stock',
+                        selectedStock.id,
+                        selectedStock.productName || 'Unknown Product',
+                        {
+                          before: {
+                            weekOneStock: selectedStock.weekOneStock || 0,
+                            weekTwoStock: selectedStock.weekTwoStock || 0,
+                            weekThreeStock: selectedStock.weekThreeStock || 0,
+                            weekFourStock: selectedStock.weekFourStock || 0
+                          },
+                          after: {
+                            weekOneStock: parseInt(editStockForm.weekOneStock) || 0,
+                            weekTwoStock: parseInt(editStockForm.weekTwoStock) || 0,
+                            weekThreeStock: parseInt(editStockForm.weekThreeStock) || 0,
+                            weekFourStock: parseInt(editStockForm.weekFourStock) || 0
+                          }
+                        },
+                        'Weekly stock update',
+                        `Updated weekly stock counts for ${selectedStock.productName || 'product'}`
+                      );
+                      
                       setIsEditStockModalOpen(false);
                       setIsDetailsModalOpen(false);
                       setSelectedStock(null);
@@ -1498,70 +1626,209 @@ const Stocks = () => {
         {isHistoryModalOpen && selectedProductId && (() => {
           const historyStocks = getStockHistoryForProduct(selectedProductId);
           const selectedProduct = products.find(p => p.id === selectedProductId);
+          const selectedStock = stocks.find(s => s.productId === selectedProductId);
           return (
             <Modal
               isOpen={isHistoryModalOpen}
               onClose={() => {
                 setIsHistoryModalOpen(false);
                 setSelectedProductId(null);
+                setActivityLogs([]);
+                setHistoryDateFilter('all');
               }}
-              title={`Stock History - ${selectedProduct?.name || 'Unknown Product'}`}
-              size="lg"
+              title={`Stock History & Activity Logs - ${selectedProduct?.name || 'Unknown Product'}`}
+              size="xl"
             >
-              <div className="space-y-4">
-                {historyStocks.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No stock history found for this product</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beginning</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 1</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 2</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 3</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 4</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Real-time</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ending Stock</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {historyStocks.map((stock) => {
-                          const endingStockValue = stock.endingStockInfo?.calculatedEndingStock || stock.realTimeStock || 0;
-                          return (
-                            <tr key={stock.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{stock.monthLabel}</div>
-                                <div className="text-xs text-gray-500">
-                                  {stock.startPeriod ? format(new Date(stock.startPeriod), 'MMM dd') : ''} - 
-                                  {stock.endPeriod ? format(new Date(stock.endPeriod), ' MMM dd') : ''}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.beginningStock || 0}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekOneStock || 0}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekTwoStock || 0}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekThreeStock || 0}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekFourStock || 0}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{stock.realTimeStock || 0}</td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="text-sm font-bold text-green-600">{endingStockValue}</div>
-                                {stock.endingStockInfo && (
+              <div className="space-y-6">
+                {/* Date Filter */}
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-gray-700">Filter by Date:</label>
+                  <select
+                    value={historyDateFilter}
+                    onChange={(e) => {
+                      setHistoryDateFilter(e.target.value);
+                      if (e.target.value !== 'custom') {
+                        loadActivityLogs(selectedProductId, selectedStock?.id);
+                      }
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="7days">Last 7 Days</option>
+                    <option value="30days">Last 30 Days</option>
+                    <option value="90days">Last 90 Days</option>
+                    <option value="1year">Last Year</option>
+                    <option value="custom">Custom Range</option>
+                  </select>
+                  {historyDateFilter === 'custom' && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="px-3 py-2"
+                      />
+                      <span className="text-gray-500">to</span>
+                      <Input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="px-3 py-2"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => loadActivityLogs(selectedProductId, selectedStock?.id)}
+                        className="flex items-center gap-2"
+                      >
+                        <Search className="h-4 w-4" />
+                        Apply
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Stock History Table */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Monthly Stock Records</h3>
+                  {historyStocks.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <Package className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-600">No stock history found for this product</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beginning</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 1</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 2</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 3</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week 4</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Real-time</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ending Stock</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {historyStocks.map((stock) => {
+                            const endingStockValue = stock.endingStockInfo?.calculatedEndingStock || stock.realTimeStock || 0;
+                            return (
+                              <tr key={stock.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{stock.monthLabel}</div>
                                   <div className="text-xs text-gray-500">
-                                    Next: {stock.endingStockInfo.endingStock} + Del: {stock.endingStockInfo.deliveries}
+                                    {stock.startPeriod ? format(new Date(stock.startPeriod), 'MMM dd') : ''} - 
+                                    {stock.endPeriod ? format(new Date(stock.endPeriod), ' MMM dd') : ''}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.beginningStock || 0}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekOneStock || 0}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekTwoStock || 0}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekThreeStock || 0}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stock.weekFourStock || 0}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{stock.realTimeStock || 0}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="text-sm font-bold text-green-600">{endingStockValue}</div>
+                                  {stock.endingStockInfo && (
+                                    <div className="text-xs text-gray-500">
+                                      Next: {stock.endingStockInfo.endingStock} + Del: {stock.endingStockInfo.deliveries}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Activity Logs */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Activity Logs & Adjustments</h3>
+                  {loadingActivityLogs ? (
+                    <div className="text-center py-8">
+                      <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+                      <p className="text-gray-600">Loading activity logs...</p>
+                    </div>
+                  ) : activityLogs.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <Activity className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-600">No activity logs found for this period</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {activityLogs.map((log) => {
+                        const actionColors = {
+                          create: 'bg-green-100 text-green-800',
+                          update: 'bg-blue-100 text-blue-800',
+                          adjust: 'bg-orange-100 text-orange-800',
+                          delete: 'bg-red-100 text-red-800'
+                        };
+                        const actionIcons = {
+                          create: <Plus className="h-4 w-4" />,
+                          update: <Edit className="h-4 w-4" />,
+                          adjust: <AlertTriangle className="h-4 w-4" />,
+                          delete: <XCircle className="h-4 w-4" />
+                        };
+                        return (
+                          <Card key={log.id} className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${actionColors[log.action] || 'bg-gray-100 text-gray-800'}`}>
+                                    {actionIcons[log.action]}
+                                    {log.action.toUpperCase()}
+                                  </span>
+                                  <span className="text-sm text-gray-600">
+                                    {format(log.timestamp || log.createdAt, 'MMM dd, yyyy HH:mm')}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-medium text-gray-900 mb-1">{log.entityName}</p>
+                                {log.reason && (
+                                  <p className="text-sm text-gray-700 mb-2">
+                                    <span className="font-medium">Reason:</span> {log.reason}
+                                  </p>
+                                )}
+                                {log.notes && (
+                                  <p className="text-sm text-gray-600 mb-2">{log.notes}</p>
+                                )}
+                                {log.changes && Object.keys(log.changes).length > 0 && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                    {log.changes.before && log.changes.after && (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-red-600">Before:</span>
+                                          <span>{JSON.stringify(log.changes.before, null, 2)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-green-600">After:</span>
+                                          <span>{JSON.stringify(log.changes.after, null, 2)}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {log.changes.adjustmentQuantity && (
+                                      <div className="text-orange-600">
+                                        Adjustment: {log.changes.adjustmentQuantity} units
+                                      </div>
+                                    )}
                                   </div>
                                 )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                                  <span>By: {log.userName} ({log.userRole})</span>
+                                  <span>•</span>
+                                  <span>Branch: {log.branchName}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </Modal>
           );
@@ -2050,7 +2317,27 @@ const Stocks = () => {
                         status: 'active'
                       };
                       
-                      await addDoc(collection(db, 'stocks'), stockData);
+                      const stockDocRef = await addDoc(collection(db, 'stocks'), stockData);
+                      
+                      // Log activity
+                      await logActivity(
+                        'create',
+                        'stock',
+                        stockDocRef.id,
+                        selectedProductData?.name || 'Unknown Product',
+                        {
+                          beginningStock,
+                          startPeriod: createStockForm.startPeriod,
+                          endPeriod: createStockForm.endPeriod,
+                          weekOneStock,
+                          weekTwoStock,
+                          weekThreeStock,
+                          weekFourStock,
+                          endStock
+                        },
+                        'Stock record creation',
+                        `Created new stock record for ${selectedProductData?.name || 'product'}`
+                      );
                       
                       // Reset form and close modal
                       setCreateStockForm({
@@ -2329,6 +2616,30 @@ const Stocks = () => {
                         realTimeStock: parseInt(forceAdjustForm.newStock),
                         updatedAt: serverTimestamp()
                       });
+                      
+                      // Get product name for logging
+                      const stockDoc = await getDoc(stockDocRef);
+                      const stockData = stockDoc.data();
+                      const productName = stockData?.productName || 'Unknown Product';
+                      
+                      // Log activity
+                      await logActivity(
+                        'adjust',
+                        'stock',
+                        forceAdjustForm.stockId,
+                        productName,
+                        {
+                          before: {
+                            realTimeStock: parseInt(forceAdjustForm.currentStock)
+                          },
+                          after: {
+                            realTimeStock: parseInt(forceAdjustForm.newStock)
+                          },
+                          adjustmentQuantity: parseInt(forceAdjustForm.adjustmentQuantity)
+                        },
+                        forceAdjustForm.reason,
+                        forceAdjustForm.notes || `Stock force adjustment: ${parseInt(forceAdjustForm.currentStock)} → ${parseInt(forceAdjustForm.newStock)}`
+                      );
                       
                       // Reset form and close modal
                       setForceAdjustForm({

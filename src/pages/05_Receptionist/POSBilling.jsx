@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../ui/card';
@@ -7,6 +8,7 @@ import DashboardLayout from '../shared/DashboardLayout';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { transactionService, TRANSACTION_STATUS } from '../../services/transactionService';
+import { promotionService } from '../../services/promotionService';
 import { hasPermission } from '../../utils/roles';
 import { 
   Scissors, 
@@ -121,71 +123,30 @@ const POSBilling = () => {
     return () => clearTimeout(timer);
   }, [highlightedTransactionId]);
 
+  // Print receipt refs
+  const receiptPrintRef = useRef();
+  const [receiptToPrint, setReceiptToPrint] = useState(null);
+
+  const handlePrintReceipt = useReactToPrint({
+    content: () => receiptPrintRef.current,
+    documentTitle: (receiptToPrint) => {
+      const receiptNumber = receiptToPrint?.transactionId || (receiptToPrint?.id ? receiptToPrint.id.slice(-8) : 'N/A');
+      return `Receipt_${receiptNumber}`;
+    },
+    onBeforeGetContent: () => {
+      return Promise.resolve();
+    },
+  });
+
   const printTransactionReceipt = (tx) => {
     try {
       const transaction = tx || printingSingleTransaction;
       if (!transaction) return;
-      const createdAt = transaction.createdAt?.toDate ? transaction.createdAt.toDate() : (transaction.createdAt ? new Date(transaction.createdAt) : new Date());
-      const amountReceived = transaction.amountReceived ?? null;
-      const change = transaction.change ?? (amountReceived != null ? Math.max(0, amountReceived - (transaction.total || 0)) : null);
-      const receiptNumber = transaction.transactionId || (transaction.id ? transaction.id.slice(-8) : 'N/A');
-      const itemsHtml = `
-        ${Array.isArray(transaction.services) ? transaction.services.map(s => `
-          <tr>
-            <td style="padding:4px 0;">${s.serviceName}${s.stylistName ? ` <span style='color:#6b7280'>( ${s.stylistName} )</span>` : ''}</td>
-            <td style="text-align:right; padding:4px 0;">₱${(s.adjustedPrice ?? s.basePrice ?? s.price ?? 0).toFixed(2)}</td>
-          </tr>`).join('') : ''}
-        ${Array.isArray(transaction.products) ? transaction.products.map(p => `
-          <tr>
-            <td style="padding:4px 0;">${p.productName} x${p.quantity}</td>
-            <td style="text-align:right; padding:4px 0;">₱${(p.price * p.quantity).toFixed(2)}</td>
-          </tr>`).join('') : ''}
-      `;
-      const w = window.open('', 'PRINT', 'height=650,width=400');
-      w.document.write(`<!doctype html><html><head><title>Receipt ${receiptNumber}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>
-          body{font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; color:#111827;}
-          .muted{color:#6b7280}
-          .total{font-weight:700; color:#160B53}
-          table{width:100%; border-collapse:collapse}
-        </style>
-      </head><body>
-        <div style="text-align:center;">
-          <div style="font-weight:700; font-size:16px;">Salon Receipt</div>
-          <div class="muted" style="font-size:12px;">${userData?.branchName || 'Branch'} • ${userData?.branchId || ''}</div>
-        </div>
-        <hr />
-        <div style="font-size:12px;">
-          <div><span class="muted">Receipt #:</span> ${receiptNumber}</div>
-          <div><span class="muted">Date:</span> ${createdAt.toLocaleString()}</div>
-          <div><span class="muted">Client:</span> ${transaction.clientInfo?.name || 'Walk-in Client'}</div>
-          <div><span class="muted">Cashier:</span> ${userData?.firstName || ''} ${userData?.lastName || ''}</div>
-        </div>
-        <hr />
-        <table>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-        <hr />
-        <table>
-          <tbody>
-            <tr><td class="muted">Subtotal</td><td style="text-align:right;">₱${(transaction.subtotal || 0).toFixed(2)}</td></tr>
-            <tr><td class="muted">Discount ${transaction.discount ? `(${transaction.discount}%)` : ''}</td><td style="text-align:right;">-₱${(((transaction.subtotal||0) * (transaction.discount||0))/100).toFixed(2)}</td></tr>
-            <tr><td class="muted">Tax</td><td style="text-align:right;">₱${(transaction.tax || 0).toFixed(2)}</td></tr>
-            <tr><td class="total">TOTAL</td><td style="text-align:right;" class="total">₱${(transaction.total || 0).toFixed(2)}</td></tr>
-            <tr><td class="muted">Payment</td><td style="text-align:right;">${transaction.paymentMethod || 'N/A'}</td></tr>
-            ${amountReceived != null ? `<tr><td class="muted">Amount Received</td><td style="text-align:right;">₱${Number(amountReceived).toFixed(2)}</td></tr>` : ''}
-            ${change != null ? `<tr><td class="muted">Change</td><td style="text-align:right;">₱${Number(change).toFixed(2)}</td></tr>` : ''}
-          </tbody>
-        </table>
-        <hr />
-        <div style="text-align:center; font-size:12px;" class="muted">Thank you for visiting!</div>
-        <script>window.onload = function(){window.print(); setTimeout(()=>window.close(), 300);};</script>
-      </body></html>`);
-      w.document.close();
-      w.focus();
+      setReceiptToPrint(transaction);
+      // Small delay to ensure state is set
+      setTimeout(() => {
+        handlePrintReceipt();
+      }, 100);
     } catch (e) {
       console.error('Print failed', e);
       showError('Failed to open print dialog');
@@ -549,8 +510,22 @@ const POSBilling = () => {
         subtotal: paymentData.subtotal || 0,
         discount: paymentData.discount || 0,
         tax: paymentData.tax || 0,
-        total: paymentData.total || 0
+        total: paymentData.total || 0,
+        appliedPromotion: paymentData.appliedPromotion || null
       });
+
+      // Track promotion usage if promotion was applied
+      if (paymentData.appliedPromotion?.id) {
+        try {
+          await promotionService.trackPromotionUsage(
+            paymentData.appliedPromotion.id,
+            paymentData.clientId || null
+          );
+        } catch (error) {
+          console.error('Error tracking promotion usage:', error);
+          // Don't fail the transaction if promotion tracking fails
+        }
+      }
       
       showSuccess(`Payment processed successfully! Change: ₱${change.toFixed(2)}`);
       setShowTransactionForm(false);
@@ -726,6 +701,7 @@ const POSBilling = () => {
   ];
 
   return (
+    <>
     <DashboardLayout menuItems={menuItems} pageTitle="POS & Billing">
       <div className="max-w-7xl mx-auto">
         {/* Error Message */}
@@ -1202,6 +1178,134 @@ const POSBilling = () => {
         </div>
       )}
     </DashboardLayout>
+    
+    {/* Hidden Receipt Print Content */}
+    {receiptToPrint && (
+      <div ref={receiptPrintRef} style={{ display: 'none' }}>
+        <div style={{ 
+          fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu',
+          color: '#111827',
+          padding: '20px',
+          maxWidth: '400px',
+          margin: '0 auto'
+        }}>
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden;
+              }
+              .receipt-content,
+              .receipt-content * {
+                visibility: visible;
+              }
+              .receipt-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+              }
+            }
+            .muted { color: #6b7280; }
+            .total { font-weight: 700; color: #160B53; }
+            table { width: 100%; border-collapse: collapse; }
+          `}</style>
+          <div className="receipt-content">
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: '16px' }}>Salon Receipt</div>
+              <div className="muted" style={{ fontSize: '12px' }}>
+                {userData?.branchName || 'Branch'} • {userData?.branchId || ''}
+              </div>
+            </div>
+            <hr />
+            <div style={{ fontSize: '12px' }}>
+              <div>
+                <span className="muted">Receipt #:</span> {receiptToPrint.transactionId || (receiptToPrint.id ? receiptToPrint.id.slice(-8) : 'N/A')}
+              </div>
+              <div>
+                <span className="muted">Date:</span> {
+                  receiptToPrint.createdAt?.toDate ? receiptToPrint.createdAt.toDate().toLocaleString() :
+                  receiptToPrint.createdAt ? new Date(receiptToPrint.createdAt).toLocaleString() :
+                  new Date().toLocaleString()
+                }
+              </div>
+              <div>
+                <span className="muted">Client:</span> {receiptToPrint.clientInfo?.name || 'Walk-in Client'}
+              </div>
+              <div>
+                <span className="muted">Cashier:</span> {userData?.firstName || ''} {userData?.lastName || ''}
+              </div>
+            </div>
+            <hr />
+            <table>
+              <tbody>
+                {Array.isArray(receiptToPrint.services) && receiptToPrint.services.map((s, idx) => (
+                  <tr key={`service-${idx}`}>
+                    <td style={{ padding: '4px 0' }}>
+                      {s.serviceName}{s.stylistName ? <span className="muted"> ( {s.stylistName} )</span> : ''}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '4px 0' }}>
+                      ₱{(s.adjustedPrice ?? s.basePrice ?? s.price ?? 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+                {Array.isArray(receiptToPrint.products) && receiptToPrint.products.map((p, idx) => (
+                  <tr key={`product-${idx}`}>
+                    <td style={{ padding: '4px 0' }}>{p.productName} x{p.quantity}</td>
+                    <td style={{ textAlign: 'right', padding: '4px 0' }}>
+                      ₱{(p.price * p.quantity).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <hr />
+            <table>
+              <tbody>
+                <tr>
+                  <td className="muted">Subtotal</td>
+                  <td style={{ textAlign: 'right' }}>₱{(receiptToPrint.subtotal || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td className="muted">Discount {receiptToPrint.discount ? `(${receiptToPrint.discount}%)` : ''}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    -₱{(((receiptToPrint.subtotal || 0) * (receiptToPrint.discount || 0)) / 100).toFixed(2)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted">Tax</td>
+                  <td style={{ textAlign: 'right' }}>₱{(receiptToPrint.tax || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td className="total">TOTAL</td>
+                  <td style={{ textAlign: 'right' }} className="total">₱{(receiptToPrint.total || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td className="muted">Payment</td>
+                  <td style={{ textAlign: 'right' }}>{receiptToPrint.paymentMethod || 'N/A'}</td>
+                </tr>
+                {receiptToPrint.amountReceived != null && (
+                  <tr>
+                    <td className="muted">Amount Received</td>
+                    <td style={{ textAlign: 'right' }}>₱{Number(receiptToPrint.amountReceived).toFixed(2)}</td>
+                  </tr>
+                )}
+                {receiptToPrint.change != null && (
+                  <tr>
+                    <td className="muted">Change</td>
+                    <td style={{ textAlign: 'right' }}>₱{Number(receiptToPrint.change).toFixed(2)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <hr />
+            <div style={{ textAlign: 'center', fontSize: '12px' }} className="muted">
+              Thank you for visiting!
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

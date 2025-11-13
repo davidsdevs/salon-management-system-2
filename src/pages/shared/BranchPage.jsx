@@ -6,11 +6,60 @@ import BranchNavigation from "./BranchNavigation"
 import BranchFooter from "./BranchFooter"
 import PromotionPopup from "./PromotionPopup"
 import { useState, useEffect } from "react"
+import { branchContentService } from "../../services/branchContentService"
+import { branchService } from "../../services/branchService"
+import { collection, query, where, getDocs } from "firebase/firestore"
+import { db } from "../../lib/firebase"
 
 export default function BranchPage() {
   const { slug } = useParams()
   const branchName = slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
   const [isVisible, setIsVisible] = useState(false)
+  const [content, setContent] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [branchId, setBranchId] = useState(null)
+
+  // Find branchId from slug
+  useEffect(() => {
+    const findBranch = async () => {
+      try {
+        // Query branches by slug (assuming branches have a slug field)
+        // If not, we'll use slug as contentId directly
+        const branchesRef = collection(db, 'branches')
+        const q = query(branchesRef, where('slug', '==', slug))
+        const querySnapshot = await getDocs(q)
+        
+        if (!querySnapshot.empty) {
+          const branchDoc = querySnapshot.docs[0]
+          setBranchId(branchDoc.id)
+        } else {
+          // Fallback: use slug as contentId
+          setBranchId(slug)
+        }
+      } catch (error) {
+        console.error('Error finding branch:', error)
+        // Fallback: use slug as contentId
+        setBranchId(slug)
+      }
+    }
+    
+    findBranch()
+  }, [slug])
+
+  // Load content from Firestore
+  useEffect(() => {
+    if (!branchId) return
+
+    // Subscribe to real-time updates
+    const unsubscribe = branchContentService.subscribeToContent(branchId, 'branch', (result) => {
+      if (result.success && result.content) {
+        setContent(result.content)
+        setLoading(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [branchId])
 
   // Fade in animation on component mount
   useEffect(() => {
@@ -89,26 +138,62 @@ export default function BranchPage() {
     },
   ]
 
-  const testimonials = [
-    {
-      name: "Maria Gonzales",
-      branch: "Makati Branch",
-      rating: 5,
-      text: "I've been a loyal customer for over 10 years, and the service quality and professionalism across all branches is remarkable. David's Salon truly understands Filipino beauty.",
-    },
-    {
-      name: "Jennifer Santos",
-      branch: "BGC Branch",
-      rating: 5,
-      text: "The staff was not just skilled, they're artists. The transformation was beyond my expectations. The European techniques combined with Filipino hospitality is unmatched!",
-    },
-    {
-      name: "Carlos Mendoza",
-      branch: "Cebu Branch",
-      rating: 5,
-      text: "As someone who travels frequently, I can confidently say that David's Salon offers world-class. The quality is consistent everywhere, and the prices are very reasonable.",
-    },
-  ]
+  // Use content from Firestore or fallback
+  const heroContent = content?.hero || {
+    title: `David's Salon ${branchName} Branch`,
+    subtitle: "Choose your preferred branch to discover our specialized services and exclusive offers tailored just for you. Each location offers unique experiences designed for our local community.",
+    buttonText: "Choose another branch",
+    backgroundImage: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image%201-gwMUdJmDY3pIDaLqR4DsNsL8vwz2Fd.png",
+    overlayOpacity: 0.6,
+    statistics: {
+      branches: 7,
+      clients: "50K+",
+      years: "15+"
+    }
+  }
+
+  const testimonialsContent = content?.testimonials || {
+    title: "What Our Clients Say",
+    subtitle: "Real stories from our satisfied customers",
+    items: [
+      {
+        name: "Maria Gonzales",
+        branch: "Makati Branch",
+        rating: 5,
+        text: "I've been a loyal customer for over 10 years, and the service quality and professionalism across all branches is remarkable. David's Salon truly understands Filipino beauty.",
+      },
+      {
+        name: "Jennifer Santos",
+        branch: "BGC Branch",
+        rating: 5,
+        text: "The staff was not just skilled, they're artists. The transformation was beyond my expectations. The European techniques combined with Filipino hospitality is unmatched!",
+      },
+      {
+        name: "Carlos Mendoza",
+        branch: "Cebu Branch",
+        rating: 5,
+        text: "As someone who travels frequently, I can confidently say that David's Salon offers world-class. The quality is consistent everywhere, and the prices are very reasonable.",
+      },
+    ]
+  }
+
+  const visitBranchContent = content?.visitBranch || {
+    title: "Visit Branch",
+    subtitle: "Find us and get in touch",
+    location: "Ayala Center, Makati",
+    phone: "+63 930 222 9699",
+    hours: "Mon-Sun: 10:00 AM - 9:00 PM"
+  }
+
+  const contactInfoContent = content?.contactInfo || {
+    title: "Visit Us",
+    subtitle: "Get in touch with our team",
+    address: "Ground Floor Harbor Point Subic, Subic, Philippines",
+    phone: "0992 586 5758",
+    hours: "Monday - Sunday: 10:00 AM - 9:00 PM"
+  }
+
+  const testimonials = testimonialsContent.items || []
 
   return (
     <div className="min-h-screen bg-white">
@@ -122,49 +207,50 @@ export default function BranchPage() {
       <section
         className="relative h-[800px] flex items-center justify-center text-center text-white mt-[122px]"
         style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(22, 11, 83, 0.7)), url('https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image%201-gwMUdJmDY3pIDaLqR4DsNsL8vwz2Fd.png')`,
+          backgroundImage: `linear-gradient(rgba(0, 0, 0, ${heroContent.overlayOpacity || 0.6}), rgba(22, 11, 83, 0.7)), url('${heroContent.backgroundImage}')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       >
         <div className={`max-w-4xl px-2 sm:px-4 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <h1 className="font-bold mb-6 text-balance animate-pulse-slow" style={{ fontSize: '50px' }}>David's Salon {branchName} Branch</h1>
+          <h1 className="font-bold mb-6 text-balance animate-pulse-slow" style={{ fontSize: '50px' }}>{heroContent.title}</h1>
           <p className="text-xl mb-8 text-pretty leading-relaxed">
-            Choose your preferred branch to discover our specialized services and exclusive offers tailored just for
-            you. Each location offers unique experiences designed for our local community.
+            {heroContent.subtitle}
           </p>
           <Link to="/">
             <Button 
               size="lg" 
               className="bg-white text-[#160B53] hover:bg-gray-100 font-semibold px-8 py-3"
             >
-              Choose another branch
+              {heroContent.buttonText}
             </Button>
           </Link>
           
           {/* Statistics Cards */}
-          <div className="max-w-4xl mx-auto mt-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-              <Card className="p-6 border-0 bg-white" style={{ boxShadow: '0 4px 4px 0 rgba(0, 0, 0, 0.25)' }}>
-                <CardContent className="p-0">
-                  <div className="text-4xl font-bold text-[#160B53] mb-2">7</div>
-                  <div className="text-gray-600">Branches</div>
-                </CardContent>
-              </Card>
-              <Card className="p-6 border-0 bg-white" style={{ boxShadow: '0 4px 4px 0 rgba(0, 0, 0, 0.25)' }}>
-                <CardContent className="p-0">
-                  <div className="text-4xl font-bold text-[#160B53] mb-2">50K+</div>
-                  <div className="text-gray-600">Happy Clients</div>
-                </CardContent>
-              </Card>
-              <Card className="p-6 border-0 bg-white" style={{ boxShadow: '0 4px 4px 0 rgba(0, 0, 0, 0.25)' }}>
-                <CardContent className="p-0">
-                  <div className="text-4xl font-bold text-[#160B53] mb-2">15+</div>
-                  <div className="text-gray-600">Years Experience</div>
-                </CardContent>
-              </Card>
+          {heroContent.statistics && (
+            <div className="max-w-4xl mx-auto mt-12">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                <Card className="p-6 border-0 bg-white" style={{ boxShadow: '0 4px 4px 0 rgba(0, 0, 0, 0.25)' }}>
+                  <CardContent className="p-0">
+                    <div className="text-4xl font-bold text-[#160B53] mb-2">{heroContent.statistics.branches}</div>
+                    <div className="text-gray-600">Branches</div>
+                  </CardContent>
+                </Card>
+                <Card className="p-6 border-0 bg-white" style={{ boxShadow: '0 4px 4px 0 rgba(0, 0, 0, 0.25)' }}>
+                  <CardContent className="p-0">
+                    <div className="text-4xl font-bold text-[#160B53] mb-2">{heroContent.statistics.clients}</div>
+                    <div className="text-gray-600">Happy Clients</div>
+                  </CardContent>
+                </Card>
+                <Card className="p-6 border-0 bg-white" style={{ boxShadow: '0 4px 4px 0 rgba(0, 0, 0, 0.25)' }}>
+                  <CardContent className="p-0">
+                    <div className="text-4xl font-bold text-[#160B53] mb-2">{heroContent.statistics.years}</div>
+                    <div className="text-gray-600">Years Experience</div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -331,8 +417,8 @@ export default function BranchPage() {
       {/* Testimonials Section */}
       <section className="py-16 px-6 bg-white">
         <div className="max-w-6xl mx-auto">
-          <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>What Our Clients Say</h2>
-          <p className="text-center text-gray-600 mb-12">Real stories from our satisfied customers</p>
+          <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>{testimonialsContent.title}</h2>
+          <p className="text-center text-gray-600 mb-12">{testimonialsContent.subtitle}</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
@@ -369,15 +455,15 @@ export default function BranchPage() {
       {/* Visit Branch Section */}
       <section className="py-16 px-6 bg-[#160B53] text-white">
         <div className="max-w-4xl mx-auto">
-          <h2 className="font-bold text-center mb-4" style={{ fontSize: '50px' }}>Visit {branchName} Branch</h2>
-          <p className="text-center mb-12 opacity-90">Find us and get in touch</p>
+          <h2 className="font-bold text-center mb-4" style={{ fontSize: '50px' }}>{visitBranchContent.title}</h2>
+          <p className="text-center mb-12 opacity-90">{visitBranchContent.subtitle}</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="bg-white text-gray-900 p-6 text-center">
               <CardContent className="p-0">
                 <MapPin className="w-8 h-8 text-[#160B53] mx-auto mb-4" />
                 <h3 className="font-semibold text-[#160B53] mb-2">Location</h3>
-                <p className="text-sm text-gray-600">Ayala Center, Makati</p>
+                <p className="text-sm text-gray-600">{visitBranchContent.location}</p>
               </CardContent>
             </Card>
 
@@ -385,7 +471,7 @@ export default function BranchPage() {
               <CardContent className="p-0">
                 <Phone className="w-8 h-8 text-[#160B53] mx-auto mb-4" />
                 <h3 className="font-semibold text-[#160B53] mb-2">Contact</h3>
-                <p className="text-sm text-gray-600">+63 930 222 9699</p>
+                <p className="text-sm text-gray-600">{visitBranchContent.phone}</p>
               </CardContent>
             </Card>
 
@@ -393,7 +479,7 @@ export default function BranchPage() {
               <CardContent className="p-0">
                 <Clock className="w-8 h-8 text-[#160B53] mx-auto mb-4" />
                 <h3 className="font-semibold text-[#160B53] mb-2">Hours</h3>
-                <p className="text-sm text-gray-600">Mon-Sun: 10:00 AM - 9:00 PM</p>
+                <p className="text-sm text-gray-600">{visitBranchContent.hours}</p>
               </CardContent>
             </Card>
         </div>
@@ -403,8 +489,8 @@ export default function BranchPage() {
       {/* Contact Information Section */}
       <section className="py-16 px-6 bg-gray-50">
         <div className="max-w-6xl mx-auto">
-          <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>Visit Us</h2>
-          <p className="text-center text-gray-600 mb-12">Get in touch with our Harbor Point Ayala team</p>
+          <h2 className="font-bold text-center text-[#160B53] mb-4" style={{ fontSize: '50px' }}>{contactInfoContent.title}</h2>
+          <p className="text-center text-gray-600 mb-12">{contactInfoContent.subtitle}</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Contact Details */}
@@ -416,7 +502,7 @@ export default function BranchPage() {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-[#160B53] mb-1">Address</h3>
-                    <p className="text-gray-600">Ground Floor Harbor Point Subic, Subic, Philippines</p>
+                    <p className="text-gray-600">{contactInfoContent.address}</p>
                   </div>
                 </div>
                 
@@ -426,7 +512,7 @@ export default function BranchPage() {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-[#160B53] mb-1">Phone</h3>
-                    <p className="text-gray-600">0992 586 5758</p>
+                    <p className="text-gray-600">{contactInfoContent.phone}</p>
                   </div>
                 </div>
                 
@@ -436,7 +522,7 @@ export default function BranchPage() {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-[#160B53] mb-1">Hours</h3>
-                    <p className="text-gray-600">Monday - Sunday: 10:00 AM - 9:00 PM</p>
+                    <p className="text-gray-600">{contactInfoContent.hours}</p>
                   </div>
                 </div>
               </div>
@@ -449,11 +535,11 @@ export default function BranchPage() {
                 <p className="text-lg mb-6 opacity-90">Call us now to schedule your appointment</p>
                 <Button 
                   className="bg-white text-[#160B53] hover:bg-gray-100 font-bold text-lg px-8 py-3"
-                  onClick={() => window.open('tel:09925865758')}
+                  onClick={() => window.open(`tel:${contactInfoContent.phone.replace(/\s/g, '')}`)}
                 >
-                  Call 0992 586 5758
+                  Call {contactInfoContent.phone}
                 </Button>
-                <p className="text-sm mt-4 opacity-75">Or visit us at our Harbor Point Subic location</p>
+                <p className="text-sm mt-4 opacity-75">Or visit us at our location</p>
               </div>
             </Card>
           </div>

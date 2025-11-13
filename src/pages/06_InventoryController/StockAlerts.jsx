@@ -31,6 +31,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { stockAlertsService } from '../../services/stockAlertsService';
+import { branchService } from '../../services/branchService';
 
 const StockAlerts = () => {
   const { userData } = useAuth();
@@ -39,6 +41,7 @@ const StockAlerts = () => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [branches, setBranches] = useState([]);
   
   // UI states
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +53,7 @@ const StockAlerts = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [isGeneratingAlerts, setIsGeneratingAlerts] = useState(false);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -59,113 +63,44 @@ const StockAlerts = () => {
     branch: 'all'
   });
 
-  // Mock alert data
-  const mockAlerts = [
-    {
-      id: 'ALERT-001',
-      productId: 'prod1',
-      productName: 'Olaplex No.3 Hair Perfector',
-      brand: 'Olaplex',
-      category: 'Hair Care',
-      currentStock: 5,
-      minStock: 10,
-      maxStock: 50,
-      unitCost: 1400,
-      totalValue: 7000,
-      priority: 'High',
-      status: 'Active',
-      alertType: 'Low Stock',
-      branchId: 'branch1',
-      branchName: 'Harbor Point Ayala',
-      location: 'Shelf A-1',
-      supplier: 'Olaplex Philippines',
-      lastRestocked: new Date('2024-01-05'),
-      expectedRestock: new Date('2024-01-20'),
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-15'),
-      notes: 'Urgent restock needed for weekend rush',
-      actionTaken: null,
-      resolvedAt: null
-    },
-    {
-      id: 'ALERT-002',
-      productId: 'prod2',
-      productName: 'L\'Oréal Hair Color',
-      brand: 'L\'Oréal',
-      category: 'Hair Color',
-      currentStock: 0,
-      minStock: 15,
-      maxStock: 30,
-      unitCost: 800,
-      totalValue: 0,
-      priority: 'Critical',
-      status: 'Active',
-      alertType: 'Out of Stock',
-      branchId: 'branch2',
-      branchName: 'SM Mall of Asia',
-      location: 'Shelf B-2',
-      supplier: 'L\'Oréal Philippines',
-      lastRestocked: new Date('2023-12-20'),
-      expectedRestock: new Date('2024-01-25'),
-      createdAt: new Date('2024-01-10'),
-      updatedAt: new Date('2024-01-10'),
-      notes: 'Product completely out of stock',
-      actionTaken: 'Purchase order created',
-      resolvedAt: null
-    },
-    {
-      id: 'ALERT-003',
-      productId: 'prod3',
-      productName: 'Kerastase Shampoo',
-      brand: 'Kerastase',
-      category: 'Hair Care',
-      currentStock: 8,
-      minStock: 12,
-      maxStock: 40,
-      unitCost: 1200,
-      totalValue: 9600,
-      priority: 'Medium',
-      status: 'Resolved',
-      alertType: 'Low Stock',
-      branchId: 'branch1',
-      branchName: 'Harbor Point Ayala',
-      location: 'Shelf C-1',
-      supplier: 'Kerastase Philippines',
-      lastRestocked: new Date('2024-01-12'),
-      expectedRestock: new Date('2024-01-18'),
-      createdAt: new Date('2024-01-08'),
-      updatedAt: new Date('2024-01-12'),
-      notes: 'Stock level below minimum threshold',
-      actionTaken: 'Stock transferred from other branch',
-      resolvedAt: new Date('2024-01-12')
-    },
-    {
-      id: 'ALERT-004',
-      productId: 'prod4',
-      productName: 'Wella Hair Color',
-      brand: 'Wella',
-      category: 'Hair Color',
-      currentStock: 3,
-      minStock: 8,
-      maxStock: 25,
-      unitCost: 900,
-      totalValue: 2700,
-      priority: 'High',
-      status: 'Active',
-      alertType: 'Low Stock',
-      branchId: 'branch3',
-      branchName: 'Greenbelt 5',
-      location: 'Shelf D-2',
-      supplier: 'Wella Philippines',
-      lastRestocked: new Date('2024-01-03'),
-      expectedRestock: new Date('2024-01-22'),
-      createdAt: new Date('2024-01-14'),
-      updatedAt: new Date('2024-01-14'),
-      notes: 'Running low on popular color',
-      actionTaken: null,
-      resolvedAt: null
+  // Form states for creating alert
+  const [newAlert, setNewAlert] = useState({
+    productId: '',
+    productName: '',
+    branchId: '',
+    priority: 'Medium',
+    alertType: 'Low Stock',
+    notes: ''
+  });
+
+  // Load branches
+  const loadBranches = async () => {
+    try {
+      // Inventory Controller can see all branches
+      const branchesList = await branchService.getBranches(
+        userData?.roles?.[0] || 'inventoryController',
+        userData?.uid || '',
+        1000 // Large page size to get all branches
+      );
+      setBranches(branchesList || []);
+    } catch (err) {
+      console.error('Error loading branches:', err);
+      // Fallback: try direct query
+      try {
+        const { collection, getDocs, query, orderBy } = await import('firebase/firestore');
+        const { db } = await import('../../lib/firebase');
+        const branchesQuery = query(collection(db, 'branches'), orderBy('name', 'asc'));
+        const snapshot = await getDocs(branchesQuery);
+        const branchesList = [];
+        snapshot.forEach((doc) => {
+          branchesList.push({ id: doc.id, name: doc.data().name || doc.id });
+        });
+        setBranches(branchesList);
+      } catch (fallbackErr) {
+        console.error('Error in fallback branch loading:', fallbackErr);
+      }
     }
-  ];
+  };
 
   // Load alerts
   const loadAlerts = async () => {
@@ -173,25 +108,67 @@ const StockAlerts = () => {
       setLoading(true);
       setError(null);
       
-      // For now, use mock data
-      setAlerts(mockAlerts);
+      // Get all alerts (Inventory Controller can see all branches)
+      const result = await stockAlertsService.getAllAlerts({
+        status: filters.status,
+        priority: filters.priority,
+        branchId: filters.branch === 'all' ? null : filters.branch,
+      });
+      
+      if (result.success) {
+        setAlerts(result.alerts);
+      } else {
+        setError(result.message || 'Failed to load alerts');
+        setAlerts([]);
+      }
       
     } catch (err) {
       console.error('Error loading alerts:', err);
       setError(err.message);
+      setAlerts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load alerts on mount
+  // Generate alerts automatically
+  const handleGenerateAlerts = async () => {
+    try {
+      setIsGeneratingAlerts(true);
+      setError(null);
+      
+      const result = await stockAlertsService.generateAlertsForLowStock();
+      
+      if (result.success) {
+        // Reload alerts after generation
+        await loadAlerts();
+        alert(`Successfully generated ${result.alertsCreated} new alerts`);
+      } else {
+        setError(result.message || 'Failed to generate alerts');
+      }
+    } catch (err) {
+      console.error('Error generating alerts:', err);
+      setError(err.message);
+    } finally {
+      setIsGeneratingAlerts(false);
+    }
+  };
+
+  // Load alerts and branches on mount
   useEffect(() => {
+    loadBranches();
     loadAlerts();
   }, []);
 
-  // Get unique categories and branches
+  // Reload alerts when filters change
+  useEffect(() => {
+    if (!loading) {
+      loadAlerts();
+    }
+  }, [filters.status, filters.priority, filters.branch]);
+
+  // Get unique categories from alerts
   const categories = [...new Set(alerts.map(a => a.category))].filter(Boolean);
-  const branches = [...new Set(alerts.map(a => a.branchName))].filter(Boolean);
 
   // Filter and sort alerts
   const filteredAlerts = alerts
@@ -231,15 +208,101 @@ const StockAlerts = () => {
 
   // Handle create alert
   const handleCreateAlert = () => {
+    setNewAlert({
+      productId: '',
+      productName: '',
+      branchId: '',
+      priority: 'Medium',
+      alertType: 'Low Stock',
+      notes: ''
+    });
     setIsCreateModalOpen(true);
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle form submission logic here
-    console.log('Form submitted');
-    setIsCreateModalOpen(false);
+    try {
+      setLoading(true);
+      
+      // Find branch name
+      const selectedBranch = branches.find(b => b.id === newAlert.branchId);
+      
+      const alertData = {
+        ...newAlert,
+        branchName: selectedBranch?.name || '',
+        createdBy: userData?.uid || '',
+      };
+
+      const result = await stockAlertsService.createAlert(alertData);
+      
+      if (result.success) {
+        await loadAlerts();
+        setIsCreateModalOpen(false);
+        setNewAlert({
+          productId: '',
+          productName: '',
+          branchId: '',
+          priority: 'Medium',
+          alertType: 'Low Stock',
+          notes: ''
+        });
+      } else {
+        setError(result.message || 'Failed to create alert');
+      }
+    } catch (err) {
+      console.error('Error creating alert:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle resolve alert
+  const handleResolveAlert = async (alertId) => {
+    try {
+      const result = await stockAlertsService.resolveAlert(
+        alertId,
+        'Manually resolved by user',
+        userData?.uid || ''
+      );
+      
+      if (result.success) {
+        await loadAlerts();
+        if (selectedAlert?.id === alertId) {
+          setIsDetailsModalOpen(false);
+          setSelectedAlert(null);
+        }
+      } else {
+        setError(result.message || 'Failed to resolve alert');
+      }
+    } catch (err) {
+      console.error('Error resolving alert:', err);
+      setError(err.message);
+    }
+  };
+
+  // Handle dismiss alert
+  const handleDismissAlert = async (alertId) => {
+    try {
+      const result = await stockAlertsService.dismissAlert(
+        alertId,
+        userData?.uid || ''
+      );
+      
+      if (result.success) {
+        await loadAlerts();
+        if (selectedAlert?.id === alertId) {
+          setIsDetailsModalOpen(false);
+          setSelectedAlert(null);
+        }
+      } else {
+        setError(result.message || 'Failed to dismiss alert');
+      }
+    } catch (err) {
+      console.error('Error dismissing alert:', err);
+      setError(err.message);
+    }
   };
 
   // Get priority color
@@ -333,9 +396,14 @@ const StockAlerts = () => {
             <p className="text-gray-600">Monitor low stock levels and inventory alerts</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Import
+            <Button 
+              variant="outline" 
+              onClick={handleGenerateAlerts}
+              disabled={isGeneratingAlerts}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isGeneratingAlerts ? 'animate-spin' : ''}`} />
+              {isGeneratingAlerts ? 'Generating...' : 'Generate Alerts'}
             </Button>
             <Button variant="outline" className="flex items-center gap-2">
               <Download className="h-4 w-4" />
@@ -347,6 +415,26 @@ const StockAlerts = () => {
             </Button>
           </div>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <Card className="p-4 bg-red-50 border border-red-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <p className="text-red-800">{error}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setError(null)}
+                className="text-red-600 hover:text-red-800"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -550,14 +638,26 @@ const StockAlerts = () => {
                           View
                         </Button>
                         {alert.status === 'Active' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1"
-                          >
-                            <ShoppingCart className="h-3 w-3" />
-                            Order
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResolveAlert(alert.id)}
+                              className="flex items-center gap-1 text-green-600 hover:text-green-700"
+                            >
+                              <CheckCircle className="h-3 w-3" />
+                              Resolve
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDismissAlert(alert.id)}
+                              className="flex items-center gap-1 text-gray-600 hover:text-gray-700"
+                            >
+                              <XCircle className="h-3 w-3" />
+                              Dismiss
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -672,12 +772,20 @@ const StockAlerts = () => {
                 
                 <div>
                   <label className="text-sm font-medium text-gray-500">Last Restocked</label>
-                  <p className="text-gray-900">{format(new Date(selectedAlert.lastRestocked), 'MMM dd, yyyy')}</p>
+                  <p className="text-gray-900">
+                    {selectedAlert.lastRestocked 
+                      ? format(new Date(selectedAlert.lastRestocked), 'MMM dd, yyyy')
+                      : 'N/A'}
+                  </p>
                 </div>
                 
                 <div>
                   <label className="text-sm font-medium text-gray-500">Expected Restock</label>
-                  <p className="text-gray-900">{format(new Date(selectedAlert.expectedRestock), 'MMM dd, yyyy')}</p>
+                  <p className="text-gray-900">
+                    {selectedAlert.expectedRestock 
+                      ? format(new Date(selectedAlert.expectedRestock), 'MMM dd, yyyy')
+                      : 'N/A'}
+                  </p>
                 </div>
                 
                 <div>
@@ -727,6 +835,28 @@ const StockAlerts = () => {
                   <span>{selectedAlert.maxStock} (Max)</span>
                 </div>
               </div>
+
+              {/* Action Buttons */}
+              {selectedAlert.status === 'Active' && (
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleResolveAlert(selectedAlert.id)}
+                    className="flex-1 flex items-center justify-center gap-2 text-green-600 hover:text-green-700 hover:border-green-300"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Resolve Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDismissAlert(selectedAlert.id)}
+                    className="flex-1 flex items-center justify-center gap-2 text-gray-600 hover:text-gray-700 hover:border-gray-300"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Dismiss Alert
+                  </Button>
+                </div>
+              )}
             </div>
           </Modal>
         )}
@@ -741,17 +871,49 @@ const StockAlerts = () => {
           >
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Product *</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                  <option value="">Select Product</option>
-                  {/* Product options would be populated here */}
+                <label className="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                  required
+                  value={newAlert.branchId}
+                  onChange={(e) => setNewAlert({ ...newAlert, branchId: e.target.value })}
+                >
+                  <option value="">Select Branch</option>
+                  {branches.map(branch => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                <Input
+                  type="text"
+                  value={newAlert.productName}
+                  onChange={(e) => setNewAlert({ ...newAlert, productName: e.target.value })}
+                  placeholder="Enter product name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Product ID</label>
+                <Input
+                  type="text"
+                  value={newAlert.productId}
+                  onChange={(e) => setNewAlert({ ...newAlert, productId: e.target.value })}
+                  placeholder="Enter product ID (optional)"
+                />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                  <option value="">Select Priority</option>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                  required
+                  value={newAlert.priority}
+                  onChange={(e) => setNewAlert({ ...newAlert, priority: e.target.value })}
+                >
                   <option value="Critical">Critical</option>
                   <option value="High">High</option>
                   <option value="Medium">Medium</option>
@@ -761,8 +923,12 @@ const StockAlerts = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Alert Type *</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                  <option value="">Select Alert Type</option>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                  required
+                  value={newAlert.alertType}
+                  onChange={(e) => setNewAlert({ ...newAlert, alertType: e.target.value })}
+                >
                   <option value="Low Stock">Low Stock</option>
                   <option value="Out of Stock">Out of Stock</option>
                   <option value="Expiring Soon">Expiring Soon</option>
@@ -776,6 +942,8 @@ const StockAlerts = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows="3"
                   placeholder="Additional notes about this alert..."
+                  value={newAlert.notes}
+                  onChange={(e) => setNewAlert({ ...newAlert, notes: e.target.value })}
                 ></textarea>
               </div>
               
@@ -783,8 +951,8 @@ const StockAlerts = () => {
                 <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">
-                  Create Alert
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Creating...' : 'Create Alert'}
                 </Button>
               </div>
             </form>
@@ -823,7 +991,7 @@ const StockAlerts = () => {
                 >
                   <option value="all">All Branches</option>
                   {branches.map(branch => (
-                    <option key={branch} value={branch}>{branch}</option>
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
                   ))}
                 </select>
               </div>

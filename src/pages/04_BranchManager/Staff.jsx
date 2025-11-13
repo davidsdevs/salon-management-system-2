@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { useReactToPrint } from "react-to-print";
 import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../shared/DashboardLayout";
 import { Card } from "../ui/card";
@@ -242,218 +243,18 @@ const BranchManagerStaff = () => {
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    
-    if (!printWindow) {
-      alert('Please allow pop-ups for this site to print.');
-      return;
-    }
-
-    // Helper function to get service names from IDs
-    const getServiceNames = (serviceIds) => {
-      if (!serviceIds || serviceIds.length === 0) return 'No services assigned';
-      return serviceIds.map(serviceId => allServicesMap[serviceId] || serviceId).join(', ');
-    };
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Staff Report</title>
-          <style>
-            @page {
-              margin: 1.5cm;
-            }
-            
-            body {
-              background: white;
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 0;
-            }
-            
-                         /* Header */
-             .print-header {
-               text-align: center;
-               border-bottom: 2px solid #000;
-               padding-bottom: 12px;
-               margin-bottom: 16px;
-             }
-             
-             .print-header h1 {
-               font-size: 16px;
-               font-weight: bold;
-               color: #000;
-               margin: 4px 0;
-             }
-             
-             .print-header .branch-name {
-               font-size: 14px;
-               color: #000;
-               font-weight: 600;
-               margin: 4px 0;
-             }
-             
-             .print-header .report-type {
-               font-size: 12px;
-               color: #000;
-               margin: 4px 0;
-             }
-             
-                           .print-header p {
-                font-size: 10px;
-                color: #666;
-                margin: 4px 0 0 0;
-              }
-              
-              .print-header .generated-by {
-                font-size: 10px;
-                color: #666;
-                margin: 2px 0;
-              }
-            
-            /* Staff Grid - Compact Layout */
-            .print-staff-grid {
-              display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              gap: 8px;
-            }
-            
-            .print-staff-card {
-              border: 1px solid #ddd;
-              padding: 8px;
-              page-break-inside: avoid;
-            }
-            
-            .staff-name {
-              font-size: 12px;
-              font-weight: bold;
-              color: #000;
-              margin-bottom: 4px;
-              border-bottom: 1px solid #ccc;
-              padding-bottom: 3px;
-            }
-            
-            .staff-info {
-              font-size: 10px;
-              color: #333;
-              line-height: 1.3;
-              margin-bottom: 3px;
-            }
-            
-            .staff-info strong {
-              color: #000;
-            }
-            
-            .services-section {
-              margin-top: 6px;
-              border-top: 1px solid #999;
-              padding-top: 4px;
-            }
-            
-            .services-title {
-              font-size: 10px;
-              font-weight: bold;
-              color: #000;
-              margin-bottom: 3px;
-            }
-            
-            .services-list {
-              font-size: 9px;
-              color: #555;
-              margin-left: 10px;
-              line-height: 1.2;
-            }
-            
-            .no-services {
-              color: #999;
-              font-style: italic;
-            }
-            
-            /* Footer */
-            .print-footer {
-              margin-top: 10px;
-              padding-top: 8px;
-              border-top: 1px solid #ddd;
-              font-size: 9px;
-              color: #666;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-                                                      <div class="print-container">
-             <div class="print-header">
-               <img src="/logo.png" alt="David's Salon Logo" style="height: 40px; margin-bottom: 8px;" />
-               <div class="branch-name">${branchName || userData?.branchId || 'All Branches'}</div>
-               <div class="report-type">Staff Report</div>
-               <p>Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} | Total Records: ${filteredStaff.length}</p>
-               <div class="generated-by">Generated by: ${userData?.firstName || ''} ${userData?.lastName || ''} (${userData?.roles?.[0] || 'User'})</div>
-             </div>
-             
-             <div class="print-staff-grid">
-               ${filteredStaff.map(s => {
-                 // Get service names from IDs
-                 const serviceNames = getServiceNames(s.service_id);
-                 
-                 return `
-                   <div class="print-staff-card">
-                     <div class="staff-name">
-                       ${s.firstName} ${s.middleName} ${s.lastName}
-                     </div>
-                     
-                     <div class="staff-info">
-                       <strong>Role:</strong> Stylist
-                     </div>
-                     <div class="staff-info">
-                       <strong>Status:</strong> ${s.isActive ? 'Active' : 'Inactive'}
-                     </div>
-                     <div class="staff-info">
-                       <strong>Email:</strong> ${s.email || 'N/A'}
-                     </div>
-                     ${s.phone ? `<div class="staff-info">
-                       <strong>Phone:</strong> ${s.phone}
-                     </div>` : ''}
-                     <div class="staff-info">
-                       <strong>Joined:</strong> ${s.createdAt ? new Date(s.createdAt.seconds * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'Unknown'}
-                     </div>
-                     
-                     <div class="services-section">
-                       <div class="services-title">Services Offered</div>
-                       ${s.service_id && s.service_id.length > 0 ? `
-                         <div class="services-list">
-                           ${serviceNames}
-                           <br />
-                           Total: ${s.service_id.length} ${s.service_id.length === 1 ? 'service' : 'services'}
-                         </div>
-                       ` : `
-                         <div class="services-list no-services">
-                           No services assigned
-                         </div>
-                       `}
-                     </div>
-                   </div>
-                 `;
-               }).join('')}
-             </div>
-            
-            <div class="print-footer">
-              <p>Computer-generated report. Information current as of date printed.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    
-    // Wait for content to load, then print
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.onafterprint = () => printWindow.close();
-    }, 250);
+  // Helper function to get service names from IDs
+  const getServiceNames = (serviceIds) => {
+    if (!serviceIds || serviceIds.length === 0) return 'No services assigned';
+    return serviceIds.map(serviceId => allServicesMap[serviceId] || serviceId).join(', ');
   };
+
+  // Print functionality with react-to-print
+  const printRef = useRef();
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: `Staff_Report_${branchName || userData?.branchId || 'All_Branches'}_${new Date().toISOString().split('T')[0]}`,
+  });
 
   // Loading state
   if (loading) {
@@ -1009,26 +810,55 @@ const BranchManagerStaff = () => {
                             
                             const displayName = `${newStaff.firstName} ${newStaff.middleName ? newStaff.middleName + ' ' : ''}${newStaff.lastName}`.trim();
                             
-                            // Create pre-registered user in Firestore (Free tier compatible)
-                            await userService.createPreRegisteredUser({
-                              email: newStaff.email,
-                              tempPassword: tempPassword,
-                              displayName,
-                              role: 'stylist',
-                              branchId: userData?.branchId || '',
-                              phone: newStaff.phone || '',
-                              firstName: newStaff.firstName,
-                              middleName: newStaff.middleName,
-                              lastName: newStaff.lastName,
-                              address: newStaff.address,
-                              certificates: newStaff.certificates
-                            }, userData?.roles?.[0]);
+                            // Try to create user via Cloud Function first (doesn't log out current user)
+                            let userCreated = false;
+                            try {
+                              await userService.createUserViaFunction({
+                                email: newStaff.email,
+                                password: tempPassword,
+                                displayName,
+                                role: 'stylist',
+                                branchId: userData?.branchId || '',
+                                phone: newStaff.phone || '',
+                                firstName: newStaff.firstName,
+                                middleName: newStaff.middleName,
+                                lastName: newStaff.lastName,
+                                address: newStaff.address,
+                                certificates: newStaff.certificates
+                              }, userData?.roles?.[0]);
+                              userCreated = true;
+                            } catch (functionError) {
+                              console.log('Cloud Function not available, using direct Auth creation:', functionError);
+                              // Fallback to createUserWithAuth (will log out current user)
+                              await userService.createUserWithAuth({
+                                email: newStaff.email,
+                                displayName,
+                                role: 'stylist',
+                                roles: ['stylist'],
+                                branchId: userData?.branchId || '',
+                                phone: newStaff.phone || '',
+                                firstName: newStaff.firstName,
+                                middleName: newStaff.middleName,
+                                lastName: newStaff.lastName,
+                                address: newStaff.address,
+                                certificates: newStaff.certificates
+                              }, userData?.roles?.[0]);
+                              userCreated = true;
+                              
+                              // If we used createUserWithAuth, the current user was logged out
+                              // Show a message and reload the page
+                              alert('Staff account created successfully! However, you have been logged out. Please log in again to continue.');
+                              window.location.href = '/login';
+                              return;
+                            }
                             
-                            const users = await userService.getUsersByBranch(userData.branchId, userData.roles?.[0]);
-                            const stylists = users.filter(user => user.roles?.includes('stylist') && user.branchId === userData.branchId);
-                            setStaffData(stylists);
-                            setGeneratedPassword(tempPassword);
-                            setAddStep(3);
+                            if (userCreated) {
+                              const users = await userService.getUsersByBranch(userData.branchId, userData.roles?.[0]);
+                              const stylists = users.filter(user => user.roles?.includes('stylist') && user.branchId === userData.branchId);
+                              setStaffData(stylists);
+                              setGeneratedPassword(tempPassword);
+                              setAddStep(3);
+                            }
                           } catch (e) {
                             console.error('Failed to add staff:', e);
                             const errorMsg = e.message || e.toString() || 'Failed to add staff';
@@ -1076,10 +906,10 @@ const BranchManagerStaff = () => {
                           <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
                             <p className="text-xs text-blue-900">
                               <strong>Instructions for new staff:</strong><br/>
-                              1. Go to the registration page<br/>
-                              2. Use the email and temporary password above<br/>
-                              3. Complete the registration to activate the account<br/>
-                              4. Change password after first login
+                              1. Check your email for a password reset link<br/>
+                              2. Use the temporary password above to log in if needed<br/>
+                              3. Change your password after first login<br/>
+                              4. Verify your email address
                             </p>
                           </div>
                         </div>
@@ -1108,6 +938,175 @@ const BranchManagerStaff = () => {
 
              </div>
      </DashboardLayout>
+     
+     {/* Hidden Print Content */}
+     <div ref={printRef} style={{ display: 'none' }}>
+       <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+         <style>{`
+           @page {
+             margin: 1.5cm;
+           }
+           .print-header {
+             text-align: center;
+             border-bottom: 2px solid #000;
+             padding-bottom: 12px;
+             margin-bottom: 16px;
+           }
+           .print-header h1 {
+             font-size: 16px;
+             font-weight: bold;
+             color: #000;
+             margin: 4px 0;
+           }
+           .print-header .branch-name {
+             font-size: 14px;
+             color: #000;
+             font-weight: 600;
+             margin: 4px 0;
+           }
+           .print-header .report-type {
+             font-size: 12px;
+             color: #000;
+             margin: 4px 0;
+           }
+           .print-header p {
+             font-size: 10px;
+             color: #666;
+             margin: 4px 0 0 0;
+           }
+           .print-header .generated-by {
+             font-size: 10px;
+             color: #666;
+             margin: 2px 0;
+           }
+           .print-staff-grid {
+             display: grid;
+             grid-template-columns: repeat(2, 1fr);
+             gap: 8px;
+           }
+           .print-staff-card {
+             border: 1px solid #ddd;
+             padding: 8px;
+             page-break-inside: avoid;
+           }
+           .staff-name {
+             font-size: 12px;
+             font-weight: bold;
+             color: #000;
+             margin-bottom: 4px;
+             border-bottom: 1px solid #ccc;
+             padding-bottom: 3px;
+           }
+           .staff-info {
+             font-size: 10px;
+             color: #333;
+             line-height: 1.3;
+             margin-bottom: 3px;
+           }
+           .staff-info strong {
+             color: #000;
+           }
+           .services-section {
+             margin-top: 6px;
+             border-top: 1px solid #999;
+             padding-top: 4px;
+           }
+           .services-title {
+             font-size: 10px;
+             font-weight: bold;
+             color: #000;
+             margin-bottom: 3px;
+           }
+           .services-list {
+             font-size: 9px;
+             color: #555;
+             margin-left: 10px;
+             line-height: 1.2;
+           }
+           .no-services {
+             color: #999;
+             font-style: italic;
+           }
+           .print-footer {
+             margin-top: 10px;
+             padding-top: 8px;
+             border-top: 1px solid #ddd;
+             font-size: 9px;
+             color: #666;
+             text-align: center;
+           }
+           @media print {
+             body * {
+               visibility: hidden;
+             }
+             .print-content,
+             .print-content * {
+               visibility: visible;
+             }
+             .print-content {
+               position: absolute;
+               left: 0;
+               top: 0;
+               width: 100%;
+             }
+           }
+         `}</style>
+         <div className="print-content">
+           <div className="print-header">
+             <div className="branch-name">{branchName || userData?.branchId || 'All Branches'}</div>
+             <div className="report-type">Staff Report</div>
+             <p>Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} | Total Records: {filteredStaff.length}</p>
+             <div className="generated-by">Generated by: {userData?.firstName || ''} {userData?.lastName || ''} ({userData?.roles?.[0] || 'User'})</div>
+           </div>
+           <div className="print-staff-grid">
+             {filteredStaff.map((s, idx) => {
+               const serviceNames = getServiceNames(s.service_id);
+               return (
+                 <div key={idx} className="print-staff-card">
+                   <div className="staff-name">
+                     {s.firstName} {s.middleName} {s.lastName}
+                   </div>
+                   <div className="staff-info">
+                     <strong>Role:</strong> Stylist
+                   </div>
+                   <div className="staff-info">
+                     <strong>Status:</strong> {s.isActive ? 'Active' : 'Inactive'}
+                   </div>
+                   <div className="staff-info">
+                     <strong>Email:</strong> {s.email || 'N/A'}
+                   </div>
+                   {s.phone && (
+                     <div className="staff-info">
+                       <strong>Phone:</strong> {s.phone}
+                     </div>
+                   )}
+                   <div className="staff-info">
+                     <strong>Joined:</strong> {s.createdAt ? new Date(s.createdAt.seconds * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'Unknown'}
+                   </div>
+                   <div className="services-section">
+                     <div className="services-title">Services Offered</div>
+                     {s.service_id && s.service_id.length > 0 ? (
+                       <div className="services-list">
+                         {serviceNames}
+                         <br />
+                         Total: {s.service_id.length} {s.service_id.length === 1 ? 'service' : 'services'}
+                       </div>
+                     ) : (
+                       <div className="services-list no-services">
+                         No services assigned
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
+           <div className="print-footer">
+             <p>Computer-generated report. Information current as of date printed.</p>
+           </div>
+         </div>
+       </div>
+     </div>
     </>
   );
 };
